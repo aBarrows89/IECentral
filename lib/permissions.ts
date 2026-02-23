@@ -232,8 +232,8 @@ export function getMenuPermissions(user: PermissionUser): MenuPermissions {
     suggestions: tier >= 2,
 
     // Finance
-    mileage: tier >= 3, // T3+
-    expenseReports: tier >= 3, // T3+
+    mileage: tier >= 1, // T1+ (office managers, retail associates, etc.)
+    expenseReports: tier >= 1, // T1+ (office managers, retail associates, etc.)
     payrollApproval: tier >= 4, // T4+
     quickbooks: tier >= 4, // T4+
 

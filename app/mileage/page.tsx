@@ -51,9 +51,6 @@ function MileageContent() {
     notes: "",
   });
 
-  // Check if user is super_admin
-  const isSuperAdmin = user?.role === "super_admin";
-
   // Queries - filter by current user's mileage only
   const entries = useQuery(api.mileage.list, user?._id ? {
     year: selectedYear,
@@ -86,6 +83,24 @@ function MileageContent() {
     return pendingEntries.reduce((sum, e) => sum + e.reimbursementAmount, 0);
   }, [pendingEntries]);
 
+  // Get submitted entries for approve action
+  const submittedEntries = useMemo(() => {
+    return entries?.filter(e => e.status === "submitted") || [];
+  }, [entries]);
+
+  const submittedTotal = useMemo(() => {
+    return submittedEntries.reduce((sum, e) => sum + e.reimbursementAmount, 0);
+  }, [submittedEntries]);
+
+  // Get approved entries for mark-as-paid action
+  const approvedEntries = useMemo(() => {
+    return entries?.filter(e => e.status === "approved") || [];
+  }, [entries]);
+
+  const approvedTotal = useMemo(() => {
+    return approvedEntries.reduce((sum, e) => sum + e.reimbursementAmount, 0);
+  }, [approvedEntries]);
+
   // Submit all pending entries as a report
   const handleSubmitReport = async () => {
     if (pendingEntries.length === 0) return;
@@ -105,6 +120,52 @@ function MileageContent() {
     } catch (err) {
       console.error("Failed to submit report:", err);
       alert("Failed to submit report");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Approve all submitted entries
+  const handleApproveAll = async () => {
+    if (submittedEntries.length === 0) return;
+
+    if (!confirm(`Approve ${submittedEntries.length} entries totaling ${formatCurrency(submittedTotal)}?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await bulkUpdateStatus({
+        entryIds: submittedEntries.map(e => e._id),
+        status: "approved",
+      });
+      setSelectedStatus("approved");
+    } catch (err) {
+      console.error("Failed to approve entries:", err);
+      alert("Failed to approve entries");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Mark all approved entries as paid
+  const handleMarkPaid = async () => {
+    if (approvedEntries.length === 0) return;
+
+    if (!confirm(`Mark ${approvedEntries.length} entries totaling ${formatCurrency(approvedTotal)} as paid?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await bulkUpdateStatus({
+        entryIds: approvedEntries.map(e => e._id),
+        status: "paid",
+      });
+      setSelectedStatus("paid");
+    } catch (err) {
+      console.error("Failed to mark entries as paid:", err);
+      alert("Failed to mark entries as paid");
     } finally {
       setIsSubmitting(false);
     }
@@ -210,26 +271,6 @@ function MileageContent() {
     window.print();
   };
 
-  // If not super_admin, show access denied
-  if (!isSuperAdmin) {
-    return (
-      <div className={`flex h-screen ${isDark ? "bg-slate-900" : "bg-gray-50"}`}>
-        <Sidebar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className={`text-center p-8 rounded-xl ${isDark ? "bg-slate-800" : "bg-white"}`}>
-            <div className="text-4xl mb-4">🔒</div>
-            <h1 className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
-              Access Denied
-            </h1>
-            <p className={isDark ? "text-slate-400" : "text-gray-500"}>
-              This page is only available to super administrators.
-            </p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className={`flex h-screen ${isDark ? "bg-slate-900" : "bg-gray-50"}`}>
       <Sidebar />
@@ -296,8 +337,8 @@ function MileageContent() {
               </p>
             </div>
             <div className="flex gap-2">
-              {/* Submit Report Button - only show when there are pending entries */}
-              {pendingEntries.length > 0 && (
+              {/* Submit Report Button - only show when viewing pending and there are pending entries */}
+              {selectedStatus === "pending" && pendingEntries.length > 0 && (
                 <button
                   onClick={handleSubmitReport}
                   disabled={isSubmitting}
@@ -317,7 +358,62 @@ function MileageContent() {
                     </>
                   ) : (
                     <>
-                      Submit Report ({pendingEntries.length})
+                      Submit Report ({pendingEntries.length}) - {formatCurrency(pendingTotal)}
+                    </>
+                  )}
+                </button>
+              )}
+              {/* Approve All Button - only show when viewing submitted entries */}
+              {selectedStatus === "submitted" && submittedEntries.length > 0 && (
+                <button
+                  onClick={handleApproveAll}
+                  disabled={isSubmitting}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                    isDark
+                      ? "bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+                      : "bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Approving...
+                    </>
+                  ) : (
+                    <>
+                      Approve All ({submittedEntries.length}) - {formatCurrency(submittedTotal)}
+                    </>
+                  )}
+                </button>
+              )}
+              {/* Mark as Paid Button - only show when viewing approved entries */}
+              {selectedStatus === "approved" && approvedEntries.length > 0 && (
+                <button
+                  onClick={handleMarkPaid}
+                  disabled={isSubmitting}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                    isDark
+                      ? "bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+                      : "bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Mark as Paid ({approvedEntries.length}) - {formatCurrency(approvedTotal)}
                     </>
                   )}
                 </button>
@@ -543,10 +639,10 @@ function MileageContent() {
                 {formatCurrency(summary?.totalReimbursement || 0)}
               </p>
             </div>
-            <div className={`p-4 rounded-xl border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
-              <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Pending</p>
-              <p className={`text-2xl font-bold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                {summary?.byStatus?.pending || 0}
+            <div className={`p-4 rounded-xl border ${isDark ? "bg-green-500/10 border-green-500/30" : "bg-green-50 border-green-200"}`}>
+              <p className={`text-sm ${isDark ? "text-green-400" : "text-green-600"}`}>Paid</p>
+              <p className={`text-2xl font-bold ${isDark ? "text-green-400" : "text-green-700"}`}>
+                {summary?.byStatus?.paid || 0}
               </p>
             </div>
           </div>
@@ -608,22 +704,54 @@ function MileageContent() {
                     </td>
                     <td className="px-4 py-3 text-right no-print">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(entry)}
-                          className={`px-2 py-1 text-xs font-medium rounded ${
-                            isDark
-                              ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(entry._id)}
-                          className="px-2 py-1 text-xs font-medium rounded bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                        >
-                          Delete
-                        </button>
+                        {entry.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => handleEdit(entry)}
+                              className={`px-2 py-1 text-xs font-medium rounded ${
+                                isDark
+                                  ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                              }`}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(entry._id)}
+                              className="px-2 py-1 text-xs font-medium rounded bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        {entry.status === "submitted" && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateStatus({ entryId: entry._id, status: "approved" });
+                              } catch (err) {
+                                console.error("Failed to approve entry:", err);
+                              }
+                            }}
+                            className="px-2 py-1 text-xs font-medium rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {entry.status === "approved" && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateStatus({ entryId: entry._id, status: "paid" });
+                              } catch (err) {
+                                console.error("Failed to mark entry as paid:", err);
+                              }
+                            }}
+                            className="px-2 py-1 text-xs font-medium rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                          >
+                            Mark Paid
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

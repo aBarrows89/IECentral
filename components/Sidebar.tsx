@@ -199,8 +199,8 @@ export default function Sidebar() {
     if (group.id === "employee-portal") return tier >= 2;
     // Equipment - T2+
     if (group.id === "equipment") return tier >= 2;
-    // Finance - T3+
-    if (group.id === "finance") return tier >= 3;
+    // Finance - T1+ (mileage/expense for office managers & retail associates)
+    if (group.id === "finance") return tier >= 1;
     // Tools - T2+ for most items
     if (group.id === "tools") return tier >= 2;
     // People & Org - T4+
@@ -721,6 +721,9 @@ export default function Sidebar() {
               if (item.href === "/jobs") return permissions.menu.jobListings; // T4+
               if (item.href === "/settings/onboarding") return permissions.menu.onboardingDocs; // T4+
               if (item.href === "/settings/quickbooks") return permissions.menu.quickbooks; // T4+
+              if (item.href === "/payroll") return permissions.menu.payrollApproval; // T4+
+              if (item.href === "/mileage") return permissions.menu.mileage; // T1+
+              if (item.href === "/expense-report") return permissions.menu.expenseReports; // T1+
               if (item.href === "/daily-log") return permissions.menu.dailyLog; // requiresDailyLog or T4+
               // Hide techOnly items from non-tech users
               if (item.techOnly && !hasTechAccess) return false;
