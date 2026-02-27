@@ -101,6 +101,18 @@ function MileageContent() {
     return approvedEntries.reduce((sum, e) => sum + e.reimbursementAmount, 0);
   }, [approvedEntries]);
 
+  // Compute totals from the filtered entries (matches the current status filter)
+  const filteredTotalEntries = entries?.length || 0;
+  const filteredTotalMiles = useMemo(() => {
+    return entries?.reduce((sum, e) => {
+      const miles = e.isRoundTrip ? e.miles * 2 : e.miles;
+      return sum + miles;
+    }, 0) || 0;
+  }, [entries]);
+  const filteredTotalReimbursement = useMemo(() => {
+    return entries?.reduce((sum, e) => sum + e.reimbursementAmount, 0) || 0;
+  }, [entries]);
+
   // Submit all pending entries as a report
   const handleSubmitReport = async () => {
     if (pendingEntries.length === 0) return;
@@ -490,15 +502,15 @@ function MileageContent() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', textAlign: 'center' }}>
                   <div>
                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Entries</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{summary?.totalEntries || 0}</p>
+                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalEntries}</p>
                   </div>
                   <div>
                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Miles</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{summary?.totalMiles?.toFixed(1) || 0}</p>
+                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalMiles.toFixed(1)}</p>
                   </div>
                   <div>
                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Reimbursement</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(summary?.totalReimbursement || 0)}</p>
+                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(filteredTotalReimbursement)}</p>
                   </div>
                 </div>
               </div>
@@ -531,9 +543,9 @@ function MileageContent() {
               <tfoot>
                 <tr style={{ background: '#f1f5f9' }}>
                   <td colSpan={3} style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>TOTALS:</td>
-                  <td style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>{summary?.totalMiles?.toFixed(1)}</td>
+                  <td style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>{filteredTotalMiles.toFixed(1)}</td>
                   <td style={{ padding: '10px 8px' }}></td>
-                  <td style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>{formatCurrency(summary?.totalReimbursement || 0)}</td>
+                  <td style={{ padding: '10px 8px', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>{formatCurrency(filteredTotalReimbursement)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -624,19 +636,19 @@ function MileageContent() {
             <div className={`p-4 rounded-xl border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
               <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Total Entries</p>
               <p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                {summary?.totalEntries || 0}
+                {filteredTotalEntries}
               </p>
             </div>
             <div className={`p-4 rounded-xl border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
               <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Total Miles</p>
               <p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                {summary?.totalMiles?.toFixed(1) || 0}
+                {filteredTotalMiles.toFixed(1)}
               </p>
             </div>
             <div className={`p-4 rounded-xl border ${isDark ? "bg-cyan-500/10 border-cyan-500/30" : "bg-blue-50 border-blue-200"}`}>
               <p className={`text-sm ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Total Reimbursement</p>
               <p className={`text-2xl font-bold ${isDark ? "text-cyan-400" : "text-blue-700"}`}>
-                {formatCurrency(summary?.totalReimbursement || 0)}
+                {formatCurrency(filteredTotalReimbursement)}
               </p>
             </div>
             <div className={`p-4 rounded-xl border ${isDark ? "bg-green-500/10 border-green-500/30" : "bg-green-50 border-green-200"}`}>
@@ -771,11 +783,11 @@ function MileageContent() {
                       TOTALS
                     </td>
                     <td className={`px-4 py-3 text-sm font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                      {summary?.totalMiles?.toFixed(1)}
+                      {filteredTotalMiles.toFixed(1)}
                     </td>
                     <td colSpan={2}></td>
                     <td className={`px-4 py-3 text-sm font-bold ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
-                      {formatCurrency(summary?.totalReimbursement || 0)}
+                      {formatCurrency(filteredTotalReimbursement)}
                     </td>
                     <td colSpan={2}></td>
                   </tr>
