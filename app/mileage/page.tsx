@@ -498,19 +498,19 @@ function MileageContent() {
 
             {/* Summary Box */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-              <div style={{ width: '100%', background: '#1e293b', padding: '15px 20px', borderRadius: '6px' }}>
+              <div style={{ width: '100%', border: '2px solid #1e293b', padding: '15px 20px', borderRadius: '6px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', textAlign: 'center' }}>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Entries</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalEntries}</p>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Entries</p>
+                    <p style={{ margin: '4px 0 0 0', color: '#1e293b', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalEntries}</p>
                   </div>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Miles</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalMiles.toFixed(1)}</p>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Miles</p>
+                    <p style={{ margin: '4px 0 0 0', color: '#1e293b', fontSize: '20px', fontWeight: 'bold' }}>{filteredTotalMiles.toFixed(1)}</p>
                   </div>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Reimbursement</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(filteredTotalReimbursement)}</p>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Reimbursement</p>
+                    <p style={{ margin: '4px 0 0 0', color: '#1e293b', fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(filteredTotalReimbursement)}</p>
                   </div>
                 </div>
               </div>
@@ -519,13 +519,13 @@ function MileageContent() {
             {/* Table */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '11px' }}>
               <thead>
-                <tr style={{ background: '#1e293b' }}>
-                  <th style={{ padding: '10px 8px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>From</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>To</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'center', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Miles</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Purpose</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'right', color: 'white', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount</th>
+                <tr style={{ borderBottom: '2px solid #1e293b' }}>
+                  <th style={{ padding: '10px 8px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>From</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>To</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'center', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Miles</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Purpose</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'right', color: '#1e293b', fontWeight: '600', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -632,7 +632,7 @@ function MileageContent() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 no-print">
             <div className={`p-4 rounded-xl border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
               <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Total Entries</p>
               <p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
@@ -660,7 +660,7 @@ function MileageContent() {
           </div>
 
           {/* Entries Table */}
-          <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
+          <div className={`rounded-xl border overflow-hidden no-print ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
             <table className="w-full">
               <thead className={isDark ? "bg-slate-700" : "bg-gray-50"}>
                 <tr>

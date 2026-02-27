@@ -698,13 +698,13 @@ function ExpenseReportContent() {
             {/* Expense Table */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '12px' }}>
               <thead>
-                <tr style={{ background: '#1e293b' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Category</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Receipt</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: 'white', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount</th>
+                <tr style={{ borderBottom: '2px solid #1e293b' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>#</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Category</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Receipt</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#1e293b', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -734,10 +734,10 @@ function ExpenseReportContent() {
 
             {/* Total Section */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '30px' }}>
-              <div style={{ width: '280px', background: '#1e293b', padding: '15px 20px', borderRadius: '6px' }}>
+              <div style={{ width: '280px', border: '2px solid #1e293b', padding: '15px 20px', borderRadius: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Reimbursement</span>
-                  <span style={{ color: 'white', fontSize: '22px', fontWeight: 'bold' }}>${total.toFixed(2)}</span>
+                  <span style={{ color: '#1e293b', fontSize: '12px', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Total Reimbursement</span>
+                  <span style={{ color: '#1e293b', fontSize: '22px', fontWeight: 'bold' }}>${total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
