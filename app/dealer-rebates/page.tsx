@@ -250,7 +250,7 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
     reader.readAsText(file);
   }, []);
 
-  const processData = () => {
+  const processData = async () => {
     if (!dealers) return;
 
     // Build lookup maps from Convex dealers
@@ -320,11 +320,91 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       }
     });
 
-    setResults({ falkenOut, milestarOut, falkenDealersSeen, milestarDealersSeen, totalInputRows: rawRows.length, filteredRows: filteredRows.length });
+    const newResults: ProcessResults = { falkenOut, milestarOut, falkenDealersSeen, milestarDealersSeen, totalInputRows: rawRows.length, filteredRows: filteredRows.length };
+    setResults(newResults);
     setStep(2);
+
+    // Auto-save upload history for each program
+    if (userId) {
+      if (programs.falken && falkenOut.length > 0) {
+        const falkenHeaders = ["Falken_Distributor_Account_Number","FANATIC_Dealer_Account_Number","Distributor_Center_Address","Distributor_Center_City","Distributor_Center_State","Distributor_Center_Postal_Code","Invoice_Number","SKU","Date","Quantity","Price_Per_Tire"];
+        const falkenClean = falkenOut.map(r => {
+          const o = {...r} as Record<string, string | number>;
+          delete o._dealer;
+          delete o._jmk;
+          return o;
+        });
+        const falkenCsv = toCSV(falkenHeaders, falkenClean);
+        const falkenBreakdown: Record<string, { name: string; fanaticId?: number; count: number }> = {};
+        falkenOut.forEach(r => {
+          const key = `${r._jmk}-${r.FANATIC_Dealer_Account_Number}`;
+          if (!falkenBreakdown[key]) falkenBreakdown[key] = { name: r._dealer, fanaticId: r.FANATIC_Dealer_Account_Number, count: 0 };
+          falkenBreakdown[key].count++;
+        });
+        try {
+          await saveUpload({
+            fileName,
+            program: "falken",
+            totalInputRows: rawRows.length,
+            filteredRows: filteredRows.length,
+            matchedRows: falkenOut.length,
+            dealersMatched: falkenDealersSeen.size,
+            resultData: falkenCsv,
+            dealerBreakdown: Object.entries(falkenBreakdown).map(([key, v]) => ({
+              jmk: key.split("-")[0],
+              name: v.name,
+              fanaticId: v.fanaticId,
+              rowCount: v.count,
+            })),
+            uploadedBy: userId,
+          });
+          setSaved(p => ({ ...p, falken: true }));
+        } catch (err) {
+          console.error("Failed to save Falken upload:", err);
+        }
+      }
+
+      if (programs.milestar && milestarOut.length > 0) {
+        const milestarHeaders = ["ParentDistributorNumber","DistributorCenterNumber","DealerNumber","InvoiceNumber","InvoiceDate","ProductCode","Quantity","SellPricePerTire"];
+        const milestarClean = milestarOut.map(r => {
+          const o = {...r} as Record<string, string | number>;
+          delete o._dealer;
+          delete o._jmk;
+          return o;
+        });
+        const milestarCsv = toCSV(milestarHeaders, milestarClean);
+        const milestarBreakdown: Record<string, { name: string; dealerNumber?: string; count: number }> = {};
+        milestarOut.forEach(r => {
+          const key = `${r._jmk}-${r.DealerNumber}`;
+          if (!milestarBreakdown[key]) milestarBreakdown[key] = { name: r._dealer, dealerNumber: r.DealerNumber, count: 0 };
+          milestarBreakdown[key].count++;
+        });
+        try {
+          await saveUpload({
+            fileName,
+            program: "milestar",
+            totalInputRows: rawRows.length,
+            filteredRows: filteredRows.length,
+            matchedRows: milestarOut.length,
+            dealersMatched: milestarDealersSeen.size,
+            resultData: milestarCsv,
+            dealerBreakdown: Object.entries(milestarBreakdown).map(([key, v]) => ({
+              jmk: key.split("-")[0],
+              name: v.name,
+              dealerNumber: v.dealerNumber,
+              rowCount: v.count,
+            })),
+            uploadedBy: userId,
+          });
+          setSaved(p => ({ ...p, milestar: true }));
+        } catch (err) {
+          console.error("Failed to save Milestar upload:", err);
+        }
+      }
+    }
   };
 
-  const exportFalken = async () => {
+  const exportFalken = () => {
     if (!results) return;
     const headers = ["Falken_Distributor_Account_Number","FANATIC_Dealer_Account_Number","Distributor_Center_Address","Distributor_Center_City","Distributor_Center_State","Distributor_Center_Postal_Code","Invoice_Number","SKU","Date","Quantity","Price_Per_Tire"];
     const clean = results.falkenOut.map(r => {
@@ -333,40 +413,10 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       delete o._jmk;
       return o;
     });
-    const csvContent = toCSV(headers, clean);
-    downloadCSV(`Falken_Fanatic_${todayStamp()}.csv`, csvContent);
-
-    // Save to upload history
-    if (userId && !saved.falken) {
-      setSaving(true);
-      const breakdown: Record<string, { name: string; fanaticId?: number; count: number }> = {};
-      results.falkenOut.forEach(r => {
-        const key = `${r._jmk}-${r.FANATIC_Dealer_Account_Number}`;
-        if (!breakdown[key]) breakdown[key] = { name: r._dealer, fanaticId: r.FANATIC_Dealer_Account_Number, count: 0 };
-        breakdown[key].count++;
-      });
-      await saveUpload({
-        fileName,
-        program: "falken",
-        totalInputRows: results.totalInputRows,
-        filteredRows: results.filteredRows,
-        matchedRows: results.falkenOut.length,
-        dealersMatched: results.falkenDealersSeen.size,
-        resultData: csvContent,
-        dealerBreakdown: Object.entries(breakdown).map(([key, v]) => ({
-          jmk: key.split("-")[0],
-          name: v.name,
-          fanaticId: v.fanaticId,
-          rowCount: v.count,
-        })),
-        uploadedBy: userId,
-      });
-      setSaved(p => ({ ...p, falken: true }));
-      setSaving(false);
-    }
+    downloadCSV(`Falken_Fanatic_${todayStamp()}.csv`, toCSV(headers, clean));
   };
 
-  const exportMilestar = async () => {
+  const exportMilestar = () => {
     if (!results) return;
     const headers = ["ParentDistributorNumber","DistributorCenterNumber","DealerNumber","InvoiceNumber","InvoiceDate","ProductCode","Quantity","SellPricePerTire"];
     const clean = results.milestarOut.map(r => {
@@ -375,37 +425,7 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       delete o._jmk;
       return o;
     });
-    const csvContent = toCSV(headers, clean);
-    downloadCSV(`Milestar_Momentum_${todayStamp()}.csv`, csvContent);
-
-    // Save to upload history
-    if (userId && !saved.milestar) {
-      setSaving(true);
-      const breakdown: Record<string, { name: string; dealerNumber?: string; count: number }> = {};
-      results.milestarOut.forEach(r => {
-        const key = `${r._jmk}-${r.DealerNumber}`;
-        if (!breakdown[key]) breakdown[key] = { name: r._dealer, dealerNumber: r.DealerNumber, count: 0 };
-        breakdown[key].count++;
-      });
-      await saveUpload({
-        fileName,
-        program: "milestar",
-        totalInputRows: results.totalInputRows,
-        filteredRows: results.filteredRows,
-        matchedRows: results.milestarOut.length,
-        dealersMatched: results.milestarDealersSeen.size,
-        resultData: csvContent,
-        dealerBreakdown: Object.entries(breakdown).map(([, v]) => ({
-          jmk: "",
-          name: v.name,
-          dealerNumber: v.dealerNumber,
-          rowCount: v.count,
-        })),
-        uploadedBy: userId,
-      });
-      setSaved(p => ({ ...p, milestar: true }));
-      setSaving(false);
-    }
+    downloadCSV(`Milestar_Momentum_${todayStamp()}.csv`, toCSV(headers, clean));
   };
 
   const resetAll = () => {
@@ -589,8 +609,8 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
                   <div className={`text-xs ${isDark ? "text-amber-600" : "text-amber-500"}`}>{results.falkenOut.length} rows &middot; Distributor 20118 &middot; M/D/YYYY dates</div>
                 </div>
                 {results.falkenOut.length > 0 ? (
-                  <button onClick={exportFalken} disabled={saving} className="px-4 py-1.5 rounded-lg text-sm font-bold bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50">
-                    {saved.falken ? "Re-download" : "Download Falken CSV"}
+                  <button onClick={exportFalken} className="px-4 py-1.5 rounded-lg text-sm font-bold bg-green-600 hover:bg-green-700 text-white transition-colors">
+                    Download Falken CSV
                   </button>
                 ) : (
                   <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>No matching dealers</span>
@@ -649,8 +669,8 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
                   <div className={`text-xs ${isDark ? "text-blue-600" : "text-blue-500"}`}>{results.milestarOut.length} rows &middot; Parent 119662 &middot; YYMMDD dates</div>
                 </div>
                 {results.milestarOut.length > 0 ? (
-                  <button onClick={exportMilestar} disabled={saving} className="px-4 py-1.5 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50">
-                    {saved.milestar ? "Re-download" : "Download Milestar CSV"}
+                  <button onClick={exportMilestar} className="px-4 py-1.5 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                    Download Milestar CSV
                   </button>
                 ) : (
                   <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>No matching dealers</span>
