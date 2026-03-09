@@ -195,10 +195,12 @@ function UsersContent() {
     setError("");
     setSuccess("");
 
+    // Note: title and permissionOverrides require Convex prod deploy to enable
+    // Once deployed, uncomment the two lines below
     const result = await updateUser({
       userId: selectedUser._id,
       name: editForm.name,
-      title: editForm.title || undefined,
+      // title: editForm.title || undefined,
       email: editForm.email,
       role: editForm.role,
       isActive: editForm.isActive,
@@ -208,7 +210,7 @@ function UsersContent() {
       managedDepartments: editForm.role === "department_manager" ? editForm.managedDepartments : undefined,
       isFinalTimeApprover: editForm.isFinalTimeApprover,
       isPayrollProcessor: editForm.isPayrollProcessor,
-      permissionOverrides: Object.keys(editForm.permissionOverrides).length > 0 ? editForm.permissionOverrides : {},
+      // permissionOverrides: Object.keys(editForm.permissionOverrides).length > 0 ? editForm.permissionOverrides : {},
     });
 
     if (result.success) {
