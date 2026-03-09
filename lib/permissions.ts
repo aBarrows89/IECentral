@@ -12,6 +12,9 @@
 
 import { Id } from "@/convex/_generated/dataModel";
 
+// Permission override map: key is permission name, value is true (grant) or false (deny)
+export type PermissionOverrides = Record<string, boolean>;
+
 // User type for permission checks
 export interface PermissionUser {
   _id: Id<"users">;
@@ -22,6 +25,7 @@ export interface PermissionUser {
   isFinalTimeApprover?: boolean;
   isPayrollProcessor?: boolean;
   reportsTo?: Id<"users">;
+  permissionOverrides?: PermissionOverrides;
 }
 
 // Tier levels
@@ -478,62 +482,279 @@ export function getDashboardWidgetPermissions(user: PermissionUser): DashboardWi
   };
 }
 
+// ============ PERMISSION OVERRIDE SYSTEM ============
+
+// All available permissions with categories for UI display
+export interface PermissionDefinition {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+}
+
+export const PERMISSION_CATEGORIES = [
+  { key: "admin", label: "Administrative" },
+  { key: "ats", label: "ATS / Hiring" },
+  { key: "personnel", label: "Personnel" },
+  { key: "time", label: "Time & Attendance" },
+  { key: "equipment", label: "Equipment" },
+  { key: "scheduling", label: "Scheduling" },
+  { key: "finance", label: "Finance" },
+  { key: "communication", label: "Calendar & Messages" },
+  { key: "documents", label: "Documents & Tools" },
+  { key: "projects", label: "Projects" },
+  { key: "reports", label: "Reports & Organization" },
+  { key: "portals", label: "Portals" },
+  { key: "it", label: "IT & Support" },
+] as const;
+
+export const ALL_PERMISSIONS: PermissionDefinition[] = [
+  // Administrative
+  { key: "menu.userManagement", label: "User Management", description: "View and manage user accounts", category: "admin" },
+  { key: "menu.auditLog", label: "Audit Log", description: "View system audit logs", category: "admin" },
+  { key: "menu.timeChangeAuditLog", label: "Time Change Audit Log", description: "View time change audit trail", category: "admin" },
+  { key: "menu.systemSettings", label: "System Settings", description: "Manage system configuration", category: "admin" },
+  { key: "menu.deletedRecords", label: "Deleted Records", description: "View and restore deleted records", category: "admin" },
+
+  // ATS / Hiring
+  { key: "menu.applications", label: "View Applications", description: "Access job applications", category: "ats" },
+  { key: "menu.jobListings", label: "Job Listings", description: "Create and manage job postings", category: "ats" },
+  { key: "menu.bulkUpload", label: "Bulk Upload", description: "Bulk upload applications", category: "ats" },
+  { key: "menu.indeedSettings", label: "Indeed Settings", description: "Configure Indeed integration", category: "ats" },
+  { key: "ats.changeStatus", label: "Change Application Status", description: "Update application statuses", category: "ats" },
+  { key: "ats.scheduleInterviews", label: "Schedule Interviews", description: "Schedule candidate interviews", category: "ats" },
+
+  // Personnel
+  { key: "menu.personnel", label: "View Personnel", description: "Access personnel records", category: "personnel" },
+  { key: "menu.onboardingDocs", label: "Onboarding Documents", description: "Manage onboarding document templates", category: "personnel" },
+  { key: "personnel.create", label: "Create Personnel", description: "Add new personnel records", category: "personnel" },
+  { key: "personnel.edit", label: "Edit Personnel", description: "Modify personnel records", category: "personnel" },
+  { key: "personnel.createWriteUps", label: "Create Write-Ups", description: "Create employee write-ups", category: "personnel" },
+  { key: "personnel.createReviews", label: "Create Reviews", description: "Create employee reviews", category: "personnel" },
+  { key: "personnel.awardMerits", label: "Award Merits", description: "Award merit points to employees", category: "personnel" },
+
+  // Time & Attendance
+  { key: "menu.timeClock", label: "Time Clock", description: "Clock in/out access", category: "time" },
+  { key: "menu.callOffs", label: "Call-Offs", description: "View and manage call-offs", category: "time" },
+  { key: "menu.timeApproval", label: "Time Approval", description: "Approve employee timesheets", category: "time" },
+  { key: "menu.payrollExport", label: "Payroll Export", description: "Export payroll data", category: "time" },
+  { key: "menu.overtime", label: "Overtime Tracking", description: "View overtime reports", category: "time" },
+  { key: "menu.timeCorrections", label: "Time Corrections", description: "Submit and manage time corrections", category: "time" },
+  { key: "time.finalApproval", label: "Final Time Approval", description: "Final approval on timesheets", category: "time" },
+  { key: "time.adjustTime", label: "Adjust Time", description: "Modify employee time entries", category: "time" },
+
+  // Equipment
+  { key: "menu.equipment", label: "Equipment", description: "View and manage equipment", category: "equipment" },
+  { key: "menu.safetyCheckQR", label: "Safety Check QR", description: "Manage safety check QR codes", category: "equipment" },
+  { key: "equipment.create", label: "Create Equipment", description: "Add new equipment records", category: "equipment" },
+  { key: "equipment.edit", label: "Edit Equipment", description: "Modify equipment records", category: "equipment" },
+
+  // Scheduling
+  { key: "menu.shiftPlanning", label: "Shift Planning", description: "View and manage shift schedules", category: "scheduling" },
+  { key: "menu.scheduleTemplates", label: "Schedule Templates", description: "Create and manage schedule templates", category: "scheduling" },
+  { key: "menu.saturdayOvertime", label: "Saturday Overtime", description: "Manage Saturday overtime scheduling", category: "scheduling" },
+  { key: "menu.dailyLog", label: "Daily Log", description: "Submit and view daily activity logs", category: "scheduling" },
+
+  // Finance
+  { key: "menu.mileage", label: "Mileage", description: "Submit mileage reports", category: "finance" },
+  { key: "menu.expenseReports", label: "Expense Reports", description: "Submit expense reports", category: "finance" },
+  { key: "menu.payrollApproval", label: "Payroll Approval", description: "Approve payroll batches", category: "finance" },
+  { key: "menu.quickbooks", label: "QuickBooks", description: "QuickBooks integration settings", category: "finance" },
+
+  // Calendar & Messages
+  { key: "menu.calendar", label: "Calendar", description: "View and create calendar events", category: "communication" },
+  { key: "menu.messages", label: "Messages", description: "Send and receive messages", category: "communication" },
+  { key: "menu.announcements", label: "Announcements", description: "View announcements", category: "communication" },
+  { key: "messages.createCompanyAnnouncements", label: "Create Company Announcements", description: "Post company-wide announcements", category: "communication" },
+  { key: "messages.createOvertimeAnnouncements", label: "Create Overtime Announcements", description: "Post overtime opportunity announcements", category: "communication" },
+  { key: "calendar.editAnyEvent", label: "Edit Any Calendar Event", description: "Edit events created by other users", category: "communication" },
+
+  // Documents & Tools
+  { key: "menu.docHub", label: "Doc Hub", description: "Access document repository", category: "documents" },
+  { key: "menu.binLabels", label: "Bin Labels", description: "Generate warehouse bin labels", category: "documents" },
+  { key: "menu.arp", label: "ARP", description: "Access ARP tool", category: "documents" },
+
+  // Projects
+  { key: "menu.projects", label: "Projects", description: "View and manage projects", category: "projects" },
+  { key: "menu.suggestions", label: "Suggestions", description: "View and submit suggestions", category: "projects" },
+
+  // Reports & Organization
+  { key: "menu.reports", label: "Reports", description: "Access system reports", category: "reports" },
+  { key: "menu.surveys", label: "Surveys", description: "Create and manage surveys", category: "reports" },
+  { key: "menu.orgChart", label: "Org Chart", description: "View organization chart", category: "reports" },
+  { key: "menu.locations", label: "Locations", description: "Manage locations", category: "reports" },
+  { key: "menu.engagement", label: "Engagement", description: "View engagement metrics", category: "reports" },
+
+  // Portals
+  { key: "menu.departmentPortal", label: "Department Portal", description: "Access department portal", category: "portals" },
+  { key: "menu.employeePortal", label: "Employee Portal", description: "Access employee portal", category: "portals" },
+
+  // IT & Support
+  { key: "menu.techWizard", label: "Tech Wizard", description: "AI tech support wizard", category: "it" },
+  { key: "menu.websiteMessages", label: "Website Messages", description: "View website contact form messages", category: "it" },
+
+  // Dashboard Widgets
+  { key: "dashboard.activeProjects", label: "Active Projects Widget", description: "Show active projects on dashboard", category: "reports" },
+  { key: "dashboard.recentApplications", label: "Recent Applications Widget", description: "Show recent applications on dashboard", category: "reports" },
+  { key: "dashboard.websiteMessages", label: "Website Messages Widget", description: "Show website messages on dashboard", category: "reports" },
+  { key: "dashboard.hiringAnalytics", label: "Hiring Analytics Widget", description: "Show hiring analytics on dashboard", category: "reports" },
+  { key: "dashboard.activityFeed", label: "Activity Feed Widget", description: "Show activity feed on dashboard", category: "reports" },
+  { key: "dashboard.tenureCheckins", label: "Tenure Check-ins Widget", description: "Show tenure check-ins on dashboard", category: "reports" },
+];
+
+/**
+ * Get all role-default permissions as a flat map.
+ * Uses existing tier-based functions to compute defaults, then flattens into a single map.
+ */
+export function getRoleDefaults(user: PermissionUser): Record<string, boolean> {
+  const menu = getMenuPermissions(user);
+  const ats = getATSPermissions(user);
+  const personnel = getPersonnelPermissions(user);
+  const equip = getEquipmentPermissions(user);
+  const time = getTimePermissions(user);
+  const cal = getCalendarPermissions(user);
+  const msg = getMessagesPermissions(user);
+  const dash = getDashboardWidgetPermissions(user);
+
+  const defaults: Record<string, boolean> = {};
+
+  // Menu permissions
+  for (const [key, value] of Object.entries(menu)) {
+    defaults[`menu.${key}`] = value;
+  }
+
+  // ATS permissions
+  for (const [key, value] of Object.entries(ats)) {
+    if (key !== "locationScoped") defaults[`ats.${key}`] = value;
+  }
+
+  // Personnel permissions
+  for (const [key, value] of Object.entries(personnel)) {
+    if (key !== "locationScoped") defaults[`personnel.${key}`] = value;
+  }
+
+  // Equipment permissions
+  for (const [key, value] of Object.entries(equip)) {
+    defaults[`equipment.${key}`] = value;
+  }
+
+  // Time permissions
+  for (const [key, value] of Object.entries(time)) {
+    if (key !== "locationScoped") defaults[`time.${key}`] = value;
+  }
+
+  // Calendar permissions
+  for (const [key, value] of Object.entries(cal)) {
+    defaults[`calendar.${key}`] = value;
+  }
+
+  // Messages permissions
+  for (const [key, value] of Object.entries(msg)) {
+    defaults[`messages.${key}`] = value;
+  }
+
+  // Dashboard permissions
+  for (const [key, value] of Object.entries(dash)) {
+    defaults[`dashboard.${key}`] = value;
+  }
+
+  return defaults;
+}
+
+/**
+ * Resolve a single permission: override wins over role default.
+ */
+export function resolvePermission(
+  permKey: string,
+  roleDefaults: Record<string, boolean>,
+  overrides?: PermissionOverrides
+): boolean {
+  if (overrides && permKey in overrides) {
+    return overrides[permKey];
+  }
+  return roleDefaults[permKey] ?? false;
+}
+
+/**
+ * Get all resolved permissions for a user (role defaults + overrides merged).
+ */
+export function getResolvedPermissions(user: PermissionUser): Record<string, boolean> {
+  const defaults = getRoleDefaults(user);
+  const resolved: Record<string, boolean> = { ...defaults };
+
+  if (user.permissionOverrides) {
+    for (const [key, value] of Object.entries(user.permissionOverrides)) {
+      resolved[key] = value;
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Check a single resolved permission for a user.
+ */
+export function hasPermission(user: PermissionUser, permKey: string): boolean {
+  const defaults = getRoleDefaults(user);
+  return resolvePermission(permKey, defaults, user.permissionOverrides);
+}
+
 // ============ UTILITY FUNCTIONS ============
 
 // Check if user can access a route
 export function canAccessRoute(user: PermissionUser, route: string): boolean {
-  const permissions = getMenuPermissions(user);
+  const resolved = getResolvedPermissions(user);
 
-  // Map routes to permissions
-  const routeMap: Record<string, keyof MenuPermissions> = {
-    "/users": "userManagement",
-    "/audit-log": "auditLog",
-    "/settings": "systemSettings",
-    "/deleted-records": "deletedRecords",
-    "/applications": "applications",
-    "/jobs": "jobListings",
-    "/applications/bulk-upload": "bulkUpload",
-    "/personnel": "personnel",
-    "/settings/onboarding": "onboardingDocs",
-    "/time-clock": "timeClock",
-    "/call-offs": "callOffs",
-    "/payroll": "payrollApproval",
-    "/overtime": "overtime",
-    "/equipment": "equipment",
-    "/daily-log": "dailyLog",
-    "/calendar": "calendar",
-    "/messages": "messages",
-    "/announcements": "announcements",
-    "/documents": "docHub",
-    "/shifts": "shiftPlanning",
-    "/schedule-templates": "scheduleTemplates",
-    "/arp": "arp",
-    "/projects": "projects",
-    "/suggestions": "suggestions",
-    "/mileage": "mileage",
-    "/expense-report": "expenseReports",
-    "/settings/quickbooks": "quickbooks",
-    "/bin-labels": "binLabels",
-    "/reports": "reports",
-    "/org-chart": "orgChart",
-    "/locations": "locations",
-    "/engagement": "engagement",
-    "/department-portal": "departmentPortal",
-    "/portal": "employeePortal",
-    "/tech-wizard": "techWizard",
-    "/website-messages": "websiteMessages",
-    "/time-off": "timeCorrections",
+  // Map routes to permission keys
+  const routeMap: Record<string, string> = {
+    "/users": "menu.userManagement",
+    "/audit-log": "menu.auditLog",
+    "/settings": "menu.systemSettings",
+    "/deleted-records": "menu.deletedRecords",
+    "/applications": "menu.applications",
+    "/jobs": "menu.jobListings",
+    "/applications/bulk-upload": "menu.bulkUpload",
+    "/personnel": "menu.personnel",
+    "/settings/onboarding": "menu.onboardingDocs",
+    "/time-clock": "menu.timeClock",
+    "/call-offs": "menu.callOffs",
+    "/payroll": "menu.payrollApproval",
+    "/overtime": "menu.overtime",
+    "/equipment": "menu.equipment",
+    "/daily-log": "menu.dailyLog",
+    "/calendar": "menu.calendar",
+    "/messages": "menu.messages",
+    "/announcements": "menu.announcements",
+    "/documents": "menu.docHub",
+    "/shifts": "menu.shiftPlanning",
+    "/schedule-templates": "menu.scheduleTemplates",
+    "/arp": "menu.arp",
+    "/projects": "menu.projects",
+    "/suggestions": "menu.suggestions",
+    "/mileage": "menu.mileage",
+    "/expense-report": "menu.expenseReports",
+    "/settings/quickbooks": "menu.quickbooks",
+    "/bin-labels": "menu.binLabels",
+    "/reports": "menu.reports",
+    "/org-chart": "menu.orgChart",
+    "/locations": "menu.locations",
+    "/engagement": "menu.engagement",
+    "/department-portal": "menu.departmentPortal",
+    "/portal": "menu.employeePortal",
+    "/tech-wizard": "menu.techWizard",
+    "/website-messages": "menu.websiteMessages",
+    "/time-off": "menu.timeCorrections",
   };
 
   // Check exact match first
   if (routeMap[route]) {
-    return permissions[routeMap[route]];
+    return resolved[routeMap[route]] ?? false;
   }
 
   // Check prefix matches for dynamic routes
-  for (const [routePrefix, permission] of Object.entries(routeMap)) {
+  for (const [routePrefix, permKey] of Object.entries(routeMap)) {
     if (route.startsWith(routePrefix)) {
-      return permissions[permission];
+      return resolved[permKey] ?? false;
     }
   }
 

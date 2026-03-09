@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Protected from "../protected";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "../auth-context";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import {
+  ALL_PERMISSIONS,
+  PERMISSION_CATEGORIES,
+  getRoleDefaults,
+  type PermissionUser,
+  type PermissionOverrides,
+} from "@/lib/permissions";
 
 interface User {
   _id: Id<"users">;
   email: string;
   name: string;
+  title?: string;
   role: string;
   isActive: boolean;
   forcePasswordChange: boolean;
@@ -24,6 +32,7 @@ interface User {
   // RBAC floating permissions
   isFinalTimeApprover?: boolean;
   isPayrollProcessor?: boolean;
+  permissionOverrides?: Record<string, boolean>;
 }
 
 function UsersContent() {
@@ -59,6 +68,7 @@ function UsersContent() {
   // Form state for edit
   const [editForm, setEditForm] = useState({
     name: "",
+    title: "",
     email: "",
     role: "",
     isActive: true,
@@ -69,7 +79,85 @@ function UsersContent() {
     // RBAC floating permissions
     isFinalTimeApprover: false,
     isPayrollProcessor: false,
+    permissionOverrides: {} as PermissionOverrides,
   });
+
+  // Track which permission categories are expanded
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  // Compute role defaults for the currently selected role in the edit form
+  const editRoleDefaults = useMemo(() => {
+    if (!selectedUser || !editForm.role) return {};
+    const tempUser: PermissionUser = {
+      _id: selectedUser._id,
+      role: editForm.role,
+      managedLocationIds: editForm.managedLocationIds,
+      managedDepartments: editForm.managedDepartments,
+      requiresDailyLog: editForm.requiresDailyLog,
+      isFinalTimeApprover: editForm.isFinalTimeApprover,
+      isPayrollProcessor: editForm.isPayrollProcessor,
+    };
+    return getRoleDefaults(tempUser);
+  }, [selectedUser, editForm.role, editForm.managedLocationIds, editForm.managedDepartments, editForm.requiresDailyLog, editForm.isFinalTimeApprover, editForm.isPayrollProcessor]);
+
+  // Toggle a permission override: cycles through default → granted → denied → default
+  const togglePermissionOverride = (permKey: string) => {
+    setEditForm(prev => {
+      const overrides = { ...prev.permissionOverrides };
+      const roleDefault = editRoleDefaults[permKey] ?? false;
+
+      if (permKey in overrides) {
+        if (overrides[permKey] === true && roleDefault) {
+          // Was overridden to true (same as default=true) → deny
+          overrides[permKey] = false;
+        } else if (overrides[permKey] === true && !roleDefault) {
+          // Was overridden to true (different from default=false) → remove override (back to default)
+          delete overrides[permKey];
+        } else if (overrides[permKey] === false && !roleDefault) {
+          // Was overridden to false (same as default=false) → remove override
+          delete overrides[permKey];
+        } else {
+          // Was overridden to false (different from default=true) → remove override (back to default)
+          delete overrides[permKey];
+        }
+      } else {
+        // No override currently → toggle opposite of default
+        overrides[permKey] = !roleDefault;
+      }
+
+      return { ...prev, permissionOverrides: overrides };
+    });
+  };
+
+  // Get the effective value for a permission (override or role default)
+  const getEffectivePermission = (permKey: string): { value: boolean; isOverridden: boolean } => {
+    if (permKey in editForm.permissionOverrides) {
+      return { value: editForm.permissionOverrides[permKey], isOverridden: true };
+    }
+    return { value: editRoleDefaults[permKey] ?? false, isOverridden: false };
+  };
+
+  // Count overrides for a category
+  const getCategoryOverrideCount = (categoryKey: string): number => {
+    return ALL_PERMISSIONS
+      .filter(p => p.category === categoryKey)
+      .filter(p => p.key in editForm.permissionOverrides)
+      .length;
+  };
+
+  // Apply role template (clear all overrides)
+  const clearAllOverrides = () => {
+    setEditForm(prev => ({ ...prev, permissionOverrides: {} }));
+  };
 
   // Get departments from shift planning module for department_manager assignment
   const departments = useQuery(api.shifts.getDepartments) || [];
@@ -108,6 +196,7 @@ function UsersContent() {
     const result = await updateUser({
       userId: selectedUser._id,
       name: editForm.name,
+      title: editForm.title || undefined,
       email: editForm.email,
       role: editForm.role,
       isActive: editForm.isActive,
@@ -117,6 +206,7 @@ function UsersContent() {
       managedDepartments: editForm.role === "department_manager" ? editForm.managedDepartments : undefined,
       isFinalTimeApprover: editForm.isFinalTimeApprover,
       isPayrollProcessor: editForm.isPayrollProcessor,
+      permissionOverrides: Object.keys(editForm.permissionOverrides).length > 0 ? editForm.permissionOverrides : {},
     });
 
     if (result.success) {
@@ -176,6 +266,7 @@ function UsersContent() {
     setSelectedUser(user);
     setEditForm({
       name: user.name,
+      title: user.title || "",
       email: user.email,
       role: user.role,
       isActive: user.isActive,
@@ -185,7 +276,9 @@ function UsersContent() {
       managedDepartments: user.managedDepartments || [],
       isFinalTimeApprover: user.isFinalTimeApprover || false,
       isPayrollProcessor: user.isPayrollProcessor || false,
+      permissionOverrides: user.permissionOverrides ? { ...user.permissionOverrides } : {},
     });
+    setExpandedCategories(new Set());
     setShowEditModal(true);
   };
 
@@ -366,6 +459,7 @@ function UsersContent() {
                     <td className="px-6 py-4">
                       <div>
                         <div className="text-white font-medium">{user.name}</div>
+                        {user.title && <div className="text-slate-500 text-xs">{user.title}</div>}
                         <div className="text-slate-400 text-sm">{user.email}</div>
                       </div>
                     </td>
@@ -476,6 +570,7 @@ function UsersContent() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0 flex-1">
                     <h3 className="text-white font-medium truncate">{user.name}</h3>
+                    {user.title && <p className="text-slate-500 text-xs truncate">{user.title}</p>}
                     <p className="text-slate-400 text-sm truncate">{user.email}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -665,7 +760,7 @@ function UsersContent() {
       {/* Edit User Modal */}
       {showEditModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white mb-4">Edit User</h2>
             <form onSubmit={handleEditUser} className="space-y-4">
               <div>
@@ -677,6 +772,19 @@ function UsersContent() {
                   className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Job Title</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  placeholder="e.g. Warehouse Supervisor, Shipping Clerk"
+                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Position title for tracking — separate from system role
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">Email</label>
@@ -780,6 +888,115 @@ function UsersContent() {
                   <p className="text-xs text-slate-500 ml-7">
                     Can export payroll data and access payroll reports
                   </p>
+                </div>
+              </div>
+
+              {/* Feature Permissions */}
+              <div className="border-t border-slate-700 pt-4 mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-slate-300">Feature Permissions</h4>
+                  {Object.keys(editForm.permissionOverrides).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearAllOverrides}
+                      className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      Reset to role defaults ({Object.keys(editForm.permissionOverrides).length} override{Object.keys(editForm.permissionOverrides).length !== 1 ? "s" : ""})
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mb-3">
+                  Role sets defaults. Click checkboxes to override individual permissions.
+                </p>
+
+                <div className="space-y-1 max-h-64 overflow-y-auto bg-slate-900/30 rounded-lg border border-slate-700">
+                  {PERMISSION_CATEGORIES.map((cat) => {
+                    const catPerms = ALL_PERMISSIONS.filter(p => p.category === cat.key);
+                    if (catPerms.length === 0) return null;
+                    const isExpanded = expandedCategories.has(cat.key);
+                    const overrideCount = getCategoryOverrideCount(cat.key);
+                    const grantedCount = catPerms.filter(p => getEffectivePermission(p.key).value).length;
+
+                    return (
+                      <div key={cat.key}>
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(cat.key)}
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800/50 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className={`w-3 h-3 text-slate-500 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <span className="text-sm text-slate-300 font-medium">{cat.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {overrideCount > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">
+                                {overrideCount} override{overrideCount !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-500">
+                              {grantedCount}/{catPerms.length}
+                            </span>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="pb-2 px-3">
+                            {catPerms.map((perm) => {
+                              const { value, isOverridden } = getEffectivePermission(perm.key);
+                              const roleDefault = editRoleDefaults[perm.key] ?? false;
+
+                              return (
+                                <label
+                                  key={perm.key}
+                                  className={`flex items-center gap-3 cursor-pointer py-1.5 px-2 rounded hover:bg-slate-800/30 transition-colors ${
+                                    isOverridden ? "bg-slate-800/20" : ""
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={value}
+                                    onChange={() => togglePermissionOverride(perm.key)}
+                                    className={`w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 focus:ring-cyan-500 ${
+                                      isOverridden
+                                        ? value
+                                          ? "text-green-500"
+                                          : "text-red-500"
+                                        : "text-cyan-500"
+                                    }`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`text-xs ${isOverridden ? "text-white font-medium" : "text-slate-400"}`}>
+                                      {perm.label}
+                                    </span>
+                                    {isOverridden && (
+                                      <span className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
+                                        value !== roleDefault
+                                          ? value
+                                            ? "bg-green-500/20 text-green-400"
+                                            : "bg-red-500/20 text-red-400"
+                                          : "bg-slate-600/30 text-slate-400"
+                                      }`}>
+                                        {value !== roleDefault
+                                          ? value ? "granted" : "denied"
+                                          : "override (same as default)"
+                                        }
+                                      </span>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

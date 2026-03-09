@@ -7,6 +7,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     passwordHash: v.optional(v.string()),
     name: v.string(),
+    title: v.optional(v.string()), // Job title (e.g. "Warehouse Supervisor", "Shipping Clerk") - for tracking positions alongside permissions
     role: v.string(), // "super_admin" | "admin" | "warehouse_director" | "warehouse_manager" | "office_manager" | "retail_manager" | "retail_store_manager" | "department_manager" | "shift_lead" | "retail_associate" | "payroll_manager" | "employee" | "member"
     isActive: v.boolean(),
     forcePasswordChange: v.optional(v.boolean()),
@@ -23,6 +24,8 @@ export default defineSchema({
     // Time & Payroll flags (floating permissions - RBAC)
     isFinalTimeApprover: v.optional(v.boolean()), // Can do final time approval after T2 location approval
     isPayrollProcessor: v.optional(v.boolean()), // Can export payroll data
+    // Feature-level permission overrides (three-state: undefined=use role default, true=grant, false=deny)
+    permissionOverrides: v.optional(v.record(v.string(), v.boolean())),
     createdAt: v.optional(v.number()),
     lastLoginAt: v.optional(v.number()),
     // Legacy fields from old system

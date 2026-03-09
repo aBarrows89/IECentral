@@ -22,6 +22,8 @@ export interface User {
   isFinalTimeApprover?: boolean; // Can do final time approval
   isPayrollProcessor?: boolean; // Can export payroll data
   reportsTo?: Id<"users">; // Who this user reports to
+  // Feature-level permission overrides
+  permissionOverrides?: Record<string, boolean>;
 }
 
 interface AuthContextType {
@@ -181,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         managedLocationIds: userData.managedLocationIds,
         personnelId: userData.personnelId,
         requiresDailyLog: userData.requiresDailyLog,
+        permissionOverrides: userData.permissionOverrides as Record<string, boolean> | undefined,
       }
     : null;
 

@@ -413,6 +413,7 @@ export const updateUser = mutation({
   args: {
     userId: v.id("users"),
     name: v.optional(v.string()),
+    title: v.optional(v.string()),
     email: v.optional(v.string()),
     role: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
@@ -424,9 +425,11 @@ export const updateUser = mutation({
     // RBAC floating permissions
     isFinalTimeApprover: v.optional(v.boolean()),
     isPayrollProcessor: v.optional(v.boolean()),
+    // Feature-level permission overrides
+    permissionOverrides: v.optional(v.record(v.string(), v.boolean())),
   },
   handler: async (ctx, args) => {
-    const { userId, requiresDailyLog, managedLocationIds, managedDepartments, reportsTo, personnelId, isFinalTimeApprover, isPayrollProcessor, ...updates } = args;
+    const { userId, title, requiresDailyLog, managedLocationIds, managedDepartments, reportsTo, personnelId, isFinalTimeApprover, isPayrollProcessor, permissionOverrides, ...updates } = args;
 
     // If email is being updated, check for duplicates
     if (updates.email) {
@@ -444,6 +447,7 @@ export const updateUser = mutation({
     // Build updates object
     const cleanUpdates: Record<string, unknown> = {};
     if (updates.name !== undefined) cleanUpdates.name = updates.name;
+    if (title !== undefined) cleanUpdates.title = title;
     if (updates.email !== undefined) cleanUpdates.email = updates.email;
     if (updates.role !== undefined) cleanUpdates.role = updates.role;
     if (updates.isActive !== undefined) cleanUpdates.isActive = updates.isActive;
@@ -455,6 +459,8 @@ export const updateUser = mutation({
     // RBAC floating permissions
     if (isFinalTimeApprover !== undefined) cleanUpdates.isFinalTimeApprover = isFinalTimeApprover;
     if (isPayrollProcessor !== undefined) cleanUpdates.isPayrollProcessor = isPayrollProcessor;
+    // Permission overrides
+    if (permissionOverrides !== undefined) cleanUpdates.permissionOverrides = permissionOverrides;
 
     await ctx.db.patch(userId, cleanUpdates);
     return { success: true };

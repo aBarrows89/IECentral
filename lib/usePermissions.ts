@@ -20,6 +20,7 @@ import {
   getDashboardWidgetPermissions,
   canAccessRoute,
   getAccessibleLocations,
+  getResolvedPermissions,
   MenuPermissions,
   ATSPermissions,
   PersonnelPermissions,
@@ -239,10 +240,62 @@ export function usePermissions(): UsePermissionsResult {
     isFinalTimeApprover: user.isFinalTimeApprover,
     isPayrollProcessor: user.isPayrollProcessor,
     reportsTo: user.reportsTo as Id<"users"> | undefined,
+    permissionOverrides: user.permissionOverrides,
   };
 
   const tier = getTier(user.role);
   const hasReportees = (reportees?.length ?? 0) > 0;
+
+  // Get resolved permissions (role defaults + overrides merged)
+  const resolved = getResolvedPermissions(permissionUser);
+
+  // Build menu permissions from resolved map
+  const menuFromResolved: MenuPermissions = {
+    userManagement: resolved["menu.userManagement"] ?? false,
+    auditLog: resolved["menu.auditLog"] ?? false,
+    timeChangeAuditLog: resolved["menu.timeChangeAuditLog"] ?? false,
+    systemSettings: resolved["menu.systemSettings"] ?? false,
+    deletedRecords: resolved["menu.deletedRecords"] ?? false,
+    applications: resolved["menu.applications"] ?? false,
+    jobListings: resolved["menu.jobListings"] ?? false,
+    bulkUpload: resolved["menu.bulkUpload"] ?? false,
+    indeedSettings: resolved["menu.indeedSettings"] ?? false,
+    personnel: resolved["menu.personnel"] ?? false,
+    onboardingDocs: resolved["menu.onboardingDocs"] ?? false,
+    timeClock: resolved["menu.timeClock"] ?? false,
+    callOffs: resolved["menu.callOffs"] ?? false,
+    timeApproval: resolved["menu.timeApproval"] ?? false,
+    payrollExport: resolved["menu.payrollExport"] ?? false,
+    overtime: resolved["menu.overtime"] ?? false,
+    equipment: resolved["menu.equipment"] ?? false,
+    safetyCheckQR: resolved["menu.safetyCheckQR"] ?? false,
+    dailyLog: resolved["menu.dailyLog"] ?? false,
+    calendar: resolved["menu.calendar"] ?? false,
+    messages: resolved["menu.messages"] ?? false,
+    announcements: resolved["menu.announcements"] ?? false,
+    docHub: resolved["menu.docHub"] ?? false,
+    shiftPlanning: resolved["menu.shiftPlanning"] ?? false,
+    scheduleTemplates: resolved["menu.scheduleTemplates"] ?? false,
+    saturdayOvertime: resolved["menu.saturdayOvertime"] ?? false,
+    arp: resolved["menu.arp"] ?? false,
+    projects: resolved["menu.projects"] ?? false,
+    suggestions: resolved["menu.suggestions"] ?? false,
+    mileage: resolved["menu.mileage"] ?? false,
+    expenseReports: resolved["menu.expenseReports"] ?? false,
+    payrollApproval: resolved["menu.payrollApproval"] ?? false,
+    quickbooks: resolved["menu.quickbooks"] ?? false,
+    binLabels: resolved["menu.binLabels"] ?? false,
+    reports: resolved["menu.reports"] ?? false,
+    surveys: resolved["menu.surveys"] ?? false,
+    orgChart: resolved["menu.orgChart"] ?? false,
+    locations: resolved["menu.locations"] ?? false,
+    engagement: resolved["menu.engagement"] ?? false,
+    departmentPortal: resolved["menu.departmentPortal"] ?? false,
+    employeePortal: resolved["menu.employeePortal"] ?? false,
+    techWizard: resolved["menu.techWizard"] ?? false,
+    websiteMessages: resolved["menu.websiteMessages"] ?? false,
+    timeCorrections: resolved["menu.timeCorrections"] ?? false,
+  };
 
   return {
     isLoading: false,
@@ -251,7 +304,7 @@ export function usePermissions(): UsePermissionsResult {
     hasMinTier: (minTier: Tier) => hasMinTier(permissionUser, minTier),
     isLocationScoped: isLocationScoped(permissionUser),
     hasLocationAccess: (locationId: Id<"locations">) => hasLocationAccess(permissionUser, locationId),
-    menu: getMenuPermissions(permissionUser),
+    menu: menuFromResolved,
     ats: getATSPermissions(permissionUser),
     personnel: getPersonnelPermissions(permissionUser),
     equipment: getEquipmentPermissions(permissionUser),
