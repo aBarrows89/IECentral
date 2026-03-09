@@ -42,9 +42,10 @@ const withPWA = withPWAInit({
     },
     {
       urlPattern: /\.(?:js)$/i,
-      handler: "StaleWhileRevalidate",
+      handler: "NetworkFirst",
       options: {
         cacheName: "static-js-assets",
+        networkTimeoutSeconds: 10,
         expiration: {
           maxEntries: 32,
           maxAgeSeconds: 24 * 60 * 60, // 24 hours
@@ -53,9 +54,10 @@ const withPWA = withPWAInit({
     },
     {
       urlPattern: /\.(?:css|less)$/i,
-      handler: "StaleWhileRevalidate",
+      handler: "NetworkFirst",
       options: {
         cacheName: "static-style-assets",
+        networkTimeoutSeconds: 10,
         expiration: {
           maxEntries: 32,
           maxAgeSeconds: 24 * 60 * 60, // 24 hours
