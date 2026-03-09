@@ -181,6 +181,7 @@ export interface MenuPermissions {
   // Tools
   dealerRebates: boolean;
   tireTrackAdmin: boolean;
+  iePriceSystem: boolean;
 }
 
 export function getMenuPermissions(user: PermissionUser): MenuPermissions {
@@ -271,6 +272,7 @@ export function getMenuPermissions(user: PermissionUser): MenuPermissions {
     // Tools - T2+
     dealerRebates: tier >= 2,
     tireTrackAdmin: tier >= 2,
+    iePriceSystem: tier >= 2,
   };
 }
 
@@ -604,6 +606,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   // Tools
   { key: "menu.dealerRebates", label: "Dealer Rebates", description: "Access dealer rebate upload tool", category: "documents" },
   { key: "menu.tireTrackAdmin", label: "TireTrack Admin", description: "Access TireTrack admin panel", category: "documents" },
+  { key: "menu.iePriceSystem", label: "IE Price System", description: "Access IE Price System tool", category: "documents" },
 
   // Dashboard Widgets
   { key: "dashboard.activeProjects", label: "Active Projects Widget", description: "Show active projects on dashboard", category: "reports" },
