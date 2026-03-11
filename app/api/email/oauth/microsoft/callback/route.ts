@@ -13,15 +13,15 @@ import { Id } from "@/convex/_generated/dataModel";
 import { encrypt } from "@/lib/email/encryption";
 
 // Microsoft OAuth configuration
-const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID!;
-const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET!;
 const MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const MICROSOFT_GRAPH_URL = "https://graph.microsoft.com/v1.0/me";
 
-// Initialize Convex client
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export async function GET(request: NextRequest) {
+  // Initialize inside handler to avoid build-time errors
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID!;
+  const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET!;
+
   try {
     const code = request.nextUrl.searchParams.get("code");
     const state = request.nextUrl.searchParams.get("state");

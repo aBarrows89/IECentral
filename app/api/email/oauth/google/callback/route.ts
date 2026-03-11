@@ -13,15 +13,14 @@ import { Id } from "@/convex/_generated/dataModel";
 import { encrypt } from "@/lib/email/encryption";
 
 // Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
-// Initialize Convex client
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export async function GET(request: NextRequest) {
+  // Initialize Convex client inside handler to avoid build-time errors
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
   try {
     const code = request.nextUrl.searchParams.get("code");
     const state = request.nextUrl.searchParams.get("state");

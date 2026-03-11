@@ -13,15 +13,15 @@ import { Id } from "@/convex/_generated/dataModel";
 import { encrypt } from "@/lib/email/encryption";
 
 // Yahoo OAuth configuration
-const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID!;
-const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET!;
 const YAHOO_TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token";
 const YAHOO_USERINFO_URL = "https://api.login.yahoo.com/openid/v1/userinfo";
 
-// Initialize Convex client
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export async function GET(request: NextRequest) {
+  // Initialize inside handler to avoid build-time errors
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID!;
+  const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET!;
+
   try {
     const code = request.nextUrl.searchParams.get("code");
     const state = request.nextUrl.searchParams.get("state");
