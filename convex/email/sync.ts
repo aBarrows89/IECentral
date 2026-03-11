@@ -256,6 +256,8 @@ export const performFullSync = internalAction({
       const credentials = getImapCredentials(account);
 
       // Connect to IMAP
+      console.log("Creating IMAP client for:", credentials.host, "port:", credentials.port, "secure:", credentials.secure);
+
       client = new ImapFlow({
         host: credentials.host,
         port: credentials.port,
@@ -269,12 +271,25 @@ export const performFullSync = internalAction({
               user: credentials.user,
               pass: credentials.pass,
             },
-        logger: false,
+        logger: {
+          debug: (info: unknown) => console.log("[IMAP DEBUG]", info),
+          info: (info: unknown) => console.log("[IMAP INFO]", info),
+          warn: (info: unknown) => console.warn("[IMAP WARN]", info),
+          error: (info: unknown) => console.error("[IMAP ERROR]", info),
+        },
+        tls: {
+          rejectUnauthorized: false, // Allow self-signed certs
+        },
       });
 
       console.log("Connecting to IMAP:", credentials.host, "port:", credentials.port, "user:", credentials.user);
-      await client.connect();
-      console.log("IMAP connected successfully");
+      try {
+        await client.connect();
+        console.log("IMAP connected successfully");
+      } catch (connectError) {
+        console.error("IMAP connection error details:", connectError);
+        throw connectError;
+      }
 
       // List and sync folders
       const folders = await client.list();
@@ -316,11 +331,11 @@ export const performFullSync = internalAction({
 
         if (messageUids.length === 0) {
           // Update folder counts (unseen is not in TS types but available at runtime)
-          const mailboxAny = mailbox as { exists?: number; unseen?: number };
+          const mailboxAny = mailbox as { exists?: number | string; unseen?: number | string };
           await ctx.runMutation(api.email.folders.updateCounts, {
             folderId: folderId as Id<"emailFolders">,
-            totalCount: mailboxAny.exists || 0,
-            unreadCount: mailboxAny.unseen || 0,
+            totalCount: Number(mailboxAny.exists) || 0,
+            unreadCount: Number(mailboxAny.unseen) || 0,
           });
           continue;
         }
@@ -406,11 +421,11 @@ export const performFullSync = internalAction({
         }
 
         // Update folder counts
-        const mailboxCounts = mailbox as { exists?: number; unseen?: number };
+        const mailboxCounts = mailbox as { exists?: number | string; unseen?: number | string };
         await ctx.runMutation(api.email.folders.updateCounts, {
           folderId: folderId as Id<"emailFolders">,
-          totalCount: mailboxCounts.exists || 0,
-          unreadCount: mailboxCounts.unseen || 0,
+          totalCount: Number(mailboxCounts.exists) || 0,
+          unreadCount: Number(mailboxCounts.unseen) || 0,
         });
 
         // Update last sync UID
@@ -536,6 +551,8 @@ export const performIncrementalSync = internalAction({
     try {
       const credentials = getImapCredentials(account);
 
+      console.log("Creating IMAP client for incremental sync:", credentials.host, "port:", credentials.port);
+
       client = new ImapFlow({
         host: credentials.host,
         port: credentials.port,
@@ -549,10 +566,24 @@ export const performIncrementalSync = internalAction({
               user: credentials.user,
               pass: credentials.pass,
             },
-        logger: false,
+        logger: {
+          debug: (info: unknown) => console.log("[IMAP DEBUG]", info),
+          info: (info: unknown) => console.log("[IMAP INFO]", info),
+          warn: (info: unknown) => console.warn("[IMAP WARN]", info),
+          error: (info: unknown) => console.error("[IMAP ERROR]", info),
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
       });
 
-      await client.connect();
+      try {
+        await client.connect();
+        console.log("IMAP connected successfully (incremental)");
+      } catch (connectError) {
+        console.error("IMAP connection error:", connectError);
+        throw connectError;
+      }
 
       // Get inbox folder
       const inboxFolder = await ctx.runQuery(api.email.folders.getByType, {
@@ -645,11 +676,11 @@ export const performIncrementalSync = internalAction({
       }
 
       // Update folder counts
-      const mailboxCounts = mailbox as { exists?: number; unseen?: number };
+      const mailboxCounts = mailbox as { exists?: number | string; unseen?: number | string };
       await ctx.runMutation(api.email.folders.updateCounts, {
         folderId: inboxFolder._id,
-        totalCount: mailboxCounts.exists || 0,
-        unreadCount: mailboxCounts.unseen || 0,
+        totalCount: Number(mailboxCounts.exists) || 0,
+        unreadCount: Number(mailboxCounts.unseen) || 0,
       });
 
       await client.logout();
