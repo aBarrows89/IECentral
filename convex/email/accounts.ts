@@ -11,6 +11,15 @@ import { Id } from "../_generated/dataModel";
 
 // ============ QUERIES ============
 
+// Super admin role has automatic email access
+const SUPER_ADMIN_ROLE = "super_admin";
+
+// Helper to check if user has email access
+function userHasEmailAccess(user: { hasEmailAccess?: boolean; role?: string } | null): boolean {
+  if (!user) return false;
+  return user.hasEmailAccess === true || user.role === SUPER_ADMIN_ROLE;
+}
+
 /**
  * Get all email accounts for a user.
  */
@@ -19,9 +28,9 @@ export const listByUser = query({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Verify user has email access
+    // Verify user has email access (either flag or super_admin role)
     const user = await ctx.db.get(args.userId);
-    if (!user || !user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       return [];
     }
 
@@ -68,7 +77,7 @@ export const get = query({
 
     // Verify user has access
     const user = await ctx.db.get(account.userId);
-    if (!user || !user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       return null;
     }
 
@@ -155,7 +164,7 @@ export const createOAuthAccount = mutation({
     if (!user) {
       throw new Error("User not found");
     }
-    if (!user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       throw new Error("User does not have email access permission");
     }
 
@@ -234,7 +243,7 @@ export const createImapAccountInternal = internalMutation({
     if (!user) {
       throw new Error("User not found");
     }
-    if (!user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       throw new Error("User does not have email access permission");
     }
 
@@ -300,7 +309,7 @@ export const createIcloudAccountInternal = internalMutation({
     if (!user) {
       throw new Error("User not found");
     }
-    if (!user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       throw new Error("User does not have email access permission");
     }
 

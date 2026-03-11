@@ -8,6 +8,15 @@ import { v } from "convex/values";
 import { query, mutation, internalMutation } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
+// Super admin role has automatic email access
+const SUPER_ADMIN_ROLE = "super_admin";
+
+// Helper to check if user has email access
+function userHasEmailAccess(user: { hasEmailAccess?: boolean; role?: string } | null): boolean {
+  if (!user) return false;
+  return user.hasEmailAccess === true || user.role === SUPER_ADMIN_ROLE;
+}
+
 // ============ QUERIES ============
 
 /**
@@ -23,7 +32,7 @@ export const listByAccount = query({
 
     // Verify user has access
     const user = await ctx.db.get(account.userId);
-    if (!user || !user.hasEmailAccess) {
+    if (!userHasEmailAccess(user)) {
       return [];
     }
 
