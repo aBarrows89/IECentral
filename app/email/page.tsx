@@ -101,13 +101,26 @@ export default function EmailPage() {
     }
   }, [selectedEmail, markAsRead]);
 
+  // Sync state
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   // Handle sync
   const handleSync = async () => {
     if (selectedAccountId) {
+      setIsSyncing(true);
+      setSyncError(null);
       try {
-        await triggerSync({ accountId: selectedAccountId });
+        const result = await triggerSync({ accountId: selectedAccountId });
+        console.log("Sync result:", result);
+        if (!result.success) {
+          setSyncError(result.error || "Sync failed");
+        }
       } catch (error) {
         console.error("Sync failed:", error);
+        setSyncError(error instanceof Error ? error.message : "Sync failed");
+      } finally {
+        setIsSyncing(false);
       }
     }
   };
@@ -162,12 +175,28 @@ export default function EmailPage() {
         <Sidebar />
         <main className="flex-1 flex overflow-hidden">
           {/* Sync Error Banner */}
-          {selectedAccount?.syncError && (
+          {(selectedAccount?.syncError || syncError) && (
             <div className="absolute top-0 left-0 right-0 z-40 bg-red-500/10 border-b border-red-500/20 p-3 flex items-center justify-center gap-2 text-red-400 text-sm">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>Sync Error: {selectedAccount.syncError}</span>
+              <span>Sync Error: {syncError || selectedAccount?.syncError}</span>
+              <button onClick={() => setSyncError(null)} className="ml-2 hover:text-red-300">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Syncing Indicator */}
+          {isSyncing && (
+            <div className="absolute top-0 left-0 right-0 z-40 bg-blue-500/10 border-b border-blue-500/20 p-3 flex items-center justify-center gap-2 text-blue-400 text-sm">
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span>Syncing emails...</span>
             </div>
           )}
 
