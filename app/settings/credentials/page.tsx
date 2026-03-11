@@ -186,9 +186,9 @@ function CredentialsContent() {
   // Group credentials by service
   const groupedCredentials = (credentials || []).reduce((acc, cred) => {
     if (!acc[cred.service]) acc[cred.service] = [];
-    acc[cred.service].push(cred);
+    acc[cred.service]!.push(cred);
     return acc;
-  }, {} as Record<string, typeof credentials>);
+  }, {} as Record<string, NonNullable<typeof credentials>>);
 
   return (
     <div className={`flex h-screen ${isDark ? "bg-slate-900" : "bg-[#f2f2f7]"}`}>

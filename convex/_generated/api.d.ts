@@ -22,6 +22,7 @@ import type * as broadcastMessages from "../broadcastMessages.js";
 import type * as bulkUpload from "../bulkUpload.js";
 import type * as callOffs from "../callOffs.js";
 import type * as contactMessages from "../contactMessages.js";
+import type * as credentials from "../credentials.js";
 import type * as crons from "../crons.js";
 import type * as dailyLogs from "../dailyLogs.js";
 import type * as dashboardSettings from "../dashboardSettings.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   bulkUpload: typeof bulkUpload;
   callOffs: typeof callOffs;
   contactMessages: typeof contactMessages;
+  credentials: typeof credentials;
   crons: typeof crons;
   dailyLogs: typeof dailyLogs;
   dashboardSettings: typeof dashboardSettings;
