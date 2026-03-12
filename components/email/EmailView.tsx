@@ -8,10 +8,13 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import DOMPurify from "isomorphic-dompurify";
 import { detectDates, extractEventInfo, hasEventKeywords, DetectedDate } from "@/lib/email/dateDetection";
+import AttachmentViewer from "./AttachmentViewer";
 
 type Email = Doc<"emails"> & {
   attachments?: Doc<"emailAttachments">[];
 };
+
+type Attachment = Doc<"emailAttachments">;
 
 interface EmailViewProps {
   email: Email;
@@ -84,6 +87,15 @@ export default function EmailView({
   const [isAllDay, setIsAllDay] = useState(false);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
+  // Attachment viewer state
+  const [selectedAttachment, setSelectedAttachment] = useState<Attachment | null>(null);
+
+  // Get attachment URL when one is selected
+  const attachmentUrlResult = useQuery(
+    api.email.emails.getAttachmentUrl,
+    selectedAttachment ? { attachmentId: selectedAttachment._id } : "skip"
+  );
+
   const toggleStar = useMutation(api.email.emails.toggleStar);
   const markAsUnread = useMutation(api.email.emails.markAsUnread);
   const moveToTrash = useMutation(api.email.emails.remove);
@@ -92,6 +104,10 @@ export default function EmailView({
 
   // Get all users for participant selection
   const allUsers = useQuery(api.messages.getAllUsers) as User[] | undefined;
+
+  // Get current user name for DocHub save
+  const currentUser = allUsers?.find(u => u._id === userId);
+  const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : "Unknown User";
 
   // Detect dates and event info from email
   const emailContent = email.bodyHtml || email.bodyText || email.snippet || "";
@@ -463,24 +479,57 @@ export default function EmailView({
                 Attachments ({email.attachments.length})
               </h3>
               <div className="flex flex-wrap gap-2">
-                {email.attachments.map((attachment) => (
-                  <div
-                    key={attachment._id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                      isDark ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'
-                    } cursor-pointer transition-colors`}
-                  >
-                    <svg className="w-5 h-5 theme-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                    <span className="theme-text-primary truncate max-w-[200px]">
-                      {attachment.fileName}
-                    </span>
-                    <span className="theme-text-tertiary">
-                      ({formatFileSize(attachment.size)})
-                    </span>
-                  </div>
-                ))}
+                {email.attachments.map((attachment) => {
+                  const mimeType = attachment.mimeType.toLowerCase();
+                  const isPdf = mimeType.includes("pdf");
+                  const isWord = mimeType.includes("word") || mimeType.includes("document");
+                  const isExcel = mimeType.includes("excel") || mimeType.includes("spreadsheet");
+                  const isImage = mimeType.startsWith("image/");
+
+                  return (
+                    <button
+                      key={attachment._id}
+                      onClick={() => setSelectedAttachment(attachment)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                        isDark ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'
+                      } cursor-pointer transition-colors group`}
+                    >
+                      {/* File type icon */}
+                      {isPdf ? (
+                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zm-1.5 9.5v3h1v-1h.5a1.5 1.5 0 000-3h-1.5v1zm1 .5h.5a.5.5 0 010 1h-.5v-1zm-4 .5v2h1.5a1 1 0 001-1v0a1 1 0 00-1-1H8.5zm1 1.5H9v-1h.5a.5.5 0 010 1zm4.5-1.5v3h1v-1h1v-1h-1v-1h-1z"/>
+                        </svg>
+                      ) : isWord ? (
+                        <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM9 13l1.5 6 1.5-4 1.5 4 1.5-6h-1l-1 4-1.5-4-1.5 4-1-4H9z"/>
+                        </svg>
+                      ) : isExcel ? (
+                        <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zm-4 9l2 3-2 3h1.5l1.25-2 1.25 2H14l-2-3 2-3h-1.5l-1.25 2-1.25-2H9z"/>
+                        </svg>
+                      ) : isImage ? (
+                        <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 theme-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                      )}
+                      <span className="theme-text-primary truncate max-w-[200px]">
+                        {attachment.fileName}
+                      </span>
+                      <span className="theme-text-tertiary">
+                        ({formatFileSize(attachment.size)})
+                      </span>
+                      {/* View indicator */}
+                      <svg className="w-4 h-4 theme-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -964,6 +1013,17 @@ export default function EmailView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Attachment Viewer Modal */}
+      {selectedAttachment && (
+        <AttachmentViewer
+          attachment={selectedAttachment}
+          attachmentUrl={attachmentUrlResult?.url || null}
+          userId={userId}
+          userName={currentUserName}
+          onClose={() => setSelectedAttachment(null)}
+        />
       )}
     </div>
   );

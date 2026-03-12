@@ -1,0 +1,327 @@
+"use client";
+
+import { useState } from "react";
+import { Doc, Id } from "@/convex/_generated/dataModel";
+import { useTheme } from "@/app/theme-context";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+type Attachment = Doc<"emailAttachments">;
+
+interface AttachmentViewerProps {
+  attachment: Attachment;
+  attachmentUrl: string | null;
+  userId: Id<"users">;
+  userName: string;
+  onClose: () => void;
+}
+
+// Document categories for DocHub
+const CATEGORIES = [
+  { value: "forms", label: "Forms" },
+  { value: "policies", label: "Policies" },
+  { value: "sops", label: "SOPs" },
+  { value: "templates", label: "Templates" },
+  { value: "training", label: "Training" },
+  { value: "other", label: "Other" },
+];
+
+export default function AttachmentViewer({
+  attachment,
+  attachmentUrl,
+  userId,
+  userName,
+  onClose,
+}: AttachmentViewerProps) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [documentName, setDocumentName] = useState(attachment.fileName);
+  const [category, setCategory] = useState("other");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const saveToDocHub = useMutation(api.email.emails.saveAttachmentToDocHub);
+
+  // Determine file type for viewer
+  const mimeType = attachment.mimeType.toLowerCase();
+  const isImage = mimeType.startsWith("image/");
+  const isPdf = mimeType.includes("pdf");
+  const isWord = mimeType.includes("word") || mimeType.includes("document") || mimeType.includes("msword");
+  const isExcel = mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("sheet");
+  const isPowerPoint = mimeType.includes("presentation") || mimeType.includes("powerpoint");
+  const isOffice = isWord || isExcel || isPowerPoint;
+
+  // Get viewer URL
+  const getViewerUrl = () => {
+    if (!attachmentUrl) return null;
+
+    if (isOffice) {
+      // Use Microsoft Office Online Viewer
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(attachmentUrl)}`;
+    }
+
+    // For PDF and images, use direct URL
+    return attachmentUrl;
+  };
+
+  const viewerUrl = getViewerUrl();
+
+  const handleSaveToDocHub = async () => {
+    setIsSaving(true);
+    try {
+      await saveToDocHub({
+        attachmentId: attachment._id,
+        userId,
+        userName,
+        documentName,
+        category,
+      });
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setShowSaveModal(false);
+        setSaveSuccess(false);
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to save to DocHub:", error);
+      alert("Failed to save to DocHub. The attachment may not be cached locally.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (attachmentUrl) {
+      const a = document.createElement("a");
+      a.href = attachmentUrl;
+      a.download = attachment.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  const getFileIcon = () => {
+    if (isPdf) return "📄";
+    if (isWord) return "📝";
+    if (isExcel) return "📊";
+    if (isPowerPoint) return "📽️";
+    if (isImage) return "🖼️";
+    return "📎";
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className={`w-full h-full max-w-6xl max-h-[90vh] mx-4 my-4 flex flex-col rounded-xl shadow-2xl ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+        {/* Header */}
+        <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-2xl">{getFileIcon()}</span>
+            <div className="min-w-0">
+              <h3 className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {attachment.fileName}
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                {formatFileSize(attachment.size)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save to DocHub button */}
+            {attachment.storageId && (
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                Save to DocHub
+              </button>
+            )}
+
+            {/* Download button */}
+            <button
+              onClick={handleDownload}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isDark
+                  ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className={`p-2 rounded-lg transition-colors ${
+                isDark
+                  ? 'hover:bg-slate-700 text-slate-400 hover:text-white'
+                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Viewer */}
+        <div className="flex-1 overflow-hidden bg-gray-100">
+          {!attachmentUrl ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-gray-500">Unable to preview this attachment</p>
+                <button
+                  onClick={handleDownload}
+                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Download to View
+                </button>
+              </div>
+            </div>
+          ) : isImage ? (
+            <div className="h-full flex items-center justify-center p-4 overflow-auto">
+              <img
+                src={attachmentUrl}
+                alt={attachment.fileName}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          ) : viewerUrl ? (
+            <iframe
+              src={viewerUrl}
+              className="w-full h-full border-0"
+              title={attachment.fileName}
+              sandbox={isPdf ? undefined : "allow-scripts allow-same-origin allow-forms"}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <span className="text-6xl mb-4 block">{getFileIcon()}</span>
+                <p className="text-gray-500 mb-4">Preview not available for this file type</p>
+                <button
+                  onClick={handleDownload}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Download to View
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save to DocHub Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50">
+          <div className={`w-full max-w-md mx-4 rounded-xl shadow-2xl ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Save to DocHub
+              </h3>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {saveSuccess ? (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <p className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Saved to DocHub!
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Document Name */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Document Name
+                    </label>
+                    <input
+                      type="text"
+                      value={documentName}
+                      onChange={(e) => setDocumentName(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-lg border ${
+                        isDark
+                          ? 'bg-slate-700 border-slate-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    />
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Category
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-lg border ${
+                        isDark
+                          ? 'bg-slate-700 border-slate-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    >
+                      {CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {!saveSuccess && (
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-slate-700' : 'border-gray-200'} flex justify-end gap-3`}>
+                <button
+                  onClick={() => setShowSaveModal(false)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isDark
+                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveToDocHub}
+                  disabled={isSaving || !documentName.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  {isSaving && (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {isSaving ? "Saving..." : "Save to DocHub"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

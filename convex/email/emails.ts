@@ -602,3 +602,78 @@ export const cleanupOldEmails = internalMutation({
     return { deleted, hasMore: oldEmails.length === 500 };
   },
 });
+
+/**
+ * Get attachment download URL.
+ */
+export const getAttachmentUrl = query({
+  args: {
+    attachmentId: v.id("emailAttachments"),
+  },
+  handler: async (ctx, args) => {
+    const attachment = await ctx.db.get(args.attachmentId);
+    if (!attachment) return null;
+
+    if (attachment.storageId) {
+      const url = await ctx.storage.getUrl(attachment.storageId);
+      return { url, fileName: attachment.fileName, mimeType: attachment.mimeType };
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Save email attachment to DocHub.
+ */
+export const saveAttachmentToDocHub = mutation({
+  args: {
+    attachmentId: v.id("emailAttachments"),
+    userId: v.id("users"),
+    userName: v.string(),
+    documentName: v.optional(v.string()),
+    category: v.optional(v.string()),
+    folderId: v.optional(v.id("documentFolders")),
+  },
+  handler: async (ctx, args) => {
+    const attachment = await ctx.db.get(args.attachmentId);
+    if (!attachment) {
+      throw new Error("Attachment not found");
+    }
+
+    if (!attachment.storageId) {
+      throw new Error("Attachment not cached - please download first");
+    }
+
+    const now = Date.now();
+    const documentName = args.documentName || attachment.fileName;
+
+    // Determine category from file type if not provided
+    let category = args.category || "other";
+    if (!args.category) {
+      const ext = attachment.fileName.toLowerCase();
+      if (ext.includes(".pdf")) category = "forms";
+      else if (ext.includes(".doc")) category = "templates";
+      else if (ext.includes(".xls")) category = "forms";
+    }
+
+    // Create document in DocHub
+    const documentId = await ctx.db.insert("documents", {
+      name: documentName,
+      category,
+      folderId: args.folderId,
+      fileId: attachment.storageId,
+      fileName: attachment.fileName,
+      fileType: attachment.mimeType,
+      fileSize: attachment.size,
+      uploadedBy: args.userId,
+      uploadedByName: args.userName,
+      isActive: true,
+      downloadCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return documentId;
+  },
+});
