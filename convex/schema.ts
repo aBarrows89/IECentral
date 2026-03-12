@@ -2354,6 +2354,36 @@ export default defineSchema({
     .index("by_environment", ["environment"]),
 
   // ============ EMAIL CLIENT ============
+  // Default IMAP/SMTP configurations for email domains (super admin managed)
+  emailDomainConfigs: defineTable({
+    domain: v.string(), // e.g., "company.com", "ietires.com"
+    name: v.string(), // Display name, e.g., "Company Email"
+    description: v.optional(v.string()), // Help text for users
+
+    // IMAP settings
+    imapHost: v.string(),
+    imapPort: v.number(),
+    imapTls: v.boolean(),
+
+    // SMTP settings
+    smtpHost: v.string(),
+    smtpPort: v.number(),
+    smtpTls: v.boolean(),
+
+    // Whether to use email as username or allow custom
+    useEmailAsUsername: v.boolean(),
+
+    // Ordering for display
+    sortOrder: v.optional(v.number()),
+
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_domain", ["domain"])
+    .index("by_active", ["isActive"]),
+
   // Email accounts connected by users
   emailAccounts: defineTable({
     userId: v.id("users"),

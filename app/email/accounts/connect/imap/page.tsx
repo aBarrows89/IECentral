@@ -1,34 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Protected from "@/app/protected";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/app/auth-context";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+
+interface DomainConfig {
+  _id: Id<"emailDomainConfigs">;
+  domain: string;
+  name: string;
+  description?: string;
+  imapHost: string;
+  imapPort: number;
+  imapTls: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpTls: boolean;
+  useEmailAsUsername: boolean;
+}
 
 export default function ImapSetupPage() {
   const router = useRouter();
   const { user } = useAuth();
   const createAccount = useAction(api.email.accountActions.createImapAccount);
 
-  // Preset options
-  const [preset, setPreset] = useState<"ietires" | "custom">("ietires");
+  // Fetch active domain configurations
+  const domainConfigs = useQuery(api.email.domainConfigs.listActive) as DomainConfig[] | undefined;
+
+  // Selected preset (domain config ID or "custom")
+  const [selectedPreset, setSelectedPreset] = useState<string>("custom");
+  const [detectedConfig, setDetectedConfig] = useState<DomainConfig | null>(null);
 
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
 
-  // IMAP settings (defaults for IETires)
-  const [imapHost, setImapHost] = useState("svm.ietires.com");
+  // IMAP settings
+  const [imapHost, setImapHost] = useState("");
   const [imapPort, setImapPort] = useState("993");
   const [imapUsername, setImapUsername] = useState("");
   const [imapPassword, setImapPassword] = useState("");
   const [imapTls, setImapTls] = useState(true);
 
-  // SMTP settings (defaults for IETires)
-  const [smtpHost, setSmtpHost] = useState("svm.ietires.com");
-  const [smtpPort, setSmtpPort] = useState("465");
+  // SMTP settings
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpTls, setSmtpTls] = useState(true);
@@ -36,23 +55,70 @@ export default function ImapSetupPage() {
   // Use same credentials for SMTP
   const [useSameCredentials, setUseSameCredentials] = useState(true);
 
-  // Handle preset change
-  const handlePresetChange = (newPreset: "ietires" | "custom") => {
-    setPreset(newPreset);
-    if (newPreset === "ietires") {
-      setImapHost("svm.ietires.com");
-      setImapPort("993");
-      setImapTls(true);
-      setSmtpHost("svm.ietires.com");
-      setSmtpPort("465");
-      setSmtpTls(true);
-      setUseSameCredentials(true);
+  // Auto-detect domain config when email changes
+  useEffect(() => {
+    if (!email.includes("@") || !domainConfigs) {
+      setDetectedConfig(null);
+      return;
+    }
+
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (!domain) {
+      setDetectedConfig(null);
+      return;
+    }
+
+    const matchingConfig = domainConfigs.find(c => c.domain === domain);
+    if (matchingConfig && selectedPreset === "custom") {
+      setDetectedConfig(matchingConfig);
     } else {
+      setDetectedConfig(null);
+    }
+  }, [email, domainConfigs, selectedPreset]);
+
+  // Apply detected config
+  const applyDetectedConfig = () => {
+    if (detectedConfig) {
+      applyConfig(detectedConfig);
+      setSelectedPreset(detectedConfig._id);
+      setDetectedConfig(null);
+    }
+  };
+
+  // Apply a domain config to form
+  const applyConfig = (config: DomainConfig) => {
+    setImapHost(config.imapHost);
+    setImapPort(config.imapPort.toString());
+    setImapTls(config.imapTls);
+    setSmtpHost(config.smtpHost);
+    setSmtpPort(config.smtpPort.toString());
+    setSmtpTls(config.smtpTls);
+    setUseSameCredentials(true);
+    if (config.useEmailAsUsername) {
+      setImapUsername("");
+      setSmtpUsername("");
+    }
+  };
+
+  // Handle preset change
+  const handlePresetChange = (presetId: string) => {
+    setSelectedPreset(presetId);
+    setDetectedConfig(null);
+
+    if (presetId === "custom") {
       // Clear to let user enter custom values
       setImapHost("");
       setImapPort("993");
       setSmtpHost("");
       setSmtpPort("587");
+      setImapTls(true);
+      setSmtpTls(true);
+    } else {
+      // Find and apply the config
+      const config = domainConfigs?.find(c => c._id === presetId);
+      if (config) {
+        applyConfig(config);
+      }
     }
   };
 
@@ -130,40 +196,69 @@ export default function ImapSetupPage() {
               </div>
             </div>
 
+            {/* Auto-detected config banner */}
+            {detectedConfig && (
+              <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="text-blue-400 font-medium">Configuration found for @{detectedConfig.domain}</p>
+                    <p className="text-sm theme-text-secondary">{detectedConfig.name} - Settings will be auto-filled</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={applyDetectedConfig}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Use This Configuration
+                </button>
+              </div>
+            )}
+
             {/* Preset Selector */}
             <div className="theme-bg-secondary rounded-xl p-6 mb-6">
               <h2 className="font-medium theme-text-primary mb-4">Email Provider</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handlePresetChange("ietires")}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    preset === "ietires"
-                      ? "border-blue-500 bg-blue-500/10"
-                      : "theme-border hover:border-gray-500"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">IE</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Dynamic domain configs */}
+                {domainConfigs?.map((config) => (
+                  <button
+                    key={config._id}
+                    type="button"
+                    onClick={() => handlePresetChange(config._id)}
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${
+                      selectedPreset === config._id
+                        ? "border-blue-500 bg-blue-500/10"
+                        : "theme-border hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
+                        <span className="text-white font-bold text-xs uppercase">
+                          {config.domain.split(".")[0].slice(0, 3)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className={`font-medium ${selectedPreset === config._id ? "text-blue-400" : "theme-text-primary"}`}>
+                          {config.name}
+                        </p>
+                        <p className="text-xs theme-text-tertiary">@{config.domain}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className={`font-medium ${preset === "ietires" ? "text-blue-400" : "theme-text-primary"}`}>
-                        IETires Email
-                      </p>
-                      <p className="text-xs theme-text-tertiary">Recommended</p>
-                    </div>
-                  </div>
-                  <p className="text-sm theme-text-secondary">
-                    Pre-configured for svm.ietires.com
-                  </p>
-                </button>
+                    <p className="text-sm theme-text-secondary">
+                      {config.description || `Pre-configured for ${config.imapHost}`}
+                    </p>
+                  </button>
+                ))}
 
+                {/* Custom option */}
                 <button
                   type="button"
                   onClick={() => handlePresetChange("custom")}
                   className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    preset === "custom"
+                    selectedPreset === "custom"
                       ? "border-blue-500 bg-blue-500/10"
                       : "theme-border hover:border-gray-500"
                   }`}
@@ -176,7 +271,7 @@ export default function ImapSetupPage() {
                       </svg>
                     </div>
                     <div>
-                      <p className={`font-medium ${preset === "custom" ? "text-blue-400" : "theme-text-primary"}`}>
+                      <p className={`font-medium ${selectedPreset === "custom" ? "text-blue-400" : "theme-text-primary"}`}>
                         Custom Provider
                       </p>
                       <p className="text-xs theme-text-tertiary">Other IMAP service</p>
@@ -232,15 +327,15 @@ export default function ImapSetupPage() {
               {/* IMAP Settings */}
               <div className="theme-bg-secondary rounded-xl p-6">
                 <h2 className="font-medium theme-text-primary mb-4">
-                  {preset === "ietires" ? "Login Credentials" : "Incoming Mail (IMAP)"}
+                  {selectedPreset !== "custom" ? "Login Credentials" : "Incoming Mail (IMAP)"}
                 </h2>
-                {preset === "ietires" && (
+                {selectedPreset !== "custom" && imapHost && (
                   <p className="text-sm theme-text-secondary mb-4">
-                    Server: svm.ietires.com (IMAP: 993, SMTP: 465)
+                    Server: {imapHost} (IMAP: {imapPort}, SMTP: {smtpPort})
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {preset === "custom" && (
+                  {selectedPreset === "custom" && (
                     <>
                       <div>
                         <label className="block text-sm font-medium theme-text-secondary mb-1.5">
@@ -283,7 +378,7 @@ export default function ImapSetupPage() {
                       </div>
                     </>
                   )}
-                  <div className={preset === "ietires" ? "" : ""}>
+                  <div>
                     <label className="block text-sm font-medium theme-text-secondary mb-1.5">
                       Password
                     </label>
@@ -296,7 +391,7 @@ export default function ImapSetupPage() {
                       className="w-full px-4 py-2.5 rounded-lg theme-bg-primary theme-border border theme-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     />
                   </div>
-                  {preset === "custom" && (
+                  {selectedPreset === "custom" && (
                     <div className="md:col-span-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -313,7 +408,7 @@ export default function ImapSetupPage() {
               </div>
 
               {/* SMTP Settings - Only show for custom preset */}
-              {preset === "custom" && (
+              {selectedPreset === "custom" && (
                 <div className="theme-bg-secondary rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-medium theme-text-primary">Outgoing Mail (SMTP)</h2>
@@ -397,7 +492,7 @@ export default function ImapSetupPage() {
               )}
 
               {/* Common providers help - Only show for custom preset */}
-              {preset === "custom" && (
+              {selectedPreset === "custom" && (
                 <div className="theme-bg-secondary rounded-xl p-6">
                   <h2 className="font-medium theme-text-primary mb-4">Common Provider Settings</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm theme-text-secondary">
@@ -427,7 +522,7 @@ export default function ImapSetupPage() {
 
               <button
                 type="submit"
-                disabled={isLoading || !email || !imapPassword || (preset === "custom" && (!imapHost || !smtpHost))}
+                disabled={isLoading || !email || !imapPassword || (selectedPreset === "custom" && (!imapHost || !smtpHost))}
                 className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
               >
                 {isLoading ? (
