@@ -76,6 +76,9 @@ export default function EmailPage() {
   // Mark as read mutation
   const markAsRead = useMutation(api.email.emails.markAsRead);
 
+  // Clear sync error mutation
+  const clearSyncError = useMutation(api.email.accounts.clearSyncError);
+
   // Set default account when accounts load
   useEffect(() => {
     if (accounts && accounts.length > 0 && !selectedAccountId) {
@@ -181,7 +184,15 @@ export default function EmailPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <span>Sync Error: {syncError || selectedAccount?.syncError}</span>
-              <button onClick={() => setSyncError(null)} className="ml-2 hover:text-red-300">
+              <button
+                onClick={() => {
+                  setSyncError(null);
+                  if (selectedAccountId && selectedAccount?.syncError) {
+                    clearSyncError({ accountId: selectedAccountId });
+                  }
+                }}
+                className="ml-2 hover:text-red-300"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>

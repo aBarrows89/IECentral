@@ -119,7 +119,7 @@ export default function EmailSidebar({
         <h2 className="font-semibold theme-text-primary">Email</h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSync}
+            onClick={() => handleSync()}
             disabled={isSyncing}
             className={`p-2 rounded-lg transition-colors ${
               isSyncing

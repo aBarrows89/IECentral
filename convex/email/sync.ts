@@ -12,6 +12,7 @@ import { internal, api } from "../_generated/api";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { ImapFlow } from "imapflow";
+import { simpleParser, ParsedMail } from "mailparser";
 import { decrypt } from "./encryptionUtils";
 
 // ============ TYPES ============
@@ -178,6 +179,22 @@ function generateSnippet(text: string | undefined, html: string | undefined): st
     return content.substring(0, 197) + "...";
   }
   return content;
+}
+
+/**
+ * Parse email body from MIME source using mailparser.
+ */
+async function parseEmailBody(source: Buffer): Promise<{ text?: string; html?: string }> {
+  try {
+    const parsed: ParsedMail = await simpleParser(source);
+    return {
+      text: parsed.text || undefined,
+      html: typeof parsed.html === "string" ? parsed.html : undefined,
+    };
+  } catch (err) {
+    console.error("Failed to parse email body:", err);
+    return { text: undefined, html: undefined };
+  }
 }
 
 // ============ SYNC ACTIONS ============
@@ -360,14 +377,14 @@ export const performFullSync = internalAction({
               const envelope = msg.envelope;
               if (!envelope) continue;
 
-              // Extract body text
+              // Extract body text and HTML using mailparser
               let bodyText: string | undefined;
               let bodyHtml: string | undefined;
 
               if (msg.source) {
-                const sourceStr = msg.source.toString();
-                // Basic extraction - in production, use a proper MIME parser
-                bodyText = sourceStr.substring(0, 10000);
+                const parsed = await parseEmailBody(msg.source);
+                bodyText = parsed.text?.substring(0, 50000); // Limit to 50KB
+                bodyHtml = parsed.html?.substring(0, 100000); // Limit to 100KB
               }
 
               // Check for attachments
@@ -618,9 +635,14 @@ export const performIncrementalSync = internalAction({
             const envelope = msg.envelope;
             if (!envelope) continue;
 
+            // Extract body text and HTML using mailparser
             let bodyText: string | undefined;
+            let bodyHtml: string | undefined;
+
             if (msg.source) {
-              bodyText = msg.source.toString().substring(0, 10000);
+              const parsed = await parseEmailBody(msg.source);
+              bodyText = parsed.text?.substring(0, 50000);
+              bodyHtml = parsed.html?.substring(0, 100000);
             }
 
             const hasAttachments =
@@ -648,8 +670,8 @@ export const performIncrementalSync = internalAction({
               inReplyTo: envelope.inReplyTo || undefined,
               references: undefined,
               bodyText,
-              bodyHtml: undefined,
-              snippet: generateSnippet(bodyText, undefined),
+              bodyHtml,
+              snippet: generateSnippet(bodyText, bodyHtml),
               date: envelope.date?.getTime() || Date.now(),
               size: msg.size || undefined,
               isRead: flags.has("\\Seen"),

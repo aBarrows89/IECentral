@@ -639,3 +639,21 @@ export const markSyncError = internalMutation({
     });
   },
 });
+
+/**
+ * Clear sync error for an account (user-initiated dismiss).
+ */
+export const clearSyncError = mutation({
+  args: {
+    accountId: v.id("emailAccounts"),
+  },
+  handler: async (ctx, args) => {
+    const account = await ctx.db.get(args.accountId);
+    if (!account) return;
+
+    await ctx.db.patch(args.accountId, {
+      syncError: undefined,
+      updatedAt: Date.now(),
+    });
+  },
+});
