@@ -12,6 +12,7 @@ import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { ImapFlow } from "imapflow";
 import { decrypt } from "./encryptionUtils";
 
 // ============ TYPES ============
@@ -127,6 +128,149 @@ function formatAddress(addr: EmailAddress): string {
  */
 function formatAddresses(addrs: EmailAddress[]): string {
   return addrs.map(formatAddress).join(", ");
+}
+
+/**
+ * Get IMAP credentials for copying to Sent folder.
+ */
+function getImapCredentials(account: {
+  emailAddress: string;
+  imapHost?: string;
+  imapPort?: number;
+  imapUsername?: string;
+  imapPassword?: string;
+  imapTls?: boolean;
+}): { host: string; port: number; user: string; pass: string; secure: boolean } {
+  let password = account.imapPassword || "";
+
+  if (password && password.includes(":")) {
+    try {
+      password = decrypt(password);
+    } catch (e) {
+      console.error("Failed to decrypt IMAP password:", e);
+      throw new Error("Failed to decrypt stored password");
+    }
+  }
+
+  return {
+    host: account.imapHost || "imap.gmail.com",
+    port: account.imapPort || 993,
+    user: account.imapUsername || account.emailAddress,
+    pass: password,
+    secure: account.imapTls !== false,
+  };
+}
+
+/**
+ * Copy sent email to Sent folder via IMAP APPEND.
+ */
+async function copyToSentFolder(
+  account: {
+    emailAddress: string;
+    name?: string;
+    imapHost?: string;
+    imapPort?: number;
+    imapUsername?: string;
+    imapPassword?: string;
+    imapTls?: boolean;
+  },
+  emailContent: {
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    html: string;
+    text: string;
+    messageId?: string;
+    inReplyTo?: string;
+    references?: string;
+  }
+): Promise<boolean> {
+  const credentials = getImapCredentials(account);
+
+  const client = new ImapFlow({
+    host: credentials.host,
+    port: credentials.port,
+    secure: credentials.secure,
+    auth: {
+      user: credentials.user,
+      pass: credentials.pass,
+    },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+
+    // Find the Sent folder
+    const mailboxes = await client.list();
+    let sentPath = "Sent"; // Default
+
+    for (const box of mailboxes) {
+      const flags = box.flags ? Array.from(box.flags) : [];
+      const specialUse = box.specialUse || "";
+      const pathLower = box.path.toLowerCase();
+
+      if (specialUse === "\\Sent" ||
+          flags.some((f: string) => f.toLowerCase() === "\\sent") ||
+          pathLower.includes("sent")) {
+        sentPath = box.path;
+        break;
+      }
+    }
+
+    // Build the raw email message
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date = new Date().toUTCString();
+
+    let rawEmail = `From: ${account.name ? `"${account.name}" <${account.emailAddress}>` : account.emailAddress}\r\n`;
+    rawEmail += `To: ${emailContent.to}\r\n`;
+    if (emailContent.cc) {
+      rawEmail += `Cc: ${emailContent.cc}\r\n`;
+    }
+    rawEmail += `Subject: ${emailContent.subject}\r\n`;
+    rawEmail += `Date: ${date}\r\n`;
+    if (emailContent.messageId) {
+      rawEmail += `Message-ID: ${emailContent.messageId}\r\n`;
+    }
+    if (emailContent.inReplyTo) {
+      rawEmail += `In-Reply-To: ${emailContent.inReplyTo}\r\n`;
+    }
+    if (emailContent.references) {
+      rawEmail += `References: ${emailContent.references}\r\n`;
+    }
+    rawEmail += `MIME-Version: 1.0\r\n`;
+    rawEmail += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
+
+    // Plain text part
+    rawEmail += `--${boundary}\r\n`;
+    rawEmail += `Content-Type: text/plain; charset="UTF-8"\r\n`;
+    rawEmail += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+    rawEmail += `${emailContent.text}\r\n\r\n`;
+
+    // HTML part
+    rawEmail += `--${boundary}\r\n`;
+    rawEmail += `Content-Type: text/html; charset="UTF-8"\r\n`;
+    rawEmail += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+    rawEmail += `${emailContent.html}\r\n\r\n`;
+
+    rawEmail += `--${boundary}--\r\n`;
+
+    // Append to Sent folder with \Seen flag
+    await client.append(sentPath, rawEmail, ["\\Seen"]);
+
+    console.log(`Email copied to ${sentPath} folder`);
+    return true;
+  } catch (error) {
+    console.error("Failed to copy email to Sent folder:", error);
+    return false;
+  } finally {
+    try {
+      await client.logout();
+    } catch (e) {
+      // Ignore logout errors
+    }
+  }
 }
 
 // ============ SEND ACTIONS ============
@@ -254,6 +398,23 @@ export const sendEmail = action({
 
       // Send the email
       const info = await transporter.sendMail(mailOptions);
+
+      // Copy to Sent folder via IMAP
+      try {
+        await copyToSentFolder(account, {
+          to: formatAddresses(args.to),
+          cc: args.cc ? formatAddresses(args.cc) : undefined,
+          subject: args.subject,
+          html: mailOptions.html as string,
+          text: mailOptions.text as string,
+          messageId: info.messageId,
+          inReplyTo: mailOptions.inReplyTo as string | undefined,
+          references: mailOptions.references as string | undefined,
+        });
+      } catch (copyError) {
+        console.error("Failed to copy to Sent folder:", copyError);
+        // Don't fail the send if copy to Sent fails
+      }
 
       // Log the send
       await ctx.runMutation(internal.email.syncMutations.logSync, {

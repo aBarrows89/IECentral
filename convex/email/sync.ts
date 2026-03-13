@@ -620,8 +620,11 @@ export const performIncrementalSync = internalAction({
 
       console.log(`[SYNC] Checking for new emails. UIDNEXT: ${mailbox.uidNext}, lastSyncUid: ${lastSyncUid}`);
 
-      if (mailbox.uidNext && mailbox.uidNext > lastSyncUid) {
+      // UIDNEXT is the UID that will be assigned to the next message
+      // So we only have new messages if UIDNEXT > lastSyncUid + 1
+      if (mailbox.uidNext && mailbox.uidNext > lastSyncUid + 1) {
         const uidRange = `${lastSyncUid + 1}:*`;
+        console.log(`[SYNC] Fetching new emails with UID range: ${uidRange}`);
 
         try {
           const messages = client.fetch(uidRange, {
@@ -697,6 +700,8 @@ export const performIncrementalSync = internalAction({
             lastSyncUid: mailbox.uidNext - 1,
           });
         }
+      } else {
+        console.log(`[SYNC] No new emails to fetch. UIDNEXT (${mailbox.uidNext}) <= lastSyncUid + 1 (${lastSyncUid + 1})`);
       }
 
       // Update folder counts
