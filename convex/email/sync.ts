@@ -621,8 +621,10 @@ export const performIncrementalSync = internalAction({
       console.log(`[SYNC] Checking for new emails. UIDNEXT: ${mailbox.uidNext}, lastSyncUid: ${lastSyncUid}`);
 
       // UIDNEXT is the UID that will be assigned to the next message
-      // So we have new messages if UIDNEXT > lastSyncUid (meaning there are UIDs from lastSyncUid+1 to UIDNEXT-1)
-      if (mailbox.uidNext && mailbox.uidNext > lastSyncUid) {
+      // We have new messages if UIDNEXT > lastSyncUid + 1
+      // (meaning there are UIDs from lastSyncUid+1 to UIDNEXT-1)
+      // If UIDNEXT == lastSyncUid + 1, there are no new messages
+      if (mailbox.uidNext && mailbox.uidNext > lastSyncUid + 1) {
         const uidRange = `${lastSyncUid + 1}:*`;
         console.log(`[SYNC] Fetching new emails with UID range: ${uidRange}`);
 
@@ -701,7 +703,7 @@ export const performIncrementalSync = internalAction({
           });
         }
       } else {
-        console.log(`[SYNC] No new emails to fetch. UIDNEXT (${mailbox.uidNext}) <= lastSyncUid (${lastSyncUid})`);
+        console.log(`[SYNC] No new emails to fetch. UIDNEXT (${mailbox.uidNext}) == lastSyncUid + 1 (${lastSyncUid + 1})`);
       }
 
       // Update folder counts
@@ -725,7 +727,7 @@ export const performIncrementalSync = internalAction({
 
           console.log(`[SYNC] Checking Sent folder. UIDNEXT: ${sentMailbox.uidNext}, lastSyncUid: ${sentLastSyncUid}`);
 
-          if (sentMailbox.uidNext && sentMailbox.uidNext > sentLastSyncUid) {
+          if (sentMailbox.uidNext && sentMailbox.uidNext > sentLastSyncUid + 1) {
             const sentUidRange = `${sentLastSyncUid + 1}:*`;
             console.log(`[SYNC] Fetching new sent emails with UID range: ${sentUidRange}`);
 
@@ -802,7 +804,7 @@ export const performIncrementalSync = internalAction({
               });
             }
           } else {
-            console.log(`[SYNC] No new sent emails to fetch. UIDNEXT (${sentMailbox.uidNext}) <= lastSyncUid (${sentLastSyncUid})`);
+            console.log(`[SYNC] No new sent emails to fetch. UIDNEXT (${sentMailbox.uidNext}) == lastSyncUid + 1 (${sentLastSyncUid + 1})`);
           }
 
           // Update sent folder counts

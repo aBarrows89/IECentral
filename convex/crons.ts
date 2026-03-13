@@ -34,10 +34,10 @@ crons.monthly(
 
 // ============ EMAIL CLIENT CRONS ============
 
-// Sync all email accounts every 5 minutes
+// Sync all email accounts every minute
 crons.interval(
   "email-sync-all-accounts",
-  { minutes: 5 },
+  { minutes: 1 },
   internal.email.sync.syncAllAccounts
 );
 

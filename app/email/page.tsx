@@ -61,11 +61,47 @@ export default function EmailPage() {
     selectedAccountId ? { accountId: selectedAccountId } : "skip"
   );
 
+  // Pagination state
+  const [emailCursor, setEmailCursor] = useState<number | null>(null);
+  const [loadedEmails, setLoadedEmails] = useState<Email[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Get emails for selected folder
   const emailsResult = useQuery(
     api.email.emails.listByFolder,
-    selectedFolderId ? { folderId: selectedFolderId, limit: 50 } : "skip"
+    selectedFolderId ? { folderId: selectedFolderId, limit: 50, cursor: emailCursor ?? undefined } : "skip"
   );
+
+  // Reset loaded emails when folder changes
+  useEffect(() => {
+    setLoadedEmails([]);
+    setEmailCursor(null);
+  }, [selectedFolderId]);
+
+  // Accumulate emails when loading more
+  useEffect(() => {
+    if (emailsResult?.emails) {
+      if (emailCursor === null) {
+        // Initial load - replace all
+        setLoadedEmails(emailsResult.emails);
+      } else {
+        // Loading more - append
+        setLoadedEmails(prev => [...prev, ...emailsResult.emails]);
+      }
+      setIsLoadingMore(false);
+    }
+  }, [emailsResult, emailCursor]);
+
+  // Load more handler
+  const handleLoadMore = () => {
+    if (emailsResult?.hasMore && emailsResult.nextCursor) {
+      setIsLoadingMore(true);
+      setEmailCursor(emailsResult.nextCursor);
+    }
+  };
+
+  // Use loaded emails for display
+  const displayEmails = loadedEmails.length > 0 ? loadedEmails : emailsResult?.emails || [];
 
   // Get selected email details
   const selectedEmail = useQuery(
@@ -300,11 +336,14 @@ export default function EmailPage() {
           {/* Email List */}
           <div className={`${selectedEmailId ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-96 h-full border-r theme-border flex-shrink-0`}>
             <EmailList
-              emails={emailsResult?.emails || []}
+              emails={displayEmails}
               selectedEmailId={selectedEmailId}
               onEmailSelect={handleEmailSelect}
-              isLoading={!emailsResult}
+              isLoading={!emailsResult && loadedEmails.length === 0}
               folder={folders?.find(f => f._id === selectedFolderId)}
+              hasMore={emailsResult?.hasMore}
+              onLoadMore={handleLoadMore}
+              isLoadingMore={isLoadingMore}
             />
           </div>
 
