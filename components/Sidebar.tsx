@@ -182,6 +182,12 @@ export default function Sidebar() {
     user?._id ? { userId: user._id } : "skip"
   );
 
+  // Get unread email count
+  const unreadEmailCount = useQuery(
+    api.email.folders.getTotalUnreadForUser,
+    user?._id ? { userId: user._id } : "skip"
+  );
+
   // Check if any item in a group is active
   const isGroupActive = (group: NavGroup) => {
     return group.items.some((item) => pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)));
@@ -662,9 +668,11 @@ export default function Sidebar() {
                 const isMessages = item.href === "/messages";
                 const isCalendar = item.href === "/calendar";
                 const isNotifications = item.href === "/notifications";
+                const isEmail = item.href === "/email";
                 const showMessageBadge = isMessages && unreadCount && unreadCount > 0;
                 const showCalendarBadge = isCalendar && unreadEventInvites && unreadEventInvites > 0;
                 const showNotificationBadge = isNotifications && unreadNotificationCount && unreadNotificationCount > 0;
+                const showEmailBadge = isEmail && unreadEmailCount && unreadEmailCount > 0;
 
                 return (
                   <Link
@@ -708,6 +716,11 @@ export default function Sidebar() {
                     {showNotificationBadge && (
                       <span className="min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold flex items-center justify-center rounded-full bg-red-500 text-white">
                         {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                      </span>
+                    )}
+                    {showEmailBadge && (
+                      <span className="min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold flex items-center justify-center rounded-full bg-blue-500 text-white">
+                        {unreadEmailCount > 99 ? "99+" : unreadEmailCount}
                       </span>
                     )}
                   </Link>

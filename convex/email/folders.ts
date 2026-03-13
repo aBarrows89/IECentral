@@ -157,6 +157,42 @@ export const getUnreadByUser = query({
   },
 });
 
+/**
+ * Get total unread email count for a user (all accounts combined).
+ * Used for sidebar badge.
+ */
+export const getTotalUnreadForUser = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const accounts = await ctx.db
+      .query("emailAccounts")
+      .withIndex("by_user_active", (q) =>
+        q.eq("userId", args.userId).eq("isActive", true)
+      )
+      .collect();
+
+    let total = 0;
+
+    for (const account of accounts) {
+      // Only count inbox unread (not spam, trash, etc.)
+      const inbox = await ctx.db
+        .query("emailFolders")
+        .withIndex("by_account_type", (q) =>
+          q.eq("accountId", account._id).eq("type", "inbox")
+        )
+        .first();
+
+      if (inbox) {
+        total += inbox.unreadCount;
+      }
+    }
+
+    return total;
+  },
+});
+
 // ============ MUTATIONS ============
 
 /**
