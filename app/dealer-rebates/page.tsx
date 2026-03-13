@@ -8,6 +8,7 @@ import { useAuth } from "../auth-context";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { usePermissions } from "@/lib/usePermissions";
 
 // ─── IE TIRES STATIC FIELDS ───────────────────────────────────────────────────
 const IE_FALKEN = { distributorAccount: "20118", address: "400 Unity St.  STE. 100", city: "Latrobe", state: "PA", zip: "15650" };
@@ -16,9 +17,10 @@ const IE_MILESTAR = { parentDistributor: "119662", distributorCenter: "119662:0"
 // ─── ART24T POSITIONAL COLUMN INDICES (zero-based) ─────────────────────────────
 const COL = {
   JMK: 0,
-  INVOICE: 2,
+  INVOICE: 1,
   DATE: 4,       // YYMMDD format
   PRODUCT_TYPE: 6,
+  BRAND: 7,      // FAL=Falken, MIL=Milestar
   SKU: 9,
   QTY: 13,
   PRICE: 17,
@@ -274,11 +276,13 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const jmk = normalizeAcct(cols[COL.JMK] ?? "");
       const invoice = (cols[COL.INVOICE] ?? "").trim();
       const dateRaw = (cols[COL.DATE] ?? "").trim();
+      const brand = (cols[COL.BRAND] ?? "").trim().toUpperCase();
       const sku = cleanSku(cols[COL.SKU] ?? "");
       const qty = (cols[COL.QTY] ?? "").trim();
       const price = (cols[COL.PRICE] ?? "").trim();
 
-      if (programs.falken && falkenByJmk[jmk]) {
+      // Only include Falken-brand tires on Falken report
+      if (programs.falken && brand === "FAL" && falkenByJmk[jmk]) {
         falkenByJmk[jmk].forEach(dealer => {
           if (!dealer.fanaticId) return;
           falkenOut.push({
@@ -300,7 +304,8 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
         });
       }
 
-      if (programs.milestar && milestarByJmk[jmk]) {
+      // Only include Milestar-brand tires on Milestar report
+      if (programs.milestar && brand === "MIL" && milestarByJmk[jmk]) {
         const dealer = milestarByJmk[jmk];
         if (dealer.dealerNumber) {
           milestarOut.push({
@@ -749,12 +754,15 @@ function DealerManagementTab({ isDark }: { isDark: boolean }) {
   const createDealer = useMutation(api.dealerRebates.createDealer);
   const updateDealer = useMutation(api.dealerRebates.updateDealer);
   const deleteDealer = useMutation(api.dealerRebates.deleteDealer);
+  const permissions = usePermissions();
+  const canDeactivate = permissions.hasMinTier(4); // T4+ (admin/super admin)
 
   const [search, setSearch] = useState("");
   const [programFilter, setProgramFilter] = useState<string>("all");
   const [showInactive, setShowInactive] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingDealer, setEditingDealer] = useState<Dealer | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<Dealer | null>(null);
 
   // Form state
   const [formJmk, setFormJmk] = useState("");
@@ -932,20 +940,22 @@ function DealerManagementTab({ isDark }: { isDark: boolean }) {
                       >
                         Edit
                       </button>
-                      {d.isActive ? (
-                        <button
-                          onClick={() => handleDelete(d._id)}
-                          className="px-2 py-1 rounded text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                        >
-                          Deactivate
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleReactivate(d)}
-                          className="px-2 py-1 rounded text-xs font-medium text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors"
-                        >
-                          Reactivate
-                        </button>
+                      {canDeactivate && (
+                        d.isActive ? (
+                          <button
+                            onClick={() => setConfirmDeactivate(d)}
+                            className="px-2 py-1 rounded text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleReactivate(d)}
+                            className="px-2 py-1 rounded text-xs font-medium text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors"
+                          >
+                            Reactivate
+                          </button>
+                        )
                       )}
                     </div>
                   </td>
@@ -1055,6 +1065,37 @@ function DealerManagementTab({ isDark }: { isDark: boolean }) {
                 className="px-5 py-2 rounded-lg text-sm font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-50"
               >
                 {formSaving ? "Saving..." : editingDealer ? "Update Dealer" : "Add Dealer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal */}
+      {confirmDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeactivate(null)}>
+          <div className={`w-full max-w-sm rounded-xl border p-6 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200 shadow-xl"}`} onClick={e => e.stopPropagation()}>
+            <h3 className={`text-lg font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
+              Deactivate Dealer?
+            </h3>
+            <p className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+              Are you sure you want to deactivate <strong className={isDark ? "text-white" : "text-gray-900"}>{confirmDeactivate.name}</strong> (JMK: {confirmDeactivate.jmk || "N/A"})? They will no longer appear in upload processing.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeactivate(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-600 hover:bg-gray-100"}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await handleDelete(confirmDeactivate._id);
+                  setConfirmDeactivate(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-colors"
+              >
+                Yes, Deactivate
               </button>
             </div>
           </div>
