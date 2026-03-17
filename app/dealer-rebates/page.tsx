@@ -285,14 +285,14 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
     const falkenByJmk: Record<string, Dealer[]> = {};
     falkenDealers.forEach(d => {
       const key = d.jmk.toLowerCase().trim();
-      if (!key) return; // Skip dealers with blank JMK
+      if (!key || key === "0" || key === "xxx") return; // Skip dealers with blank/invalid JMK
       if (!falkenByJmk[key]) falkenByJmk[key] = [];
       falkenByJmk[key].push(d);
     });
     const milestarByJmk: Record<string, Dealer> = {};
     milestarDealers.forEach(d => {
       const key = d.jmk.toLowerCase().trim();
-      if (!key) return; // Skip dealers with blank JMK
+      if (!key || key === "0" || key === "xxx") return; // Skip dealers with blank/invalid JMK
       milestarByJmk[key] = d;
     });
 
