@@ -36,12 +36,12 @@ const STORE_ACCOUNTS: Record<string, string> = {
   "w08r20": "r20", "w07r20": "r20", "w08w20": "r20",
   "r25r20": "r20", "r10r20": "r20", "r35r20": "r20", "r15r20": "r20",
   "r20w08": "r20", "r20w07": "r20", "w20w08": "r20",
-  "99-r20": "r20", "e1260": "r20",
+  "99-r20": "r20",
   // Export Tire (R25) — transfers, retail counter, employee accounts
   "w08r25": "r25", "w07r25": "r25", "w08w25": "r25", "w20w25": "r25",
   "r20r25": "r25", "r10r25": "r25", "r35r25": "r25", "r15r25": "r25",
   "r25w08": "r25", "r25w07": "r25", "w25w08": "r25",
-  "99-r25": "r25", "e1261": "r25", "e1217": "r25",
+  "99-r25": "r25",
   // King Super Tire (R35)
   "w08r35": "r35", "w07r35": "r35", "w08w35": "r35",
   "r20r35": "r35", "r10r35": "r35", "r25r35": "r35",
@@ -73,7 +73,9 @@ function parsePositionalCSV(text: string): string[][] {
 
 function normalizeAcct(raw: string): string {
   let s = raw.trim().toLowerCase();
-  // Check for known store account mappings (transfers, retail counter, employee IDs)
+  // Skip employee/internal E-prefix accounts (E1216, E1260, etc.)
+  if (s.match(/^e\d/)) return "";
+  // Check for known store account mappings (transfers, retail counter)
   if (STORE_ACCOUNTS[s]) return STORE_ACCOUNTS[s];
   // Strip leading zeros and whitespace
   s = s.replace(/^\s+/, '').replace(/^0+/, '') || '0';
