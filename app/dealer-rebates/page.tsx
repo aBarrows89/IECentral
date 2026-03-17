@@ -263,14 +263,14 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const allRows = parsePositionalCSV(text);
       if (allRows.length === 0) { setFileError("File is empty or could not be parsed."); return; }
 
-      // Filter only product types starting with "T"
-      const tRows = allRows.filter(cols => {
-        const productType = (cols[COL.PRODUCT_TYPE] ?? "").trim();
-        return productType.toUpperCase().startsWith("T");
+      // Filter to only FAL and MIL brands
+      const brandRows = allRows.filter(cols => {
+        const brand = (cols[COL.MFG_ID] ?? "").trim().toUpperCase();
+        return brand === "FAL" || brand === "MIL";
       });
 
       setRawRows(allRows);
-      setFilteredRows(tRows);
+      setFilteredRows(brandRows);
       setStep(1);
     };
     reader.readAsText(file);
@@ -302,9 +302,10 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const dateRaw = (cols[COL.ACTIVITY_DATE] ?? "").trim();
       const brand = (cols[COL.MFG_ID] ?? "").trim().toUpperCase();
       const mfrPartNumber = (cols[COL.MFG_ITEM_ID] ?? "").trim();
-      // Qty is negative in OEA07V (sold = negative), multiply by -1
+      // Qty in OEA07V: sold = negative, returns = positive. Multiply by -1
+      // so purchases become positive and returns become negative in output
       const rawQty = parseFloat((cols[COL.QTY] ?? "0").trim()) || 0;
-      const qty = String(Math.abs(rawQty));
+      const qty = String(rawQty * -1);
       const price = (cols[COL.SELL_PRICE] ?? "").trim();
 
       // Only include Falken-brand tires on Falken report
