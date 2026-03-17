@@ -301,6 +301,10 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
     const falkenDealersSeen = new Set<string>();
     const milestarDealersSeen = new Set<string>();
 
+    // Debug: log store dealer keys
+    console.log("[Rebate Debug] falkenByJmk keys:", Object.keys(falkenByJmk).filter(k => k.includes("w08")));
+    console.log("[Rebate Debug] milestarByJmk keys:", Object.keys(milestarByJmk).filter(k => k.includes("w08")));
+
     filteredRows.forEach(cols => {
       const jmk = normalizeAcct(cols[COL.ACCOUNT_ID] ?? "");
       const invoice = (cols[COL.INV_ID] ?? "").trim();
