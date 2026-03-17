@@ -29,15 +29,25 @@ const COL = {
 };
 
 // ─── STORE TRANSFER MAPPINGS ─────────────────────────────────────────────────
-// Account IDs for inter-store transfers (purchases and returns)
+// Map inter-location Account IDs to the destination store's dealer JMK
+// Format is SOURCE+DEST — we attribute to the destination store
+// Essey Tire = R20, Export Tire = R25, King Super Tire = R35
 const STORE_TRANSFERS: Record<string, string> = {
-  "w08w20": "r20",  // Essey Tire (purchase from W08 to W20)
-  "w20w08": "r20",  // Essey Tire (return from W20 to W08)
-  "w08w25": "r25",  // Export Tire (purchase from W08 to W25)
-  "w20w25": "r25",  // Export Tire (return from W20 to W25)
-  "w25w08": "r25",  // Export Tire (return from W25 to W08)
-  "w08w35": "r35",  // King Super Tire (purchase from W08 to W35)
-  "w35w08": "r35",  // King Super Tire (return from W35 to W08)
+  // Transfers TO Essey Tire (R20)
+  "w08r20": "r20", "w07r20": "r20", "w08w20": "r20",
+  "r25r20": "r20", "r10r20": "r20", "r35r20": "r20", "r15r20": "r20",
+  // Returns FROM Essey Tire (R20) — still attributed to Essey
+  "r20w08": "r20", "r20w07": "r20", "w20w08": "r20",
+  // Transfers TO Export Tire (R25)
+  "w08r25": "r25", "w07r25": "r25", "w08w25": "r25", "w20w25": "r25",
+  "r20r25": "r25", "r10r25": "r25", "r35r25": "r25", "r15r25": "r25",
+  // Returns FROM Export Tire (R25) — still attributed to Export
+  "r25w08": "r25", "r25w07": "r25", "w25w08": "r25",
+  // Transfers TO King Super Tire (R35)
+  "w08r35": "r35", "w07r35": "r35", "w08w35": "r35",
+  "r20r35": "r35", "r10r35": "r35", "r25r35": "r35",
+  // Returns FROM King Super Tire (R35) — still attributed to King Super
+  "r35w08": "r35", "r35w07": "r35", "w35w08": "r35",
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -67,20 +77,7 @@ function normalizeAcct(raw: string): string {
   let s = raw.trim().toLowerCase();
   // Check for known store transfer patterns (W08W20, W20W08, etc.)
   if (STORE_TRANSFERS[s]) return STORE_TRANSFERS[s];
-  // Handle inter-location transfers (e.g. W08R25, R25W08, R20W07, W07R20)
-  const transferMatch = s.match(/^([rw]\d{2})([rw]\d{2})$/);
-  if (transferMatch) {
-    const [, left, right] = transferMatch;
-    // Prefer the R-location (retail store); if both are W, use right side
-    if (left.startsWith('r')) return left;
-    if (right.startsWith('r')) return right;
-    return right;
-  }
-  // Strip warehouse prefix (e.g. W084187 -> 4187)
-  s = s.replace(/^w\d{2}/, '');
-  // Strip V/E/X vendor prefixes (e.g. V4187 -> 4187, E1159 -> 1159, X1328 -> 1328)
-  s = s.replace(/^[vex]/, '');
-  if (s.includes('-')) return s.split('-').pop()!;
+  // Strip leading zeros and whitespace
   s = s.replace(/^\s+/, '').replace(/^0+/, '') || '0';
   return s;
 }
