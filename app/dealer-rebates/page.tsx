@@ -32,12 +32,12 @@ const COL = {
 // Map all Account ID variants to the store's dealer JMK as stored in the database
 // TRD Tire / Essey Tire = W08R20, Command Trax / Export Tire = W08R25, King Super Tire = W08R35
 const STORE_ACCOUNTS: Record<string, string> = {
-  // TRD Tire / Essey Tire (JMK: W08R20) — sale and return only
-  "w08r20": "w08r20", "r20w08": "w08r20",
-  // Command Trax / Export Tire (JMK: W08R25) — sale and return only
-  "w08r25": "w08r25", "r25w08": "w08r25",
-  // King Super Tire (JMK: W08R35) — sale and return only
-  "w08r35": "w08r35", "r35w08": "w08r35",
+  // TRD Tire / Essey Tire (JMK: W08R20) — sale to store only
+  "w08r20": "w08r20",
+  // Command Trax / Export Tire (JMK: W08R25) — sale to store only
+  "w08r25": "w08r25",
+  // King Super Tire (JMK: W08R35) — sale to store only
+  "w08r35": "w08r35",
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
