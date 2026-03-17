@@ -34,6 +34,7 @@ const STORE_TRANSFERS: Record<string, string> = {
   "w08w20": "r20",  // Essey Tire (purchase from W08 to W20)
   "w20w08": "r20",  // Essey Tire (return from W20 to W08)
   "w08w25": "r25",  // Export Tire (purchase from W08 to W25)
+  "w20w25": "r25",  // Export Tire (return from W20 to W25)
   "w25w08": "r25",  // Export Tire (return from W25 to W08)
   "w08w35": "r35",  // King Super Tire (purchase from W08 to W35)
   "w35w08": "r35",  // King Super Tire (return from W35 to W08)
