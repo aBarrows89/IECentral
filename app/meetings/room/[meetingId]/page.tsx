@@ -68,6 +68,8 @@ export default function MeetingRoomPage() {
   });
 
   // Join meeting on mount
+  const startMeeting = useMutation(api.meetings.start);
+
   useEffect(() => {
     if (hasJoined || !user || !meeting) return;
 
@@ -79,6 +81,12 @@ export default function MeetingRoomPage() {
 
     async function join() {
       try {
+        // Start the meeting if host and not yet active
+        const isHost = String(meeting!.hostId) === String(user!._id);
+        if (isHost && (meeting!.status === "lobby" || meeting!.status === "scheduled")) {
+          await startMeeting({ meetingId: typedMeetingId });
+        }
+
         await joinMeeting({
           meetingId: typedMeetingId,
           userId: user!._id,
@@ -91,7 +99,7 @@ export default function MeetingRoomPage() {
     }
 
     join();
-  }, [user, meeting, hasJoined, joinMeeting, typedMeetingId]);
+  }, [user, meeting, hasJoined, joinMeeting, startMeeting, typedMeetingId]);
 
   // Sync media state to Convex
   useEffect(() => {
@@ -226,8 +234,8 @@ export default function MeetingRoomPage() {
     );
   }
 
-  // Loading state
-  if (!meeting || !participants || !myParticipant) {
+  // Loading state — wait for meeting data; participant record will come reactively
+  if (!meeting || !hasJoined) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${
@@ -248,7 +256,7 @@ export default function MeetingRoomPage() {
     meeting.hostId && String(meeting.hostId) === String(user?._id);
 
   // Build participant list with display names and media state
-  const enrichedParticipants = participants.map((p: any) => ({
+  const enrichedParticipants = (participants ?? []).map((p: any) => ({
     ...p,
     displayName:
       p.displayName || p.guestName || (p.userId === user?._id ? user?.name : "Participant"),
@@ -308,7 +316,7 @@ export default function MeetingRoomPage() {
           localStream={localStream}
           remoteStreams={remoteStreams}
           participants={enrichedParticipants}
-          myParticipantId={String(myParticipant._id)}
+          myParticipantId={String(myParticipant?._id ?? "")}
         />
       </div>
 
@@ -327,7 +335,7 @@ export default function MeetingRoomPage() {
                 isDark ? "text-white" : "text-gray-900"
               }`}
             >
-              Participants ({participants.length})
+              Participants ({(participants ?? []).length})
             </h3>
             <button
               onClick={() => setShowParticipantList(false)}
@@ -426,7 +434,7 @@ export default function MeetingRoomPage() {
         isNotedMeeting={meeting.isNotedMeeting ?? false}
         onToggleNotedMeeting={handleToggleNotedMeeting}
         isHost={!!isHost}
-        participantCount={participants.length}
+        participantCount={(participants ?? []).length}
         onToggleParticipantList={() =>
           setShowParticipantList(!showParticipantList)
         }
