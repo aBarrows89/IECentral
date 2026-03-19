@@ -299,10 +299,14 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const dateRaw = (cols[COL.ACTIVITY_DATE] ?? "").trim();
       const brand = (cols[COL.MFG_ID] ?? "").trim().toUpperCase();
       const mfrPartNumber = (cols[COL.MFG_ITEM_ID] ?? "").trim();
-      // Qty in OEA07V: sold = negative, returns = positive. Multiply by -1
-      // so purchases become positive and returns become negative in output
+      // Qty in OEA07V: sold/transferred = negative. Multiply by -1
+      // so purchases become positive in output.
+      // R##W08 return rows are also negative in the report — keep them
+      // negative in output by not flipping the sign.
+      const rawAcct = (cols[COL.ACCOUNT_ID] ?? "").trim().toLowerCase();
+      const isReturn = /^r\d{2}w\d{2}$/.test(rawAcct);
       const rawQty = parseFloat((cols[COL.QTY] ?? "0").trim()) || 0;
-      const qty = String(rawQty * -1);
+      const qty = String(isReturn ? rawQty : rawQty * -1);
       const price = (cols[COL.SELL_PRICE] ?? "").trim();
 
       // Only include Falken-brand tires on Falken report
