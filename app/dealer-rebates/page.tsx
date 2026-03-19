@@ -301,8 +301,7 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const mfrPartNumber = (cols[COL.MFG_ITEM_ID] ?? "").trim();
       // Qty in OEA07V: sold/transferred = negative. Multiply by -1
       // so purchases become positive in output.
-      // R##W08 return rows are also negative in the report — keep them
-      // negative in output by not flipping the sign.
+      // R##W08 return rows keep original sign (negative = return/credit)
       const rawAcct = (cols[COL.ACCOUNT_ID] ?? "").trim().toLowerCase();
       const isReturn = /^r\d{2}w\d{2}$/.test(rawAcct);
       const rawQty = parseFloat((cols[COL.QTY] ?? "0").trim()) || 0;
