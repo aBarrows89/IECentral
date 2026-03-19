@@ -37,6 +37,7 @@ function formatDateForInput(date: Date): string {
 }
 
 const MEETING_TYPES = [
+  { value: "iecentral", label: "IECentral Meeting", icon: "🎯" },
   { value: "zoom", label: "Zoom", icon: "📹" },
   { value: "teams", label: "Microsoft Teams", icon: "💼" },
   { value: "meet", label: "Google Meet", icon: "🎥" },
@@ -66,7 +67,7 @@ function CalendarContent() {
     isAllDay: false,
     location: "",
     meetingLink: "",
-    meetingType: "zoom",
+    meetingType: "iecentral",
     inviteeIds: [] as Id<"users">[],
   });
 
@@ -121,6 +122,9 @@ function CalendarContent() {
   const respondToInvite = useMutation(api.events.respondToInvite);
   const markInviteRead = useMutation(api.events.markInviteRead);
   const addInvitees = useMutation(api.events.addInvitees);
+  const createMeeting = useMutation(api.meetings.create);
+
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   // State for adding invitees to existing events
   const [showAddInviteesModal, setShowAddInviteesModal] = useState(false);
@@ -205,16 +209,61 @@ function CalendarContent() {
   const handleCreateEvent = async () => {
     if (!user || !formData.title) return;
 
+    setIsCreatingEvent(true);
     try {
+      const startTimestamp = new Date(formData.startTime).getTime();
+      const endTimestamp = new Date(formData.endTime).getTime();
+
+      let meetingLink = formData.meetingLink || undefined;
+      let meetingType = formData.meetingType || undefined;
+
+      // If IECentral Meeting is selected, create a meeting room first
+      if (formData.meetingType === "iecentral") {
+        // Create the calendar event first to get the eventId
+        const eventId = await createEvent({
+          title: formData.title,
+          description: formData.description || undefined,
+          startTime: startTimestamp,
+          endTime: endTimestamp,
+          isAllDay: formData.isAllDay,
+          location: formData.location || undefined,
+          meetingLink: undefined, // will patch after meeting creation
+          meetingType: "iecentral",
+          inviteeIds: formData.inviteeIds,
+          userId: user._id as Id<"users">,
+        });
+
+        // Create the IECentral meeting linked to this event
+        const meetingId = await createMeeting({
+          title: formData.title,
+          userId: user._id as Id<"users">,
+          scheduledStart: startTimestamp,
+          scheduledEnd: endTimestamp,
+          isNotedMeeting: false,
+          eventId: eventId,
+        });
+
+        // Update the event with the meeting link
+        await updateEvent({
+          eventId: eventId,
+          meetingLink: `/meetings/room/${meetingId}`,
+        });
+
+        setShowCreateModal(false);
+        resetForm();
+        setIsCreatingEvent(false);
+        return;
+      }
+
       await createEvent({
         title: formData.title,
         description: formData.description || undefined,
-        startTime: new Date(formData.startTime).getTime(),
-        endTime: new Date(formData.endTime).getTime(),
+        startTime: startTimestamp,
+        endTime: endTimestamp,
         isAllDay: formData.isAllDay,
         location: formData.location || undefined,
-        meetingLink: formData.meetingLink || undefined,
-        meetingType: formData.meetingType || undefined,
+        meetingLink,
+        meetingType,
         inviteeIds: formData.inviteeIds,
         userId: user._id as Id<"users">,
       });
@@ -223,6 +272,8 @@ function CalendarContent() {
       resetForm();
     } catch (err) {
       console.error("Failed to create event:", err);
+    } finally {
+      setIsCreatingEvent(false);
     }
   };
 
@@ -273,7 +324,7 @@ function CalendarContent() {
       isAllDay: false,
       location: "",
       meetingLink: "",
-      meetingType: "zoom",
+      meetingType: "iecentral",
       inviteeIds: [],
     });
   };
@@ -643,8 +694,22 @@ function CalendarContent() {
                   </select>
                 </div>
 
-                {/* Meeting Link */}
-                {formData.meetingType !== "in_person" && formData.meetingType !== "phone" && (
+                {/* Meeting Link / IECentral Meeting Info */}
+                {formData.meetingType === "iecentral" ? (
+                  <div className={`p-3 rounded-lg border ${isDark ? "bg-cyan-500/10 border-cyan-500/20" : "bg-blue-50 border-blue-100"}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <p className={`text-sm font-medium ${isDark ? "text-cyan-400" : "text-blue-700"}`}>
+                        IECentral Meeting
+                      </p>
+                    </div>
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                      A meeting room with a unique join code will be automatically created when you save this event. Invitees can join directly from the event.
+                    </p>
+                  </div>
+                ) : formData.meetingType !== "in_person" && formData.meetingType !== "phone" ? (
                   <div>
                     <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
                       Meeting Link
@@ -657,7 +722,7 @@ function CalendarContent() {
                       placeholder="https://zoom.us/j/..."
                     />
                   </div>
-                )}
+                ) : null}
 
                 {/* Location */}
                 <div>
@@ -745,10 +810,10 @@ function CalendarContent() {
                 </button>
                 <button
                   onClick={handleCreateEvent}
-                  disabled={!formData.title}
+                  disabled={!formData.title || isCreatingEvent}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium disabled:opacity-50 ${isDark ? "bg-cyan-500 text-white hover:bg-cyan-600" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                 >
-                  Create Event
+                  {isCreatingEvent ? "Creating..." : "Create Event"}
                 </button>
               </div>
             </div>
@@ -803,8 +868,25 @@ function CalendarContent() {
                   </div>
                 )}
 
-                {/* Meeting Link */}
-                {selectedEvent.meetingLink && (
+                {/* Meeting Link / Join Meeting */}
+                {selectedEvent.meetingType === "iecentral" && selectedEvent.meetingLink ? (
+                  <div>
+                    <p className={`text-sm font-medium mb-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>IECentral Meeting</p>
+                    <Link
+                      href={selectedEvent.meetingLink}
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                        isDark
+                          ? "bg-cyan-500 text-white hover:bg-cyan-600"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Join Meeting
+                    </Link>
+                  </div>
+                ) : selectedEvent.meetingLink ? (
                   <div>
                     <p className={`text-sm font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Meeting Link</p>
                     <a
@@ -816,7 +898,7 @@ function CalendarContent() {
                       {selectedEvent.meetingLink}
                     </a>
                   </div>
-                )}
+                ) : null}
 
                 {/* Location */}
                 {selectedEvent.location && (

@@ -7,6 +7,7 @@ import { useAuth } from "../auth-context";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { GiphyFetch } from "@giphy/js-fetch-api";
 import { Grid } from "@giphy/react-components";
@@ -166,6 +167,25 @@ function MessagesContent() {
       localStorage.setItem("messageSoundMuted", String(newValue));
       return newValue;
     });
+  };
+
+  const handleStartVideoCall = async () => {
+    if (!user || !selectedConversation || isStartingCall) return;
+    setIsStartingCall(true);
+    try {
+      const otherPersonName = getConversationName(selectedConversation);
+      const meetingId = await createMeeting({
+        title: `Call with ${otherPersonName}`,
+        userId: user._id,
+        isNotedMeeting: false,
+      });
+      await startMeeting({ meetingId });
+      router.push(`/meetings/room/${meetingId}`);
+    } catch (error) {
+      console.error("Failed to start video call:", error);
+    } finally {
+      setIsStartingCall(false);
+    }
   };
 
   // # Link mention state
@@ -418,6 +438,12 @@ function MessagesContent() {
   const getAttachmentUrl = useAction(api.messages.getAttachmentUrl);
   const setTyping = useMutation(api.messages.setTyping);
   const clearTyping = useMutation(api.messages.clearTyping);
+
+  // Video call
+  const router = useRouter();
+  const createMeeting = useMutation(api.meetings.create);
+  const startMeeting = useMutation(api.meetings.start);
+  const [isStartingCall, setIsStartingCall] = useState(false);
 
   // Typing indicator query
   const typingUsers = useQuery(
@@ -827,6 +853,17 @@ function MessagesContent() {
                       : "Direct Message"}
                   </p>
                 </div>
+                {/* Start Video Call Button */}
+                <button
+                  onClick={handleStartVideoCall}
+                  disabled={isStartingCall}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Start Video Call"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
                 {/* Mute Toggle Button */}
                 <button
                   onClick={toggleMute}
