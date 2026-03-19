@@ -2797,4 +2797,59 @@ export default defineSchema({
       searchField: "searchText",
       filterFields: ["accountId", "userId", "fromAddress", "hasAttachment"],
     }),
+
+  // ============ VIDEO MEETINGS ============
+  meetings: defineTable({
+    eventId: v.optional(v.id("events")),
+    title: v.string(),
+    joinCode: v.string(),
+    hostId: v.id("users"),
+    hostName: v.string(),
+    scheduledStart: v.optional(v.number()),
+    scheduledEnd: v.optional(v.number()),
+    status: v.string(), // "scheduled" | "lobby" | "active" | "ended"
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    isNotedMeeting: v.boolean(),
+    meetingNotesId: v.optional(v.id("meetingNotes")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_join_code", ["joinCode"])
+    .index("by_host", ["hostId"])
+    .index("by_event", ["eventId"])
+    .index("by_status", ["status"])
+    .index("by_scheduled", ["scheduledStart"]),
+
+  meetingParticipants: defineTable({
+    meetingId: v.id("meetings"),
+    userId: v.optional(v.id("users")),
+    guestName: v.optional(v.string()),
+    guestEmail: v.optional(v.string()),
+    displayName: v.string(),
+    status: v.string(), // "lobby" | "connected" | "disconnected" | "removed"
+    joinedAt: v.optional(v.number()),
+    leftAt: v.optional(v.number()),
+    isMuted: v.boolean(),
+    isCameraOff: v.boolean(),
+    isScreenSharing: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_meeting", ["meetingId"])
+    .index("by_user", ["userId"])
+    .index("by_meeting_status", ["meetingId", "status"]),
+
+  meetingSignals: defineTable({
+    meetingId: v.id("meetings"),
+    fromParticipantId: v.id("meetingParticipants"),
+    toParticipantId: v.id("meetingParticipants"),
+    type: v.string(), // "offer" | "answer" | "ice-candidate" | "renegotiate"
+    payload: v.string(),
+    isConsumed: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_recipient", ["toParticipantId", "isConsumed"])
+    .index("by_meeting", ["meetingId"])
+    .index("by_created", ["createdAt"]),
 });
