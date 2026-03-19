@@ -2853,6 +2853,32 @@ export default defineSchema({
     .index("by_token", ["inviteToken"])
     .index("by_email", ["email"]),
 
+  meetingNotes: defineTable({
+    meetingId: v.id("meetings"),
+    status: v.string(), // "recording" | "uploading" | "transcribing" | "generating" | "complete" | "error"
+    audioFileId: v.optional(v.id("_storage")),
+    transcript: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    actionItems: v.optional(
+      v.array(
+        v.object({
+          text: v.string(),
+          assignee: v.optional(v.string()),
+          dueDate: v.optional(v.string()),
+          completed: v.boolean(),
+        })
+      )
+    ),
+    decisions: v.optional(v.array(v.string())),
+    followUps: v.optional(v.array(v.string())),
+    keyTopics: v.optional(v.array(v.string())),
+    duration: v.optional(v.number()), // recording duration in seconds
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_meeting", ["meetingId"]),
+
   meetingSignals: defineTable({
     meetingId: v.id("meetings"),
     fromParticipantId: v.id("meetingParticipants"),

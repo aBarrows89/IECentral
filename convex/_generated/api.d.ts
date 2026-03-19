@@ -67,6 +67,8 @@ import type * as jobs from "../jobs.js";
 import type * as locations from "../locations.js";
 import type * as meetingInviteActions from "../meetingInviteActions.js";
 import type * as meetingInvites from "../meetingInvites.js";
+import type * as meetingNoteActions from "../meetingNoteActions.js";
+import type * as meetingNotes from "../meetingNotes.js";
 import type * as meetingParticipants from "../meetingParticipants.js";
 import type * as meetingSignaling from "../meetingSignaling.js";
 import type * as meetings from "../meetings.js";
@@ -164,6 +166,8 @@ declare const fullApi: ApiFromModules<{
   locations: typeof locations;
   meetingInviteActions: typeof meetingInviteActions;
   meetingInvites: typeof meetingInvites;
+  meetingNoteActions: typeof meetingNoteActions;
+  meetingNotes: typeof meetingNotes;
   meetingParticipants: typeof meetingParticipants;
   meetingSignaling: typeof meetingSignaling;
   meetings: typeof meetings;

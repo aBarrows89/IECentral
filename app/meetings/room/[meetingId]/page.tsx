@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useMediaStream } from "@/lib/webrtc/useMediaStream";
 import { usePeerConnections } from "@/lib/webrtc/usePeerConnections";
+import { useMediaRecorder } from "@/lib/webrtc/useMediaRecorder";
 import VideoGrid from "@/components/meetings/VideoGrid";
 import MeetingControls from "@/components/meetings/MeetingControls";
 
@@ -40,6 +41,13 @@ export default function MeetingRoomPage() {
     api.meetingParticipants.updateMediaState
   );
   const toggleNotedMeeting = useMutation(api.meetings.updateNotedMeeting);
+
+  // Meeting notes mutations/actions
+  const createMeetingNotes = useMutation(api.meetingNotes.create);
+  const updateNoteStatus = useMutation(api.meetingNotes.updateStatus);
+  const updateAudioFile = useMutation(api.meetingNotes.updateAudioFile);
+  const generateUploadUrl = useMutation(api.meetingNotes.generateUploadUrl);
+  const transcribeAndGenerateNotes = useAction(api.meetingNoteActions.transcribeAndGenerateNotes);
 
   // Invite action
   const sendInviteEmail = useAction(api.meetingInviteActions.sendInviteEmail);
@@ -81,6 +89,95 @@ export default function MeetingRoomPage() {
     meetingId: typedMeetingId,
     participants: (participants ?? []) as any[],
   });
+
+  // Noted meeting recording state
+  const [isNotedRecording, setIsNotedRecording] = useState(false);
+  const [meetingNotesId, setMeetingNotesId] = useState<Id<"meetingNotes"> | null>(null);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+  // Media recorder for noted meetings
+  const { audioBlob, recordingDuration } = useMediaRecorder({
+    localStream,
+    remoteStreams,
+    isRecording: isNotedRecording,
+  });
+
+  // Start recording when noted meeting becomes active
+  useEffect(() => {
+    if (
+      meeting?.isNotedMeeting &&
+      meeting?.status === "active" &&
+      hasJoined &&
+      !isNotedRecording &&
+      !meetingNotesId
+    ) {
+      // Create notes record and start recording
+      createMeetingNotes({ meetingId: typedMeetingId })
+        .then((notesId) => {
+          setMeetingNotesId(notesId);
+          setIsNotedRecording(true);
+        })
+        .catch((err) => {
+          console.error("Failed to create meeting notes:", err);
+        });
+    }
+  }, [meeting?.isNotedMeeting, meeting?.status, hasJoined, isNotedRecording, meetingNotesId, createMeetingNotes, typedMeetingId]);
+
+  // Handle audio blob ready after recording stops — upload and trigger pipeline
+  useEffect(() => {
+    if (!audioBlob || !meetingNotesId || isUploadingAudio) return;
+
+    async function uploadAndProcess() {
+      setIsUploadingAudio(true);
+      try {
+        await updateNoteStatus({
+          notesId: meetingNotesId!,
+          status: "uploading",
+        });
+
+        // Upload audio to Convex storage
+        const uploadUrl = await generateUploadUrl();
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": audioBlob!.type },
+          body: audioBlob,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload audio file");
+        }
+
+        const { storageId } = await uploadResponse.json();
+
+        // Update notes with audio file reference
+        await updateAudioFile({
+          notesId: meetingNotesId!,
+          audioFileId: storageId,
+          duration: recordingDuration,
+        });
+
+        // Trigger transcription + AI pipeline
+        await transcribeAndGenerateNotes({
+          notesId: meetingNotesId!,
+          meetingId: typedMeetingId,
+        });
+      } catch (err) {
+        console.error("Failed to upload audio or trigger processing:", err);
+        if (meetingNotesId) {
+          await updateNoteStatus({
+            notesId: meetingNotesId,
+            status: "error",
+            errorMessage: err instanceof Error ? err.message : "Upload failed",
+          }).catch(() => {});
+        }
+      } finally {
+        setIsUploadingAudio(false);
+      }
+    }
+
+    uploadAndProcess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioBlob, meetingNotesId]);
 
   // Join meeting on mount
   const startMeeting = useMutation(api.meetings.start);
@@ -149,6 +246,11 @@ export default function MeetingRoomPage() {
 
   // Handle end call (host)
   const handleEndCall = useCallback(async () => {
+    // Stop noted meeting recording before leaving
+    if (isNotedRecording) {
+      setIsNotedRecording(false);
+    }
+
     if (!user || !meeting) {
       await handleLeave();
       return;
@@ -165,8 +267,15 @@ export default function MeetingRoomPage() {
       }
     }
 
+    // If we have a noted meeting, wait briefly for recording to finalize
+    // The audioBlob effect will handle uploading
+    if (meeting.isNotedMeeting && meetingNotesId) {
+      // Small delay to let MediaRecorder finalize
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
     await handleLeave();
-  }, [user, meeting, endMeeting, typedMeetingId, handleLeave]);
+  }, [user, meeting, endMeeting, typedMeetingId, handleLeave, isNotedRecording, meetingNotesId]);
 
   // Handle noted meeting toggle
   const handleToggleNotedMeeting = useCallback(async () => {

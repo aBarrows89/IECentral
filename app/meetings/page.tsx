@@ -39,6 +39,10 @@ export default function MeetingsPage() {
   const [title, setTitle] = useState("");
   const [isNotedMeeting, setIsNotedMeeting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [meetingMode, setMeetingMode] = useState<"instant" | "scheduled">("instant");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledStartTime, setScheduledStartTime] = useState("");
+  const [scheduledEndTime, setScheduledEndTime] = useState("");
 
   const [joinCode, setJoinCode] = useState("");
   const [joinError, setJoinError] = useState("");
@@ -61,14 +65,33 @@ export default function MeetingsPage() {
     if (!user || !title.trim()) return;
     setCreating(true);
     try {
-      const meetingId = await createMeeting({
+      const args: { title: string; userId: Id<"users">; isNotedMeeting: boolean; scheduledStart?: number; scheduledEnd?: number } = {
         title: title.trim(),
         isNotedMeeting,
         userId: user._id,
-      });
-      // Start it immediately
-      await startMeeting({ meetingId });
-      router.push(`/meetings/room/${meetingId}`);
+      };
+
+      if (meetingMode === "scheduled" && scheduledDate && scheduledStartTime) {
+        args.scheduledStart = new Date(`${scheduledDate}T${scheduledStartTime}`).getTime();
+        if (scheduledEndTime) {
+          args.scheduledEnd = new Date(`${scheduledDate}T${scheduledEndTime}`).getTime();
+        }
+      }
+
+      const meetingId = await createMeeting(args);
+
+      if (meetingMode === "instant") {
+        await startMeeting({ meetingId });
+        router.push(`/meetings/room/${meetingId}`);
+      } else {
+        // Reset form and show upcoming
+        setTitle("");
+        setIsNotedMeeting(false);
+        setScheduledDate("");
+        setScheduledStartTime("");
+        setScheduledEndTime("");
+        setShowNewMeeting(false);
+      }
     } catch (err) {
       console.error("Failed to create meeting:", err);
     } finally {
@@ -137,15 +160,35 @@ export default function MeetingsPage() {
                     isDark ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  Start a New Meeting
+                  New Meeting
                 </h2>
                 <div className="space-y-4">
-                  <div>
-                    <label
-                      className={`block text-sm font-medium mb-1 ${
-                        isDark ? "text-slate-300" : "text-gray-700"
+                  {/* Mode Toggle */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setMeetingMode("instant")}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        meetingMode === "instant"
+                          ? isDark ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-blue-100 text-blue-700 border border-blue-300"
+                          : isDark ? "text-slate-400 border border-slate-700 hover:border-slate-600" : "text-gray-500 border border-gray-200 hover:border-gray-300"
                       }`}
                     >
+                      Start Now
+                    </button>
+                    <button
+                      onClick={() => setMeetingMode("scheduled")}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        meetingMode === "scheduled"
+                          ? isDark ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-blue-100 text-blue-700 border border-blue-300"
+                          : isDark ? "text-slate-400 border border-slate-700 hover:border-slate-600" : "text-gray-500 border border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      Schedule for Later
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
                       Meeting Title
                     </label>
                     <input
@@ -158,11 +201,50 @@ export default function MeetingsPage() {
                           ? "bg-slate-700 border-slate-600 text-white focus:ring-cyan-500 placeholder-slate-400"
                           : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 placeholder-gray-400"
                       }`}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateMeeting();
-                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && meetingMode === "instant") handleCreateMeeting(); }}
                     />
                   </div>
+
+                  {/* Schedule fields */}
+                  {meetingMode === "scheduled" && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Date</label>
+                        <input
+                          type="date"
+                          value={scheduledDate}
+                          onChange={(e) => setScheduledDate(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                          className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 ${
+                            isDark ? "bg-slate-700 border-slate-600 text-white focus:ring-cyan-500" : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Start Time</label>
+                        <input
+                          type="time"
+                          value={scheduledStartTime}
+                          onChange={(e) => setScheduledStartTime(e.target.value)}
+                          className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 ${
+                            isDark ? "bg-slate-700 border-slate-600 text-white focus:ring-cyan-500" : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>End Time</label>
+                        <input
+                          type="time"
+                          value={scheduledEndTime}
+                          onChange={(e) => setScheduledEndTime(e.target.value)}
+                          className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 ${
+                            isDark ? "bg-slate-700 border-slate-600 text-white focus:ring-cyan-500" : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -170,24 +252,19 @@ export default function MeetingsPage() {
                       onChange={(e) => setIsNotedMeeting(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-cyan-500 focus:ring-cyan-500"
                     />
-                    <span
-                      className={`text-sm ${
-                        isDark ? "text-slate-300" : "text-gray-700"
-                      }`}
-                    >
-                      Noted Meeting (AI notes will be generated)
+                    <span className={`text-sm ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                      Noted Meeting (AI transcription + notes)
                     </span>
                   </label>
+
                   <button
                     onClick={handleCreateMeeting}
-                    disabled={!title.trim() || creating}
+                    disabled={!title.trim() || creating || (meetingMode === "scheduled" && (!scheduledDate || !scheduledStartTime))}
                     className={`px-5 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                      isDark
-                        ? "bg-cyan-600 text-white hover:bg-cyan-700"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
+                      isDark ? "bg-cyan-600 text-white hover:bg-cyan-700" : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
-                    {creating ? "Starting..." : "Start Now"}
+                    {creating ? (meetingMode === "instant" ? "Starting..." : "Scheduling...") : meetingMode === "instant" ? "Start Now" : "Schedule Meeting"}
                   </button>
                 </div>
               </div>
@@ -396,11 +473,27 @@ export default function MeetingsPage() {
                             >
                               {meeting.title}
                             </h3>
-                            {meeting.isNotedMeeting && (
-                              <span className="text-xs text-cyan-400">
-                                Noted
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {meeting.isNotedMeeting && (
+                                <span className="text-xs text-cyan-400">
+                                  Noted
+                                </span>
+                              )}
+                              {meeting.isNotedMeeting && meeting.meetingNotesId && (
+                                <button
+                                  onClick={() =>
+                                    router.push(`/meetings/notes/${meeting._id}`)
+                                  }
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                    isDark
+                                      ? "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+                                      : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                  }`}
+                                >
+                                  View Notes
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div
                             className={`text-sm mt-1 ${
