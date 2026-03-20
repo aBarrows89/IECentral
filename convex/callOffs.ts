@@ -143,6 +143,10 @@ export const submit = mutation({
     reportedVia: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.reason.length > 2000) {
+      throw new Error("Reason must be 2,000 characters or fewer.");
+    }
+
     const now = Date.now();
 
     const callOffId = await ctx.db.insert("callOffs", {

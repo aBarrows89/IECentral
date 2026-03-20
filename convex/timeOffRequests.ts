@@ -232,6 +232,7 @@ export const approve = mutation({
 
     const now = Date.now();
 
+    // Update status FIRST to prevent race condition with concurrent approvals
     await ctx.db.patch(args.requestId, {
       status: "approved",
       reviewedBy: args.reviewedBy,
@@ -239,6 +240,12 @@ export const approve = mutation({
       managerNotes: args.managerNotes,
       updatedAt: now,
     });
+
+    // Re-read the request to verify our patch won (status should be "approved" by us)
+    const updatedRequest = await ctx.db.get(args.requestId);
+    if (!updatedRequest || updatedRequest.status !== "approved") {
+      throw new Error("Request was already processed by another manager");
+    }
 
     // Update PTO balance (move from pending to used)
     const currentYear = new Date().getFullYear();
@@ -282,6 +289,7 @@ export const deny = mutation({
 
     const now = Date.now();
 
+    // Update status FIRST to prevent race condition with concurrent reviews
     await ctx.db.patch(args.requestId, {
       status: "denied",
       reviewedBy: args.reviewedBy,
@@ -289,6 +297,12 @@ export const deny = mutation({
       managerNotes: args.managerNotes,
       updatedAt: now,
     });
+
+    // Re-read the request to verify our patch won
+    const updatedRequest = await ctx.db.get(args.requestId);
+    if (!updatedRequest || updatedRequest.status !== "denied") {
+      throw new Error("Request was already processed by another manager");
+    }
 
     // Update PTO balance (remove from pending)
     const currentYear = new Date().getFullYear();

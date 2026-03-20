@@ -46,6 +46,33 @@ function ScheduleContent() {
     );
   }
 
+  // Loading state — schedule is undefined while the query is in flight
+  if (schedule === undefined) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? "bg-slate-900" : "bg-gray-50"}`}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${isDark ? 'border-cyan-400' : 'border-blue-600'}" />
+          <p className={isDark ? "text-slate-400" : "text-gray-500"}>Loading schedule...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state — query returned null
+  if (schedule === null) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? "bg-slate-900" : "bg-gray-50"}`}>
+        <div className="flex flex-col items-center gap-3">
+          <svg className={`w-10 h-10 ${isDark ? "text-red-400" : "text-red-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className={`font-medium ${isDark ? "text-red-400" : "text-red-600"}`}>Failed to load schedule</p>
+          <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Please try again later.</p>
+        </div>
+      </div>
+    );
+  }
+
   // Generate days of the week
   const days = [];
   for (let i = 0; i < 7; i++) {

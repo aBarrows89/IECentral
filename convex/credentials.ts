@@ -1,19 +1,12 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
-// Tech team emails that have access to credentials
-const TECH_EMAILS = ["andy@ietires.com", "nick@ietires.com", "abarrows@ietires.com", "nquinn@ietires.com"];
-
-// Helper to check if user has dev team access
+// Helper to check if user has dev team access (super_admin only)
 async function hasDevAccess(ctx: any, userId: string): Promise<boolean> {
   const user = await ctx.db.get(userId);
   if (!user) return false;
 
-  // Check if superuser or in tech emails list
-  if (user.role === "super_admin") return true;
-  if (TECH_EMAILS.includes(user.email?.toLowerCase() || "")) return true;
-
-  return false;
+  return user.role === "super_admin";
 }
 
 // ============ QUERIES ============

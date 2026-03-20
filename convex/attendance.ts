@@ -145,6 +145,29 @@ export const upsert = mutation({
       });
       return existing._id;
     } else {
+      // Double-check right before insert to prevent duplicate records
+      const doubleCheck = await ctx.db
+        .query("attendance")
+        .withIndex("by_personnel_date", (q) =>
+          q.eq("personnelId", args.personnelId).eq("date", args.date)
+        )
+        .first();
+
+      if (doubleCheck) {
+        // Another mutation created the record between our first check and now; update it instead
+        await ctx.db.patch(doubleCheck._id, {
+          status: args.status,
+          scheduledStart: args.scheduledStart,
+          scheduledEnd: args.scheduledEnd,
+          actualStart: args.actualStart,
+          actualEnd: args.actualEnd,
+          hoursWorked: args.hoursWorked,
+          notes: args.notes,
+          updatedAt: now,
+        });
+        return doubleCheck._id;
+      }
+
       // Create new record
       const recordId = await ctx.db.insert("attendance", {
         personnelId: args.personnelId,

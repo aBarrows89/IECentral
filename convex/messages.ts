@@ -233,6 +233,9 @@ export const leaveGroup = mutation({
     const updatedParticipants = conversation.participants.filter(
       (id) => id !== args.userId
     );
+    if (updatedParticipants.length < 2) {
+      throw new Error("Group must have at least 2 members");
+    }
     await ctx.db.patch(args.conversationId, {
       participants: updatedParticipants,
     });

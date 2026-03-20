@@ -163,6 +163,16 @@ export const create = mutation({
     issuedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const VALID_CATEGORIES = ["attendance", "behavior", "safety", "performance", "policy_violation"];
+    const VALID_SEVERITIES = ["verbal", "written", "final", "termination"];
+
+    if (!VALID_CATEGORIES.includes(args.category)) {
+      throw new Error(`Invalid category: ${args.category}. Must be one of: ${VALID_CATEGORIES.join(", ")}`);
+    }
+    if (!VALID_SEVERITIES.includes(args.severity)) {
+      throw new Error(`Invalid severity: ${args.severity}. Must be one of: ${VALID_SEVERITIES.join(", ")}`);
+    }
+
     const writeUpId = await ctx.db.insert("writeUps", {
       personnelId: args.personnelId,
       date: args.date,
@@ -209,6 +219,16 @@ export const update = mutation({
     followUpNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const VALID_CATEGORIES = ["attendance", "behavior", "safety", "performance", "policy_violation"];
+    const VALID_SEVERITIES = ["verbal", "written", "final", "termination"];
+
+    if (args.category && !VALID_CATEGORIES.includes(args.category)) {
+      throw new Error(`Invalid category: ${args.category}. Must be one of: ${VALID_CATEGORIES.join(", ")}`);
+    }
+    if (args.severity && !VALID_SEVERITIES.includes(args.severity)) {
+      throw new Error(`Invalid severity: ${args.severity}. Must be one of: ${VALID_SEVERITIES.join(", ")}`);
+    }
+
     const { writeUpId, ...updates } = args;
 
     const updateData: Record<string, unknown> = {};

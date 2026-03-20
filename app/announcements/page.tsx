@@ -119,8 +119,16 @@ function AnnouncementsContent() {
     setShowForm(true);
   };
 
+  const [formError, setFormError] = useState("");
+
   const handleSubmit = async () => {
     if (!user || !form.title || !form.content) return;
+
+    if (form.content.length > 5000) {
+      setFormError("Announcement content must be 5,000 characters or fewer.");
+      return;
+    }
+    setFormError("");
     setIsProcessing(true);
 
     try {
@@ -437,6 +445,14 @@ function AnnouncementsContent() {
                   }`}
                   placeholder="Announcement content..."
                 />
+                <div className="flex justify-between mt-1">
+                  <span className={`text-xs ${form.content.length > 5000 ? "text-red-400" : isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    {form.content.length} / 5,000
+                  </span>
+                </div>
+                {formError && (
+                  <p className="text-xs text-red-400 mt-1">{formError}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

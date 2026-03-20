@@ -224,11 +224,15 @@ export const getAvailablePersonnel = query({
       : shiftsOnDate;
 
     // Find personnel already assigned to overlapping shifts
+    const timeToMinutes = (time: string): number => {
+      const [h, m] = time.split(":").map(Number);
+      return h * 60 + m;
+    };
     const busyPersonnelIds = new Set<string>();
     for (const shift of otherShifts) {
-      // Check for time overlap
+      // Check for time overlap (numeric comparison to avoid lexicographic issues)
       const overlaps =
-        (args.startTime < shift.endTime && args.endTime > shift.startTime);
+        (timeToMinutes(args.startTime) < timeToMinutes(shift.endTime) && timeToMinutes(args.endTime) > timeToMinutes(shift.startTime));
       if (overlaps) {
         shift.assignedPersonnel.forEach((id) => busyPersonnelIds.add(id));
       }

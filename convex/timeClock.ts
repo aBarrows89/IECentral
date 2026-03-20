@@ -25,10 +25,10 @@ async function getScheduledStartTime(
   const personnel = await ctx.db.get(personnelId);
   if (personnel?.defaultScheduleTemplateId) {
     const template = await ctx.db.get(personnel.defaultScheduleTemplateId);
-    if (template?.departments) {
+    if (template && template.departments) {
       // Find department matching employee
       for (const dept of template.departments) {
-        if (dept.assignedPersonnel?.includes(personnelId)) {
+        if (dept.assignedPersonnel?.includes(personnelId) && dept.startTime) {
           return { startTime: dept.startTime };
         }
       }
@@ -36,7 +36,7 @@ async function getScheduledStartTime(
       const empDept = template.departments.find(
         (d: any) => d.name === personnel.department
       );
-      if (empDept) {
+      if (empDept?.startTime) {
         return { startTime: empDept.startTime };
       }
     }
