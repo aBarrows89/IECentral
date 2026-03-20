@@ -1,0 +1,46 @@
+{
+  "name": "iecentral-companion",
+  "version": "1.0.0",
+  "description": "IECentral Companion - Remote Desktop Control",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.iecentral.companion",
+    "productName": "IECentral Companion",
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": ["dmg"],
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "IECentral Companion needs accessibility access to control your mouse and keyboard for remote desktop sessions.",
+        "NSAccessibilityUsageDescription": "IECentral Companion needs accessibility access to simulate mouse and keyboard input during remote control sessions."
+      }
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
+  },
+  "dependencies": {
+    "@nut-tree/nut-js": "^4.2.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  }
+}

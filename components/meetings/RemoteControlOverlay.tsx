@@ -75,6 +75,7 @@ interface SharerOverlayProps {
   remoteCursorPosition: { x: number; y: number } | null;
   incomingRemoteEvents: IncomingRemoteEvent[];
   onRevoke: () => void;
+  companionAppConnected?: boolean;
 }
 
 export function SharerControlOverlay({
@@ -82,6 +83,7 @@ export function SharerControlOverlay({
   remoteCursorPosition,
   incomingRemoteEvents,
   onRevoke,
+  companionAppConnected = false,
 }: SharerOverlayProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -136,6 +138,46 @@ export function SharerControlOverlay({
         >
           Revoke
         </button>
+      </div>
+
+      {/* Companion app status badge */}
+      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+        {companionAppConnected ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600/80 text-white text-[10px] font-medium shadow-md backdrop-blur-sm">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              className="flex-shrink-0"
+            >
+              <rect x="1" y="2" width="10" height="7" rx="1" stroke="currentColor" strokeWidth="1.2" />
+              <line x1="4" y1="10" x2="8" y2="10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <line x1="6" y1="9" x2="6" y2="10" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+            Full Desktop Control
+          </div>
+        ) : (
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-md backdrop-blur-sm ${
+              isDark
+                ? "bg-slate-700/80 text-slate-300"
+                : "bg-gray-200/80 text-gray-600"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              className="flex-shrink-0"
+            >
+              <rect x="1" y="1" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <circle cx="6" cy="5" r="1.5" stroke="currentColor" strokeWidth="1" />
+            </svg>
+            Browser-Only Control
+          </div>
+        )}
       </div>
 
       {/* Recent key inputs visual feedback */}

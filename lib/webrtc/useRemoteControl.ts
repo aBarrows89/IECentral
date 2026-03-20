@@ -35,6 +35,23 @@ interface RemoteControlMessage {
   deltaY?: number;
 }
 
+// ─── Companion app message types ────────────────────────────────────────────
+
+interface CompanionMessage {
+  type: string;
+  x?: number;
+  y?: number;
+  button?: number | string;
+  key?: string;
+  code?: string;
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  deltaX?: number;
+  deltaY?: number;
+}
+
 // ─── Public types ────────────────────────────────────────────────────────────
 
 export interface ControlRequest {
@@ -92,7 +109,16 @@ export interface UseRemoteControlReturn {
   // Sharer receives these to render the remote cursor / events
   incomingRemoteEvents: IncomingRemoteEvent[];
   remoteCursorPosition: { x: number; y: number } | null;
+
+  // Companion app status
+  companionAppConnected: boolean;
 }
+
+// ─── Companion App WebSocket connection ─────────────────────────────────────
+
+const COMPANION_WS_URL = "ws://127.0.0.1:8787";
+const COMPANION_RECONNECT_INTERVAL = 5000;
+const COMPANION_PING_TIMEOUT = 3000;
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
@@ -120,10 +146,133 @@ export function useRemoteControl({
     IncomingRemoteEvent[]
   >([]);
 
+  // ── Companion app state ──
+  const [companionAppConnected, setCompanionAppConnected] = useState(false);
+  const companionWsRef = useRef<WebSocket | null>(null);
+  const companionReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const companionMountedRef = useRef(true);
+
   // Data channels keyed by remote participant id
   const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
   // Track which PCs we have already set up listeners for
   const setupPCsRef = useRef<Set<string>>(new Set());
+
+  // ── Companion app detection & connection ──
+
+  const connectToCompanionApp = useCallback(() => {
+    if (!companionMountedRef.current) return;
+    if (companionWsRef.current?.readyState === WebSocket.OPEN) return;
+
+    // Close any existing connection
+    if (companionWsRef.current) {
+      companionWsRef.current.onclose = null;
+      companionWsRef.current.onerror = null;
+      companionWsRef.current.close();
+      companionWsRef.current = null;
+    }
+
+    try {
+      const ws = new WebSocket(COMPANION_WS_URL);
+      companionWsRef.current = ws;
+
+      let pingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+      ws.onopen = () => {
+        console.log("[useRemoteControl] WebSocket to companion app opened, sending ping...");
+        // Send ping to verify it is the companion app
+        ws.send(JSON.stringify({ type: "ping" }));
+
+        // Set timeout for pong response
+        pingTimeout = setTimeout(() => {
+          console.warn("[useRemoteControl] Companion app did not respond to ping");
+          ws.close();
+        }, COMPANION_PING_TIMEOUT);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "pong") {
+            // Companion app confirmed
+            if (pingTimeout) {
+              clearTimeout(pingTimeout);
+              pingTimeout = null;
+            }
+            console.log("[useRemoteControl] Companion app detected, version:", msg.version);
+            setCompanionAppConnected(true);
+          } else if (msg.type === "error") {
+            console.warn("[useRemoteControl] Companion app error:", msg.message);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("[useRemoteControl] Companion app WebSocket closed");
+        if (pingTimeout) {
+          clearTimeout(pingTimeout);
+          pingTimeout = null;
+        }
+        companionWsRef.current = null;
+        setCompanionAppConnected(false);
+
+        // Schedule reconnection attempt
+        if (companionMountedRef.current) {
+          companionReconnectTimerRef.current = setTimeout(() => {
+            connectToCompanionApp();
+          }, COMPANION_RECONNECT_INTERVAL);
+        }
+      };
+
+      ws.onerror = () => {
+        // Error will be followed by onclose, so no need to handle separately
+        // Just suppress the console error for expected connection failures
+      };
+    } catch {
+      // WebSocket constructor can throw if URL is invalid, but ours is static
+      // Schedule retry
+      if (companionMountedRef.current) {
+        companionReconnectTimerRef.current = setTimeout(() => {
+          connectToCompanionApp();
+        }, COMPANION_RECONNECT_INTERVAL);
+      }
+    }
+  }, []);
+
+  // Start companion app detection on mount
+  useEffect(() => {
+    companionMountedRef.current = true;
+    connectToCompanionApp();
+
+    return () => {
+      companionMountedRef.current = false;
+      if (companionReconnectTimerRef.current) {
+        clearTimeout(companionReconnectTimerRef.current);
+        companionReconnectTimerRef.current = null;
+      }
+      if (companionWsRef.current) {
+        companionWsRef.current.onclose = null;
+        companionWsRef.current.onerror = null;
+        companionWsRef.current.close();
+        companionWsRef.current = null;
+      }
+      setCompanionAppConnected(false);
+    };
+  }, [connectToCompanionApp]);
+
+  // ── Forward events to companion app ──
+
+  const forwardToCompanionApp = useCallback((msg: CompanionMessage) => {
+    const ws = companionWsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(msg));
+      } catch (err) {
+        console.error("[useRemoteControl] Failed to forward to companion app:", err);
+      }
+    }
+  }, []);
 
   // ── Data channel setup ──
 
@@ -264,69 +413,92 @@ export function useRemoteControl({
             x: msg.x ?? 0,
             y: msg.y ?? 0,
           });
-          setIncomingRemoteEvents((prev) => {
-            const next = [
-              ...prev.slice(-49),
-              {
-                type: msg.type,
-                x: msg.x,
-                y: msg.y,
-                fromParticipantId: msg.fromParticipantId,
-              } as IncomingRemoteEvent,
-            ];
-            return next;
+
+          const event: IncomingRemoteEvent = {
+            type: msg.type,
+            x: msg.x,
+            y: msg.y,
+            fromParticipantId: msg.fromParticipantId,
+          };
+          setIncomingRemoteEvents((prev) => [...prev.slice(-49), event]);
+
+          // Forward to companion app for OS-level cursor control
+          forwardToCompanionApp({
+            type: "mouse-move",
+            x: msg.x,
+            y: msg.y,
           });
           break;
         }
 
         case "mouse-down":
         case "mouse-up": {
-          setIncomingRemoteEvents((prev) => [
-            ...prev.slice(-49),
-            {
-              type: msg.type,
-              x: msg.x,
-              y: msg.y,
-              button: msg.button,
-              fromParticipantId: msg.fromParticipantId,
-            } as IncomingRemoteEvent,
-          ]);
+          const event: IncomingRemoteEvent = {
+            type: msg.type,
+            x: msg.x,
+            y: msg.y,
+            button: msg.button,
+            fromParticipantId: msg.fromParticipantId,
+          };
+          setIncomingRemoteEvents((prev) => [...prev.slice(-49), event]);
+
+          // Forward to companion app
+          forwardToCompanionApp({
+            type: msg.type,
+            x: msg.x,
+            y: msg.y,
+            button: msg.button,
+          });
           break;
         }
 
         case "key-down":
         case "key-up": {
-          setIncomingRemoteEvents((prev) => [
-            ...prev.slice(-49),
-            {
-              type: msg.type,
-              key: msg.key,
-              code: msg.code,
-              shiftKey: msg.shiftKey,
-              ctrlKey: msg.ctrlKey,
-              altKey: msg.altKey,
-              metaKey: msg.metaKey,
-              fromParticipantId: msg.fromParticipantId,
-            } as IncomingRemoteEvent,
-          ]);
+          const event: IncomingRemoteEvent = {
+            type: msg.type,
+            key: msg.key,
+            code: msg.code,
+            shiftKey: msg.shiftKey,
+            ctrlKey: msg.ctrlKey,
+            altKey: msg.altKey,
+            metaKey: msg.metaKey,
+            fromParticipantId: msg.fromParticipantId,
+          };
+          setIncomingRemoteEvents((prev) => [...prev.slice(-49), event]);
+
+          // Forward to companion app
+          forwardToCompanionApp({
+            type: msg.type,
+            key: msg.key,
+            code: msg.code,
+            shiftKey: msg.shiftKey,
+            ctrlKey: msg.ctrlKey,
+            altKey: msg.altKey,
+            metaKey: msg.metaKey,
+          });
           break;
         }
 
         case "scroll": {
-          setIncomingRemoteEvents((prev) => [
-            ...prev.slice(-49),
-            {
-              type: msg.type,
-              deltaX: msg.deltaX,
-              deltaY: msg.deltaY,
-              fromParticipantId: msg.fromParticipantId,
-            } as IncomingRemoteEvent,
-          ]);
+          const event: IncomingRemoteEvent = {
+            type: msg.type,
+            deltaX: msg.deltaX,
+            deltaY: msg.deltaY,
+            fromParticipantId: msg.fromParticipantId,
+          };
+          setIncomingRemoteEvents((prev) => [...prev.slice(-49), event]);
+
+          // Forward to companion app
+          forwardToCompanionApp({
+            type: "scroll",
+            deltaX: msg.deltaX,
+            deltaY: msg.deltaY,
+          });
           break;
         }
       }
     },
-    []
+    [forwardToCompanionApp]
   );
 
   // ── Reset state when screen sharing stops ──
@@ -565,5 +737,8 @@ export function useRemoteControl({
     // Incoming events for sharer overlay
     incomingRemoteEvents,
     remoteCursorPosition,
+
+    // Companion app
+    companionAppConnected,
   };
 }
