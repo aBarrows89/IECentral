@@ -1,0 +1,19 @@
+name: Sync to Amplify Fork
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to fork
+        run: |
+          git remote add fork https://x-access-token:${{ secrets.FORK_PAT }}@github.com/aBarrows89/IECentral.git
+          git push fork main --force
