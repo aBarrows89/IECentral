@@ -1,0 +1,76 @@
+name: Build Companion App
+
+on:
+  push:
+    paths:
+      - 'companion-app/**'
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: companion-app
+        run: npm install
+      - name: Build macOS
+        working-directory: companion-app
+        run: npm run build:mac
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: companion-app/dist/*.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: companion-app
+        run: npm install
+      - name: Build Windows
+        working-directory: companion-app
+        run: npm run build:win
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: companion-app/dist/*.exe
+
+  upload-to-s3:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: downloads
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: downloads
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Upload to S3
+        run: |
+          for file in downloads/*.dmg; do
+            aws s3 cp "$file" s3://iecentral-downloads/IECentral-Companion.dmg
+          done
+          for file in downloads/*.exe; do
+            aws s3 cp "$file" s3://iecentral-downloads/IECentral-Companion.exe
+          done
