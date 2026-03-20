@@ -320,6 +320,77 @@ export default function MeetingsPage() {
               )}
             </div>
 
+            {/* Companion App Download */}
+            <div
+              className={`border rounded-xl p-4 sm:p-6 ${
+                isDark
+                  ? "bg-slate-800/50 border-slate-700"
+                  : "bg-white border-gray-200 shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      isDark ? "bg-cyan-500/20" : "bg-blue-100"
+                    }`}
+                  >
+                    <svg
+                      className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-blue-600"}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3
+                      className={`font-semibold text-sm ${
+                        isDark ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      IECentral Companion App
+                    </h3>
+                    <p
+                      className={`text-xs ${
+                        isDark ? "text-slate-400" : "text-gray-500"
+                      }`}
+                    >
+                      Enable full remote desktop control during meetings
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/downloads/IECentral-Companion.dmg"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isDark
+                        ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    macOS
+                  </a>
+                  <a
+                    href="/downloads/IECentral-Companion.exe"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isDark
+                        ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Windows
+                  </a>
+                </div>
+              </div>
+            </div>
+
             {/* Upcoming Meetings */}
             <div
               className={`border rounded-xl p-4 sm:p-6 ${

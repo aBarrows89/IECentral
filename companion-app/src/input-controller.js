@@ -1,14 +1,14 @@
 // ─── Input Controller ───────────────────────────────────────────────────────
 // Translates incoming remote-control messages into OS-level mouse/keyboard
-// actions using @nut-tree/nut-js.
+// actions using robotjs.
 
-const { mouse, keyboard, screen, Button, Key, Point } = require("@nut-tree/nut-js");
+const robot = require("robotjs");
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-// Reduce mouse movement delay for smoother control
-mouse.config.autoDelayMs = 0;
-keyboard.config.autoDelayMs = 0;
+// Set mouse movement speed (0 = instant)
+robot.setMouseDelay(0);
+robot.setKeyboardDelay(0);
 
 // ─── Screen dimensions cache ────────────────────────────────────────────────
 
@@ -16,13 +16,12 @@ let screenWidth = 1920;
 let screenHeight = 1080;
 let screenUpdateInterval = null;
 
-async function updateScreenDimensions() {
+function updateScreenDimensions() {
   try {
-    const width = await screen.width();
-    const height = await screen.height();
-    if (width > 0 && height > 0) {
-      screenWidth = width;
-      screenHeight = height;
+    const size = robot.getScreenSize();
+    if (size.width > 0 && size.height > 0) {
+      screenWidth = size.width;
+      screenHeight = size.height;
     }
   } catch (err) {
     console.warn("[Input] Failed to get screen dimensions:", err.message);
@@ -34,120 +33,113 @@ updateScreenDimensions();
 screenUpdateInterval = setInterval(updateScreenDimensions, 10000);
 
 // ─── Key mapping ────────────────────────────────────────────────────────────
+// Maps browser KeyboardEvent.key values to robotjs key names
 
-const BROWSER_KEY_TO_NUT = {
+const BROWSER_KEY_TO_ROBOT = {
   // Modifiers
-  Control: Key.LeftControl,
-  Shift: Key.LeftShift,
-  Alt: Key.LeftAlt,
-  Meta: Key.LeftSuper,
+  Control: "control",
+  Shift: "shift",
+  Alt: "alt",
+  Meta: "command",
 
   // Navigation
-  Enter: Key.Enter,
-  Tab: Key.Tab,
-  Escape: Key.Escape,
-  Backspace: Key.Backspace,
-  Delete: Key.Delete,
-  Insert: Key.Insert,
-  Home: Key.Home,
-  End: Key.End,
-  PageUp: Key.PageUp,
-  PageDown: Key.PageDown,
+  Enter: "enter",
+  Tab: "tab",
+  Escape: "escape",
+  Backspace: "backspace",
+  Delete: "delete",
+  Insert: "insert",
+  Home: "home",
+  End: "end",
+  PageUp: "pageup",
+  PageDown: "pagedown",
 
   // Arrows
-  ArrowUp: Key.Up,
-  ArrowDown: Key.Down,
-  ArrowLeft: Key.Left,
-  ArrowRight: Key.Right,
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
 
   // Function keys
-  F1: Key.F1,
-  F2: Key.F2,
-  F3: Key.F3,
-  F4: Key.F4,
-  F5: Key.F5,
-  F6: Key.F6,
-  F7: Key.F7,
-  F8: Key.F8,
-  F9: Key.F9,
-  F10: Key.F10,
-  F11: Key.F11,
-  F12: Key.F12,
+  F1: "f1", F2: "f2", F3: "f3", F4: "f4",
+  F5: "f5", F6: "f6", F7: "f7", F8: "f8",
+  F9: "f9", F10: "f10", F11: "f11", F12: "f12",
 
   // Whitespace
-  " ": Key.Space,
+  " ": "space",
 
-  // Punctuation & symbols
-  CapsLock: Key.CapsLock,
-  NumLock: Key.NumLock,
-  ScrollLock: Key.ScrollLock,
-  PrintScreen: Key.Print,
-  Pause: Key.Pause,
-  ContextMenu: Key.Menu,
+  // Special
+  CapsLock: "caps_lock",
+  NumLock: "numlock",
+  PrintScreen: "printscreen",
 };
 
-// Map browser key codes (e.g., "KeyA") to nut-js Key values
-const CODE_TO_NUT = {};
-// Letters A-Z
+// Map browser key codes to robotjs key names
+const CODE_TO_ROBOT = {};
+// Letters a-z
 for (let i = 0; i < 26; i++) {
-  const letter = String.fromCharCode(65 + i); // A-Z
-  CODE_TO_NUT[`Key${letter}`] = Key[letter];
+  const letter = String.fromCharCode(97 + i); // a-z
+  CODE_TO_ROBOT[`Key${letter.toUpperCase()}`] = letter;
 }
 // Digits 0-9
 for (let i = 0; i <= 9; i++) {
-  CODE_TO_NUT[`Digit${i}`] = Key[`Num${i}`];
+  CODE_TO_ROBOT[`Digit${i}`] = String(i);
 }
-// Numpad 0-9
+// Numpad
 for (let i = 0; i <= 9; i++) {
-  CODE_TO_NUT[`Numpad${i}`] = Key[`NumPad${i}`];
+  CODE_TO_ROBOT[`Numpad${i}`] = `numpad_${i}`;
 }
 
-// Additional code mappings
-Object.assign(CODE_TO_NUT, {
-  Minus: Key.Minus,
-  Equal: Key.Equal,
-  BracketLeft: Key.LeftBracket,
-  BracketRight: Key.RightBracket,
-  Backslash: Key.Backslash,
-  Semicolon: Key.Semicolon,
-  Quote: Key.Quote,
-  Comma: Key.Comma,
-  Period: Key.Period,
-  Slash: Key.Slash,
-  Backquote: Key.Grave,
-  NumpadAdd: Key.Add,
-  NumpadSubtract: Key.Subtract,
-  NumpadMultiply: Key.Multiply,
-  NumpadDivide: Key.Divide,
-  NumpadDecimal: Key.Decimal,
-  NumpadEnter: Key.Enter,
-  ShiftLeft: Key.LeftShift,
-  ShiftRight: Key.RightShift,
-  ControlLeft: Key.LeftControl,
-  ControlRight: Key.RightControl,
-  AltLeft: Key.LeftAlt,
-  AltRight: Key.RightAlt,
-  MetaLeft: Key.LeftSuper,
-  MetaRight: Key.RightSuper,
+Object.assign(CODE_TO_ROBOT, {
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Backquote: "`",
+  NumpadAdd: "numpad_+",
+  NumpadSubtract: "numpad_-",
+  NumpadMultiply: "numpad_*",
+  NumpadDivide: "numpad_/",
+  NumpadDecimal: "numpad_.",
+  NumpadEnter: "enter",
+  ShiftLeft: "shift",
+  ShiftRight: "shift",
+  ControlLeft: "control",
+  ControlRight: "control",
+  AltLeft: "alt",
+  AltRight: "alt",
+  MetaLeft: "command",
+  MetaRight: "command",
 });
 
 function resolveKey(key, code) {
   // Try code-based mapping first (more precise)
-  if (code && CODE_TO_NUT[code] !== undefined) {
-    return CODE_TO_NUT[code];
+  if (code && CODE_TO_ROBOT[code] !== undefined) {
+    return CODE_TO_ROBOT[code];
   }
   // Then try key-name mapping
-  if (BROWSER_KEY_TO_NUT[key] !== undefined) {
-    return BROWSER_KEY_TO_NUT[key];
+  if (BROWSER_KEY_TO_ROBOT[key] !== undefined) {
+    return BROWSER_KEY_TO_ROBOT[key];
   }
-  // For single printable characters, try uppercase letter mapping
+  // For single printable characters, use the character directly (lowercase)
   if (key && key.length === 1) {
-    const upper = key.toUpperCase();
-    if (Key[upper] !== undefined) {
-      return Key[upper];
-    }
+    return key.toLowerCase();
   }
   return null;
+}
+
+// ─── Coordinate conversion ──────────────────────────────────────────────────
+
+function toScreenCoords(normX, normY) {
+  const x = Math.round(Math.max(0, Math.min(1, normX)) * screenWidth);
+  const y = Math.round(Math.max(0, Math.min(1, normY)) * screenHeight);
+  return { x, y };
 }
 
 // ─── Button mapping ─────────────────────────────────────────────────────────
@@ -156,24 +148,16 @@ function resolveButton(button) {
   switch (button) {
     case 0:
     case "left":
-      return Button.LEFT;
+      return "left";
     case 1:
     case "middle":
-      return Button.MIDDLE;
+      return "middle";
     case 2:
     case "right":
-      return Button.RIGHT;
+      return "right";
     default:
-      return Button.LEFT;
+      return "left";
   }
-}
-
-// ─── Coordinate conversion ──────────────────────────────────────────────────
-
-function toScreenCoords(normX, normY) {
-  const x = Math.round(Math.max(0, Math.min(1, normX)) * screenWidth);
-  const y = Math.round(Math.max(0, Math.min(1, normY)) * screenHeight);
-  return new Point(x, y);
 }
 
 // ─── Throttle for mouse-move ────────────────────────────────────────────────
@@ -181,112 +165,112 @@ function toScreenCoords(normX, normY) {
 let lastMoveTime = 0;
 const MOVE_THROTTLE_MS = 8; // ~120fps max
 
+// Track pressed modifier keys for keyboard combinations
+const pressedModifiers = new Set();
+
 // ─── Message handler ────────────────────────────────────────────────────────
 
-async function handleRemoteControlMessage(msg) {
+function handleRemoteControlMessage(msg) {
   const { type } = msg;
 
-  switch (type) {
-    // ── Mouse move ────────────────────────────────────────────────────────
-    case "mouse-move": {
-      const now = Date.now();
-      if (now - lastMoveTime < MOVE_THROTTLE_MS) return;
-      lastMoveTime = now;
+  try {
+    switch (type) {
+      // ── Mouse move ──────────────────────────────────────────────────────
+      case "mouse-move": {
+        const now = Date.now();
+        if (now - lastMoveTime < MOVE_THROTTLE_MS) return;
+        lastMoveTime = now;
 
-      const pos = toScreenCoords(msg.x, msg.y);
-      await mouse.setPosition(pos);
-      break;
-    }
-
-    // ── Mouse down ────────────────────────────────────────────────────────
-    case "mouse-down": {
-      if (msg.x !== undefined && msg.y !== undefined) {
-        const pos = toScreenCoords(msg.x, msg.y);
-        await mouse.setPosition(pos);
+        const { x, y } = toScreenCoords(msg.x, msg.y);
+        robot.moveMouse(x, y);
+        break;
       }
-      const btn = resolveButton(msg.button);
-      await mouse.pressButton(btn);
-      console.log(`[Input] mouse-down button=${msg.button}`);
-      break;
-    }
 
-    // ── Mouse up ──────────────────────────────────────────────────────────
-    case "mouse-up": {
-      if (msg.x !== undefined && msg.y !== undefined) {
-        const pos = toScreenCoords(msg.x, msg.y);
-        await mouse.setPosition(pos);
+      // ── Mouse down ──────────────────────────────────────────────────────
+      case "mouse-down": {
+        if (msg.x !== undefined && msg.y !== undefined) {
+          const { x, y } = toScreenCoords(msg.x, msg.y);
+          robot.moveMouse(x, y);
+        }
+        const btn = resolveButton(msg.button);
+        robot.mouseToggle("down", btn);
+        console.log(`[Input] mouse-down button=${btn}`);
+        break;
       }
-      const btn = resolveButton(msg.button);
-      await mouse.releaseButton(btn);
-      console.log(`[Input] mouse-up button=${msg.button}`);
-      break;
-    }
 
-    // ── Key down ──────────────────────────────────────────────────────────
-    case "key-down": {
-      const nutKey = resolveKey(msg.key, msg.code);
-      if (nutKey !== null) {
-        await keyboard.pressKey(nutKey);
-        console.log(`[Input] key-down key="${msg.key}" code="${msg.code}" -> nutKey=${nutKey}`);
-      } else {
-        // Fallback: try to type the character directly
-        if (msg.key && msg.key.length === 1) {
-          await keyboard.type(msg.key);
-          console.log(`[Input] key-down typed character: "${msg.key}"`);
+      // ── Mouse up ────────────────────────────────────────────────────────
+      case "mouse-up": {
+        if (msg.x !== undefined && msg.y !== undefined) {
+          const { x, y } = toScreenCoords(msg.x, msg.y);
+          robot.moveMouse(x, y);
+        }
+        const btn = resolveButton(msg.button);
+        robot.mouseToggle("up", btn);
+        console.log(`[Input] mouse-up button=${btn}`);
+        break;
+      }
+
+      // ── Key down ────────────────────────────────────────────────────────
+      case "key-down": {
+        const robotKey = resolveKey(msg.key, msg.code);
+        if (robotKey !== null) {
+          // Track modifiers
+          if (["control", "shift", "alt", "command"].includes(robotKey)) {
+            pressedModifiers.add(robotKey);
+          }
+
+          // Build modifier array for key combinations
+          const modifiers = [...pressedModifiers].filter(m => m !== robotKey);
+
+          if (modifiers.length > 0) {
+            robot.keyTap(robotKey, modifiers);
+            console.log(`[Input] key-tap ${robotKey} + [${modifiers.join(",")}]`);
+          } else {
+            robot.keyToggle(robotKey, "down");
+            console.log(`[Input] key-down "${robotKey}"`);
+          }
         } else {
           console.warn(`[Input] Unmapped key: key="${msg.key}" code="${msg.code}"`);
         }
-      }
-      break;
-    }
-
-    // ── Key up ────────────────────────────────────────────────────────────
-    case "key-up": {
-      const nutKey = resolveKey(msg.key, msg.code);
-      if (nutKey !== null) {
-        await keyboard.releaseKey(nutKey);
-      }
-      // No fallback needed for key-up — if we typed it on key-down,
-      // it was a one-shot type() call, not a press-hold.
-      break;
-    }
-
-    // ── Scroll ────────────────────────────────────────────────────────────
-    case "scroll": {
-      // Move mouse to scroll position first if coordinates provided
-      if (msg.x !== undefined && msg.y !== undefined) {
-        const pos = toScreenCoords(msg.x, msg.y);
-        await mouse.setPosition(pos);
+        break;
       }
 
-      const deltaY = msg.deltaY || 0;
-      const deltaX = msg.deltaX || 0;
-
-      // Vertical scroll
-      if (Math.abs(deltaY) > 0) {
-        const scrollAmount = Math.max(1, Math.round(Math.abs(deltaY) / 100));
-        if (deltaY > 0) {
-          await mouse.scrollDown(scrollAmount);
-        } else {
-          await mouse.scrollUp(scrollAmount);
+      // ── Key up ──────────────────────────────────────────────────────────
+      case "key-up": {
+        const robotKey = resolveKey(msg.key, msg.code);
+        if (robotKey !== null) {
+          // Remove from tracked modifiers
+          pressedModifiers.delete(robotKey);
+          robot.keyToggle(robotKey, "up");
         }
+        break;
       }
 
-      // Horizontal scroll
-      if (Math.abs(deltaX) > 0) {
-        const scrollAmount = Math.max(1, Math.round(Math.abs(deltaX) / 100));
-        if (deltaX > 0) {
-          await mouse.scrollRight(scrollAmount);
-        } else {
-          await mouse.scrollLeft(scrollAmount);
+      // ── Scroll ──────────────────────────────────────────────────────────
+      case "scroll": {
+        if (msg.x !== undefined && msg.y !== undefined) {
+          const { x, y } = toScreenCoords(msg.x, msg.y);
+          robot.moveMouse(x, y);
         }
-      }
-      break;
-    }
 
-    default:
-      // Ignore unknown message types (ping is handled in ws-server)
-      break;
+        const deltaY = msg.deltaY || 0;
+        const deltaX = msg.deltaX || 0;
+
+        // robotjs scrollMouse(x, y) — positive = down/right, negative = up/left
+        const scrollY = Math.round(deltaY / 100) || (deltaY > 0 ? 1 : deltaY < 0 ? -1 : 0);
+        const scrollX = Math.round(deltaX / 100) || (deltaX > 0 ? 1 : deltaX < 0 ? -1 : 0);
+
+        if (scrollY !== 0 || scrollX !== 0) {
+          robot.scrollMouse(scrollX, scrollY);
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  } catch (err) {
+    console.error(`[Input] Error handling ${type}:`, err.message);
   }
 }
 
@@ -297,6 +281,7 @@ function cleanup() {
     clearInterval(screenUpdateInterval);
     screenUpdateInterval = null;
   }
+  pressedModifiers.clear();
 }
 
 module.exports = {
