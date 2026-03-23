@@ -27,7 +27,7 @@ COUNTRY = "US"
 LOCATIONS = {
     "W07": {"address": "350 Pittsburgh Street", "city": "Uniontown", "state": "PA", "zip": "15401"},
     "W08": {"address": "410 Unity St", "city": "Latrobe", "state": "PA", "zip": "15650"},
-    "R10": {"address": "151 Feed Mill Rd", "city": "Everson", "state": "PA", "zip": "15631"},
+    "R10": {"address": "151 Feed Mill Rd", "city": "Everson", "state": "PA", "zip": "15631"},  # Confirmed
 }
 
 VALID_LOCATIONS = set(LOCATIONS.keys())
@@ -72,6 +72,7 @@ def handler(event, context):
         month = body.get("month")
         env = body.get("env", "dev")
         run_by = body.get("runBy", "system")
+        fanatic_jmks = set(body.get("fanaticJmks", []))
 
         if not s3_key or not month:
             return _response(400, {"error": "s3_key and month are required"})
@@ -83,7 +84,7 @@ def handler(event, context):
         rows = _parse_csv(raw_data)
 
         # 2. Apply filter pipeline
-        filtered, summary = _filter_rows(rows, month)
+        filtered, summary = _filter_rows(rows, month, fanatic_jmks)
 
         # 3. Build output CSV
         output_rows = _transform_rows(filtered)
@@ -160,7 +161,7 @@ def _parse_csv(text):
 
 # ─── FILTER PIPELINE ─────────────────────────────────────────────────────────
 
-def _filter_rows(rows, month):
+def _filter_rows(rows, month, fanatic_jmks=None):
     """
     Apply filter pipeline per spec:
     1. Trn Pur == 'Sld' — sales only
@@ -168,8 +169,11 @@ def _filter_rows(rows, month):
     3. Exclude zero-price
     4. Location filter: W07, W08, R10 only
     5. Brand filter: FAL, DUN only
-    6. Month filter: Activity Date matches reporting month
+    6. Fanatic exclusion: exclude FAL-brand rows for Fanatic dealer accounts
+    7. Month filter: Activity Date matches reporting month
     """
+    if fanatic_jmks is None:
+        fanatic_jmks = set()
     total_input = len(rows)
 
     # Step 1+2: Sales only, exclude return types
@@ -215,14 +219,26 @@ def _filter_rows(rows, month):
         if parsed and parsed[0] == target_year and parsed[1] == target_month:
             after_month.append(row)
 
-    # TODO: Step 7 — Fanatic SKU exclusion (wire up IE Central data source)
-    final = after_month
+    # Step 7: Fanatic exclusion — exclude FAL-brand rows sold to Fanatic dealer accounts
+    # These are Falken tires sold to enrolled Fanatic dealers — reported separately via dealer rebates
+    if fanatic_jmks:
+        after_fanatic = []
+        for row in after_month:
+            brand = row[COL_MFG_ID].strip().upper() if len(row) > COL_MFG_ID else ""
+            acct = row[15].strip().lower() if len(row) > 15 else ""  # Account Id column
+            # Only exclude FAL brand rows for Fanatic accounts; DUN rows pass through
+            if brand == "FAL" and acct in fanatic_jmks:
+                continue
+            after_fanatic.append(row)
+        final = after_fanatic
+    else:
+        final = after_month
 
     summary = {
         "totalInput": total_input,
         "afterBrandFilter": len(after_brand),
         "afterLocationFilter": len(after_location),
-        "afterExclusions": len(after_month),
+        "afterExclusions": len(final),
         "finalOutput": len(final),
     }
 
