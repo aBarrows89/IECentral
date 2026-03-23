@@ -67,6 +67,8 @@ def _handle_download(body):
         Params={
             "Bucket": S3_OUTPUT_BUCKET,
             "Key": key,
+            "ResponseContentDisposition": f"attachment; filename={filename}",
+            "ResponseContentType": "text/csv",
         },
         ExpiresIn=PRESIGNED_EXPIRY,
     )
