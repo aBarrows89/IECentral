@@ -35,14 +35,14 @@ VALID_BRANDS = {"FAL", "DUN"}
 EXCLUDE_TRN_PUR = {"700", "7001", "7002"}
 
 # OEA07V column indices (zero-based)
-COL_ITEM_ID = 0        # A: Item Id
-COL_TRN_PUR = 2        # C: Trn Pur
-COL_MFG_ID = 4         # E: MFG Id
-COL_MFG_ITEM_ID = 5    # F: MFG's Item Id
-COL_LOC_ID = 8         # I: Loc Id
-COL_QTY = 10           # K: Qty Sl/Rc
-COL_SELL_PRICE = 13    # N: U/Sell FET/In
-COL_ACTIVITY_DATE = 18  # S: Activity Date
+COL_ITEM_ID = 0         # A: Item Id
+COL_MFG_ID = 4          # E: MFG Id
+COL_MFG_ITEM_ID = 5     # F: MFG's Item Id
+COL_LOC_ID = 8          # I: Loc Id
+COL_TRN_PUR = 9         # J: Trn Pur
+COL_QTY = 10            # K: Qty Sl/Rc
+COL_SELL_PRICE = 13     # N: U/Sell FET/In
+COL_ACTIVITY_DATE = 18   # S: Activity Date
 
 # SFTP credentials from Secrets Manager
 SECRETS_ARN = os.environ.get("SFTP_SECRETS_ARN", "")

@@ -65,7 +65,7 @@ type UploadState = "idle" | "uploading" | "processing" | "complete" | "error";
 
 // ─── TABS ────────────────────────────────────────────────────────────────────
 
-const TABS = ["Upload & Run", "Run History", "Backfill Status"] as const;
+const TABS = ["Upload & Run", "Run History", "Status"] as const;
 type TabType = (typeof TABS)[number];
 
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ export default function DunlopReportingPage() {
             {activeTab === "Run History" && (
               <RunHistoryTab isDark={isDark} canDelete={permissions.hasPermission("dunlopReporting.deleteHistory")} />
             )}
-            {activeTab === "Backfill Status" && (
+            {activeTab === "Status" && (
               <BackfillTab isDark={isDark} />
             )}
           </div>
@@ -716,10 +716,18 @@ function BackfillTab({ isDark }: { isDark: boolean }) {
     })();
   }, []);
 
+  // Previous 12 months
+  const last12: string[] = [];
+  const now = new Date();
+  for (let i = 1; i <= 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    last12.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
   const completedMonths = new Set(
     history.filter(r => r.sftpStatus === "success").map(r => r.month)
   );
-  const completedCount = BACKFILL_MONTHS.filter(m => completedMonths.has(m)).length;
+  const completedCount = last12.filter(m => completedMonths.has(m)).length;
 
   if (loading) {
     return (
@@ -731,54 +739,68 @@ function BackfillTab({ isDark }: { isDark: boolean }) {
 
   return (
     <div className="space-y-6">
-      {/* Progress bar */}
+      {/* Progress */}
       <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
-            Backfill Progress
+            Submission Status
           </h2>
           <span className={`text-sm font-mono font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
-            {completedCount} / {BACKFILL_MONTHS.length}
+            {completedCount} / {last12.length}
           </span>
         </div>
         <div className={`w-full h-3 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-gray-200"}`}>
           <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
-            style={{ width: `${(completedCount / BACKFILL_MONTHS.length) * 100}%` }}
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+            style={{ width: `${(completedCount / last12.length) * 100}%` }}
           />
         </div>
         <p className={`text-xs mt-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-          Jan 2024 – Jan 2026 ({BACKFILL_MONTHS.length} months required by Dunlop)
+          Previous 12 months
         </p>
       </div>
 
-      {/* Month grid */}
-      <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-        <h3 className={`text-sm font-semibold mb-4 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Month Status</h3>
-        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2">
-          {BACKFILL_MONTHS.map(m => {
-            const done = completedMonths.has(m);
-            return (
-              <div
-                key={m}
-                className={`px-2 py-2 rounded-lg text-center text-xs font-medium border transition-colors ${
-                  done
-                    ? isDark ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" : "bg-emerald-100 border-emerald-300 text-emerald-700"
-                    : isDark ? "bg-slate-700/50 border-slate-600 text-slate-400" : "bg-gray-100 border-gray-200 text-gray-500"
-                }`}
-                title={formatMonth(m)}
+      {/* Month list */}
+      <div className={`rounded-xl border overflow-hidden ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+        {last12.map((m, i) => {
+          const done = completedMonths.has(m);
+          const run = history.find(r => r.month === m && r.sftpStatus === "success");
+          return (
+            <div
+              key={m}
+              className={`flex items-center justify-between px-5 py-3 ${
+                i > 0 ? isDark ? "border-t border-slate-700/50" : "border-t border-gray-100" : ""
+              } ${isDark ? "bg-slate-800/30" : "bg-white"}`}
               >
-                <div className="text-[10px] opacity-70">{m.slice(0, 4)}</div>
-                <div>{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m.slice(4, 6), 10) - 1]}</div>
-                {done && (
-                  <svg className="w-3 h-3 mx-auto mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-center gap-3">
+                {done ? (
+                  <svg className={`w-5 h-5 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
+                ) : (
+                  <div className={`w-5 h-5 rounded-full border-2 ${isDark ? "border-slate-600" : "border-gray-300"}`} />
+                )}
+                <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{formatMonth(m)}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {done && run && (
+                  <span className={`text-xs font-mono ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                    {run.rows} rows — {formatTimestamp(run.timestamp)}
+                  </span>
+                )}
+                {done ? (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"}`}>
+                    Submitted
+                  </span>
+                ) : (
+                  <span className={`text-xs font-medium ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    Pending
+                  </span>
                 )}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
