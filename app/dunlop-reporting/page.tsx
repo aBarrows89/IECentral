@@ -145,7 +145,7 @@ export default function DunlopReportingPage() {
               <UploadRunTab isDark={isDark} env={env} userName={user?.name ?? "Unknown"} />
             )}
             {activeTab === "Run History" && (
-              <RunHistoryTab isDark={isDark} />
+              <RunHistoryTab isDark={isDark} canDelete={permissions.hasPermission("dunlopReporting.deleteHistory")} />
             )}
             {activeTab === "Backfill Status" && (
               <BackfillTab isDark={isDark} />
@@ -529,10 +529,12 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
 // TAB 2: RUN HISTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function RunHistoryTab({ isDark }: { isDark: boolean }) {
+function RunHistoryTab({ isDark, canDelete }: { isDark: boolean; canDelete: boolean }) {
   const [history, setHistory] = useState<RunLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -548,6 +550,23 @@ function RunHistoryTab({ isDark }: { isDark: boolean }) {
       }
     })();
   }, []);
+
+  const handleDelete = async (run: RunLog, idx: number) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE}/history`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: run.month, timestamp: run.timestamp }),
+      });
+      if (res.ok) {
+        setHistory(prev => prev.filter((_, i) => i !== idx));
+      }
+    } catch { /* ignore */ } finally {
+      setDeleting(false);
+      setConfirmDelete(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -630,6 +649,37 @@ function RunHistoryTab({ isDark }: { isDark: boolean }) {
                           <ul className="ml-4 mt-1 list-disc">
                             {run.errors.map((e, j) => <li key={j}>{e}</li>)}
                           </ul>
+                        </div>
+                      )}
+                      {canDelete && (
+                        <div className="mt-3 pt-3 border-t border-slate-700/30">
+                          {confirmDelete === i ? (
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-semibold ${isDark ? "text-red-400" : "text-red-600"}`}>
+                                This will delete the run log from S3. The file already sent to Dunlop SFTP cannot be recalled. Delete?
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(run, i); }}
+                                disabled={deleting}
+                                className="px-3 py-1 rounded text-xs font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                              >
+                                {deleting ? "Deleting..." : "Yes, Delete"}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
+                                className={`px-3 py-1 rounded text-xs font-medium ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-200 text-gray-700"}`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setConfirmDelete(i); }}
+                              className={`text-xs font-medium ${isDark ? "text-red-400 hover:text-red-300" : "text-red-500 hover:text-red-600"}`}
+                            >
+                              Delete this run
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

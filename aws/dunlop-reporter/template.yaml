@@ -338,11 +338,17 @@ Resources:
         Variables:
           S3_RUN_LOGS_BUCKET: !Ref RunLogsBucket
       Events:
-        Api:
+        ApiGet:
           Type: Api
           Properties:
             Path: /dunlop/history
             Method: get
+            RestApiId: !Ref DunlopApi
+        ApiDelete:
+          Type: Api
+          Properties:
+            Path: /dunlop/history
+            Method: delete
             RestApiId: !Ref DunlopApi
 
   # Paramiko Lambda layer (for SFTP)
