@@ -65,8 +65,9 @@ type UploadState = "idle" | "uploading" | "processing" | "complete" | "error";
 
 // ─── TABS ────────────────────────────────────────────────────────────────────
 
-const TABS = ["Upload & Run", "Run History", "Status"] as const;
-type TabType = (typeof TABS)[number];
+const ALL_TABS = ["Upload & Run", "Run History", "Status", "Settings"] as const;
+type AllTabType = (typeof ALL_TABS)[number];
+// removed duplicate
 
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 
@@ -76,10 +77,11 @@ export default function DunlopReportingPage() {
   const { user } = useAuth();
   const permissions = usePermissions();
 
-  const [activeTab, setActiveTab] = useState<TabType>("Upload & Run");
+  const [activeTab, setActiveTab] = useState<AllTabType>("Upload & Run");
   const [env, setEnv] = useState<"dev" | "prod">("dev");
 
   const canToggleEnv = permissions.hasPermission("dunlopReporting.envToggle");
+  const visibleTabs = canToggleEnv ? ALL_TABS : ALL_TABS.filter(t => t !== "Settings");
 
   return (
     <Protected minTier={4}>
@@ -124,7 +126,7 @@ export default function DunlopReportingPage() {
             </div>
             {/* Tabs */}
             <div className="flex gap-1 mt-4">
-              {TABS.map(tab => (
+              {visibleTabs.map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -149,6 +151,9 @@ export default function DunlopReportingPage() {
             )}
             {activeTab === "Status" && (
               <BackfillTab isDark={isDark} />
+            )}
+            {activeTab === "Settings" && canToggleEnv && (
+              <SettingsTab isDark={isDark} />
             )}
           </div>
         </main>
@@ -826,6 +831,137 @@ function BackfillTab({ isDark }: { isDark: boolean }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 4: SETTINGS (super admin only)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface SftpCreds {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  directory: string;
+}
+
+function SettingsTab({ isDark }: { isDark: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [devCreds, setDevCreds] = useState<SftpCreds>({ host: "", port: 22, username: "", password: "", directory: "inbound" });
+  const [prodCreds, setProdCreds] = useState<SftpCreds>({ host: "", port: 22, username: "", password: "", directory: "inbound" });
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sftp_dev) setDevCreds(data.sftp_dev);
+          if (data.sftp_prod) setProdCreds(data.sftp_prod);
+        }
+      } catch { /* ignore */ } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    setSaved(false);
+    try {
+      const res = await fetch(`${API_BASE}/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sftp_dev: devCreds, sftp_prod: prodCreds }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError("Failed to save credentials");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const inputClass = `w-full px-3 py-2 rounded-lg border text-sm font-mono ${
+    isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"
+  }`;
+  const labelClass = `block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`;
+
+  const CredsForm = ({ label, creds, setCreds }: { label: string; creds: SftpCreds; setCreds: (c: SftpCreds) => void }) => (
+    <div className={`rounded-xl border p-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+      <h3 className={`text-sm font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>{label}</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Host</label>
+          <input className={inputClass} value={creds.host} onChange={(e) => setCreds({ ...creds, host: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelClass}>Port</label>
+          <input className={inputClass} type="number" value={creds.port} onChange={(e) => setCreds({ ...creds, port: parseInt(e.target.value) || 22 })} />
+        </div>
+        <div>
+          <label className={labelClass}>Username</label>
+          <input className={inputClass} value={creds.username} onChange={(e) => setCreds({ ...creds, username: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelClass}>Password</label>
+          <input className={inputClass} type={showPasswords ? "text" : "password"} value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelClass}>Directory</label>
+          <input className={inputClass} value={creds.directory} onChange={(e) => setCreds({ ...creds, directory: e.target.value })} />
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>SFTP Credentials</h2>
+        <button
+          onClick={() => setShowPasswords(!showPasswords)}
+          className={`text-xs font-medium ${isDark ? "text-slate-400 hover:text-slate-300" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          {showPasswords ? "Hide passwords" : "Show passwords"}
+        </button>
+      </div>
+
+      <CredsForm label="Dev Environment" creds={devCreds} setCreds={setDevCreds} />
+      <CredsForm label="Prod Environment" creds={prodCreds} setCreds={setProdCreds} />
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Credentials"}
+        </button>
+        {saved && (
+          <span className={`text-sm font-medium ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>Saved</span>
+        )}
+        {error && (
+          <span className={`text-sm font-medium ${isDark ? "text-red-400" : "text-red-600"}`}>{error}</span>
+        )}
       </div>
     </div>
   );

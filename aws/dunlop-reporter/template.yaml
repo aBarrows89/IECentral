@@ -270,6 +270,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
+                  - secretsmanager:UpdateSecret
                 Resource: !Ref SftpCredentials
       Tags:
         - Key: Project
@@ -351,6 +352,30 @@ Resources:
           Properties:
             Path: /dunlop/history
             Method: delete
+            RestApiId: !Ref DunlopApi
+
+  ManageSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dunlop-manage-settings
+      Handler: manage_settings.handler
+      CodeUri: lambdas/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          SFTP_SECRETS_ARN: !Ref SftpCredentials
+      Events:
+        ApiGet:
+          Type: Api
+          Properties:
+            Path: /dunlop/settings
+            Method: get
+            RestApiId: !Ref DunlopApi
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /dunlop/settings
+            Method: put
             RestApiId: !Ref DunlopApi
 
   # Paramiko Lambda layer (for SFTP)
