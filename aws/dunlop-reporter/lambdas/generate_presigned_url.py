@@ -35,7 +35,6 @@ def handler(event, context):
             Params={
                 "Bucket": S3_BUCKET,
                 "Key": key,
-                "ContentType": "application/octet-stream",
             },
             ExpiresIn=PRESIGNED_EXPIRY,
         )

@@ -216,7 +216,6 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
     const uploadRes = await fetch(url, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type || "application/octet-stream" },
     });
     if (!uploadRes.ok) throw new Error("Failed to upload file to S3");
     return key;
