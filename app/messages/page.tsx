@@ -844,14 +844,14 @@ function MessagesContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm sm:text-base font-medium flex-shrink-0">
                   {getConversationAvatar(selectedConversation)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-white font-medium truncate">
+                  <h2 className="text-white text-sm sm:text-base font-medium truncate">
                     {getConversationName(selectedConversation)}
                   </h2>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] sm:text-xs text-slate-400">
                     {selectedConversation.type === "project"
                       ? "Project Channel"
                       : "Direct Message"}
@@ -861,17 +861,17 @@ function MessagesContent() {
                 <button
                   onClick={handleStartVideoCall}
                   disabled={isStartingCall}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Start Video Call"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
                 {/* Mute Toggle Button */}
                 <button
                   onClick={toggleMute}
-                  className={`p-2 rounded-lg transition-colors ${
+                  className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                     isMuted
                       ? "text-red-400 hover:bg-red-500/20"
                       : "text-slate-400 hover:text-white hover:bg-slate-800"
@@ -879,12 +879,12 @@ function MessagesContent() {
                   title={isMuted ? "Unmute notifications" : "Mute notifications"}
                 >
                   {isMuted ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                     </svg>
                   )}
@@ -892,7 +892,7 @@ function MessagesContent() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-1.5 sm:space-y-4">
                 {messages?.map((msg) => {
                   const isOwn = msg.senderId === user?._id;
                   const groupedReactions = groupReactions(msg.reactions);
@@ -918,7 +918,7 @@ function MessagesContent() {
                             className={`rounded-2xl overflow-hidden ${
                               isGifMessage(msg.content)
                                 ? ""
-                                : `px-3 sm:px-4 py-2 ${
+                                : `px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base ${
                                     isOwn
                                       ? "bg-cyan-500 text-white"
                                       : "bg-slate-800 text-white"
@@ -1055,7 +1055,7 @@ function MessagesContent() {
               )}
 
               {/* Message Input */}
-              <div className="p-3 sm:p-4 border-t border-slate-700 relative">
+              <div className="p-2 sm:p-4 border-t border-slate-700 relative safe-area-bottom">
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
                   <div
@@ -1187,7 +1187,7 @@ function MessagesContent() {
                   </div>
                 )}
 
-                <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3 items-center">
+                <form onSubmit={handleSendMessage} className="flex gap-1.5 sm:gap-3 items-center">
                   {/* Hidden file input */}
                   <input
                     ref={fileInputRef}
@@ -1198,14 +1198,14 @@ function MessagesContent() {
                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                   />
 
-                  {/* Emoji Button */}
+                  {/* Emoji Button - hidden on mobile, visible on desktop */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowEmojiPicker(!showEmojiPicker);
                       setShowGifPicker(false);
                     }}
-                    className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${
+                    className={`hidden sm:block p-2.5 rounded-xl transition-colors flex-shrink-0 ${
                       showEmojiPicker
                         ? "bg-cyan-500 text-white"
                         : "text-slate-400 hover:text-white hover:bg-slate-800"
@@ -1217,14 +1217,14 @@ function MessagesContent() {
                     </svg>
                   </button>
 
-                  {/* GIF Button */}
+                  {/* GIF Button - hidden on mobile */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowGifPicker(!showGifPicker);
                       setShowEmojiPicker(false);
                     }}
-                    className={`px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0 font-bold text-xs ${
+                    className={`hidden sm:block px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0 font-bold text-xs ${
                       showGifPicker
                         ? "bg-cyan-500 text-white"
                         : "text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-600"
@@ -1239,7 +1239,7 @@ function MessagesContent() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${
+                    className={`p-2 sm:p-2.5 rounded-xl transition-colors flex-shrink-0 ${
                       isUploading
                         ? "bg-slate-700 text-slate-500"
                         : "text-slate-400 hover:text-white hover:bg-slate-800"
@@ -1262,13 +1262,13 @@ function MessagesContent() {
                     type="text"
                     value={newMessage}
                     onChange={handleMessageInputChange}
-                    placeholder="Type a message... (use # to link)"
-                    className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    placeholder="Message..."
+                    className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-3 bg-slate-800 border border-slate-700 rounded-full sm:rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                   />
                   <button
                     type="submit"
                     disabled={!newMessage.trim() && pendingAttachments.length === 0}
-                    className="px-4 sm:px-6 py-2.5 sm:py-3 bg-cyan-500 text-white font-medium rounded-xl hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="p-2 sm:px-6 sm:py-3 bg-cyan-500 text-white font-medium rounded-full sm:rounded-xl hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     <svg
                       className="w-5 h-5"
