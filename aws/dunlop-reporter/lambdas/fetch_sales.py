@@ -55,8 +55,11 @@ def handler(event, context):
 def _aggregate(rows):
     """Pre-aggregate rows for the dashboard to keep response size small."""
 
-    # KPIs (sales only)
-    sales = [r for r in rows if r.get("trn") == "Sld"]
+    # Exclude IET house brands (misc/manual entries, not real tire sales)
+    EXCLUDE_BRANDS = {"IET-P", "IET-G", "IET-T"}
+
+    # KPIs (sales only, excluding IET misc)
+    sales = [r for r in rows if r.get("trn") == "Sld" and r.get("brand", "") not in EXCLUDE_BRANDS]
     total_revenue = sum(abs(r.get("ext_sell", 0)) for r in sales)
     total_units = sum(abs(r.get("qty", 0)) for r in sales)
     unique_customers = len(set(r.get("account", "") for r in sales if r.get("account")))
