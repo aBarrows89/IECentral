@@ -939,13 +939,21 @@ function fmtMonth(yyyymm: string) {
   return `${names[parseInt(yyyymm.slice(4,6),10)-1]} ${yyyymm.slice(0,4)}`;
 }
 
+interface AggData {
+  kpis: { totalRevenue: number; totalUnits: number; avgPrice: number; uniqueCustomers: number };
+  byLocation: { name: string; units: number; revenue: number }[];
+  byBrand: { name: string; units: number; revenue: number }[];
+  dailyTrend: { date: string; units: number; revenue: number }[];
+  byTrnType: { name: string; value: number }[];
+  topCustomers: { account: string; name: string; units: number; revenue: number; txns: number }[];
+  uniqueLocations: string[];
+}
+
 function SalesDashboard({ isDark }: { isDark: boolean }) {
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
-  const [data, setData] = useState<{ month: string; rows: SalesRow[] }[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [agg, setAgg] = useState<AggData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [locFilter, setLocFilter] = useState("all");
-  const [trnFilter, setTrnFilter] = useState("Sld");
 
   useEffect(() => {
     (async () => {
@@ -954,67 +962,29 @@ function SalesDashboard({ isDark }: { isDark: boolean }) {
         if (res.ok) {
           const { available } = await res.json();
           setAvailableMonths(available || []);
-          if (available?.length > 0) setSelectedMonths([available[0]]);
+          if (available?.length > 0) setSelectedMonth(available[0]);
         }
       } catch {} finally { setLoading(false); }
     })();
   }, []);
 
   useEffect(() => {
-    if (selectedMonths.length === 0) return;
+    if (!selectedMonth) return;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/sales?months=${selectedMonths.join(",")}`);
-        if (res.ok) setData(await res.json());
+        const res = await fetch(`/api/sales?months=${selectedMonth}`);
+        if (res.ok) setAgg(await res.json());
       } catch {} finally { setLoading(false); }
     })();
-  }, [selectedMonths]);
+  }, [selectedMonth]);
 
-  const allRows = useMemo(() => {
-    let rows = data.flatMap(d => d.rows);
-    if (locFilter !== "all") rows = rows.filter(r => r.loc === locFilter);
-    if (trnFilter !== "all") rows = rows.filter(r => r.trn === trnFilter);
-    return rows;
-  }, [data, locFilter, trnFilter]);
-
-  const salesRows = useMemo(() => allRows.filter(r => r.trn === "Sld"), [allRows]);
-  const totalRevenue = salesRows.reduce((s, r) => s + Math.abs(r.ext_sell), 0);
-  const totalUnits = salesRows.reduce((s, r) => s + Math.abs(r.qty), 0);
-  const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
-  const uniqueCustomers = new Set(salesRows.map(r => r.account).filter(Boolean)).size;
-
-  const byLocation = useMemo(() => {
-    const m: Record<string, { units: number; revenue: number }> = {};
-    for (const r of salesRows) { const l = r.loc || "Other"; if (!m[l]) m[l] = { units: 0, revenue: 0 }; m[l].units += Math.abs(r.qty); m[l].revenue += Math.abs(r.ext_sell); }
-    return Object.entries(m).map(([loc, d]) => ({ name: LOC_NAMES[loc] || loc, ...d })).sort((a, b) => b.revenue - a.revenue);
-  }, [salesRows]);
-
-  const byBrand = useMemo(() => {
-    const m: Record<string, { units: number; revenue: number }> = {};
-    for (const r of salesRows) { const b = r.brand || "Other"; if (!m[b]) m[b] = { units: 0, revenue: 0 }; m[b].units += Math.abs(r.qty); m[b].revenue += Math.abs(r.ext_sell); }
-    return Object.entries(m).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.revenue - a.revenue).slice(0, 15);
-  }, [salesRows]);
-
-  const dailyTrend = useMemo(() => {
-    const m: Record<string, { units: number; revenue: number }> = {};
-    for (const r of salesRows) { if (!m[r.date]) m[r.date] = { units: 0, revenue: 0 }; m[r.date].units += Math.abs(r.qty); m[r.date].revenue += Math.abs(r.ext_sell); }
-    return Object.entries(m).map(([date, d]) => ({ date: date.slice(5), ...d })).sort((a, b) => a.date.localeCompare(b.date));
-  }, [salesRows]);
-
-  const byTrnType = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of allRows) { m[r.trn || "Other"] = (m[r.trn || "Other"] || 0) + 1; }
-    return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [allRows]);
-
-  const topCustomers = useMemo(() => {
-    const m: Record<string, { name: string; units: number; revenue: number; txns: number }> = {};
-    for (const r of salesRows) { const a = r.account || "Walk-in"; if (!m[a]) m[a] = { name: r.customer || a, units: 0, revenue: 0, txns: 0 }; m[a].units += Math.abs(r.qty); m[a].revenue += Math.abs(r.ext_sell); m[a].txns++; }
-    return Object.values(m).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
-  }, [salesRows]);
-
-  const uniqueLocs = useMemo(() => Array.from(new Set(data.flatMap(d => d.rows.map(r => r.loc)))).sort(), [data]);
+  const byLocation = useMemo(() => (agg?.byLocation || []).map(l => ({ ...l, name: LOC_NAMES[l.name] || l.name })), [agg]);
+  const byBrand = agg?.byBrand || [];
+  const dailyTrend = useMemo(() => (agg?.dailyTrend || []).map(d => ({ ...d, date: d.date.slice(5) })), [agg]);
+  const byTrnType = agg?.byTrnType || [];
+  const topCustomers = agg?.topCustomers || [];
+  const kpis = agg?.kpis || { totalRevenue: 0, totalUnits: 0, avgPrice: 0, uniqueCustomers: 0 };
 
   const cardClass = `rounded-xl border p-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`;
 
@@ -1031,28 +1001,17 @@ function SalesDashboard({ isDark }: { isDark: boolean }) {
     <div className="space-y-6">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <select value={selectedMonths[0] || ""} onChange={(e) => setSelectedMonths([e.target.value])} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
+        <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
           {availableMonths.map(m => <option key={m} value={m}>{fmtMonth(m)}</option>)}
-        </select>
-        <select value={locFilter} onChange={(e) => setLocFilter(e.target.value)} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
-          <option value="all">All Locations</option>
-          {uniqueLocs.map(l => <option key={l} value={l}>{LOC_NAMES[l] || l}</option>)}
-        </select>
-        <select value={trnFilter} onChange={(e) => setTrnFilter(e.target.value)} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
-          <option value="all">All Transactions</option>
-          <option value="Sld">Sales Only</option>
-          <option value="ReS">Resale</option>
-          <option value="TrO">Transfer Out</option>
-          <option value="TrI">Transfer In</option>
         </select>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Total Revenue</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{fmtCurrency(totalRevenue)}</p></div>
-        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Units Sold</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{totalUnits.toLocaleString()}</p></div>
-        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Avg Price / Unit</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{fmtCurrency(avgPrice)}</p></div>
-        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Unique Customers</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{uniqueCustomers.toLocaleString()}</p></div>
+        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Total Revenue</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{fmtCurrency(kpis.totalRevenue)}</p></div>
+        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Units Sold</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{kpis.totalUnits.toLocaleString()}</p></div>
+        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Avg Price / Unit</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{fmtCurrency(kpis.avgPrice)}</p></div>
+        <div className={cardClass}><p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Unique Customers</p><p className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{kpis.uniqueCustomers.toLocaleString()}</p></div>
       </div>
 
       {/* Daily Trend */}
@@ -1135,7 +1094,7 @@ function SalesDashboard({ isDark }: { isDark: boolean }) {
                   <td className={`px-3 py-2 font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{c.name}</td>
                   <td className={`px-3 py-2 font-mono ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{fmtCurrency(c.revenue)}</td>
                   <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{c.units}</td>
-                  <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{c.txns}</td>
+                  <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{(c as { txns: number }).txns}</td>
                   <td className={`px-3 py-2 font-mono ${isDark ? "text-slate-400" : "text-gray-500"}`}>{c.units > 0 ? fmtCurrency(c.revenue / c.units) : "-"}</td>
                 </tr>
               ))}

@@ -381,6 +381,26 @@ Resources:
             Method: put
             RestApiId: !Ref DunlopApi
 
+  FetchSalesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dunlop-fetch-sales
+      Handler: fetch_sales.handler
+      CodeUri: lambdas/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Environment:
+        Variables:
+          S3_SALES_DATA_BUCKET: ietires-sales-data
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /dunlop/sales
+            Method: get
+            RestApiId: !Ref DunlopApi
+
   # Paramiko Lambda layer (for SFTP)
   ParamikoLayer:
     Type: AWS::Serverless::LayerVersion
