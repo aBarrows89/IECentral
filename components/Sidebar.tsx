@@ -204,26 +204,10 @@ export default function Sidebar() {
     return true;
   });
 
-  // Filter nav groups based on RBAC tier permissions
-  const filteredNavGroups = NAV_GROUPS.filter((group) => {
-    // Hiring & HR - T2+
-    if (group.id === "hiring") return tier >= 2;
-    // Scheduling - T2+
-    if (group.id === "scheduling") return tier >= 2;
-    // Employee Portal group (time-off, call-offs, announcements) - T2+
-    if (group.id === "employee-portal") return tier >= 2;
-    // Equipment - T2+
-    if (group.id === "equipment") return tier >= 2;
-    // Finance - T1+ (mileage/expense for office managers & retail associates)
-    if (group.id === "finance") return tier >= 1;
-    // Tools - T2+ for most items
-    if (group.id === "tools") return tier >= 2;
-    // People & Org - T4+
-    if (group.id === "people") return tier >= 4;
-    // System - T4+
-    if (group.id === "system") return tier >= 4;
-    return true;
-  });
+  // Groups are filtered dynamically — if all items inside are hidden by
+  // per-item RBAC checks, the group itself disappears (line ~762).
+  // No need for a separate group-level tier filter.
+  const filteredNavGroups = NAV_GROUPS;
 
   // Check if user has Tech Wizard access (T5 or tech team emails)
   const hasTechAccess = tier >= 5 || TECH_EMAILS.includes(user?.email?.toLowerCase() || "");
@@ -733,28 +717,68 @@ export default function Sidebar() {
             const isOpen = openGroups.includes(group.id);
             const groupActive = isGroupActive(group);
             const filteredItems = group.items.filter((item) => {
-              // Use RBAC permissions for specific items
-              if (item.href === "/department-portal") return permissions.menu.departmentPortal; // T1+
-              if (item.href === "/deleted-records") return permissions.menu.deletedRecords; // T4+
-              if (item.href === "/reports") return permissions.menu.reports; // T4+
-              if (item.href === "/audit-log") return permissions.menu.auditLog; // T4+
-              if (item.href === "/tech-wizard") return hasTechAccess; // T5 or tech email
-              if (item.href === "/schedule-templates") return permissions.menu.scheduleTemplates; // T4+
-              if (item.href === "/jobs") return permissions.menu.jobListings; // T4+
-              if (item.href === "/settings/onboarding") return permissions.menu.onboardingDocs; // T4+
-              if (item.href === "/settings/quickbooks") return permissions.menu.quickbooks; // T4+
-              if (item.href === "/payroll") return permissions.menu.payrollApproval; // T4+
-              if (item.href === "/mileage") return permissions.menu.mileage; // T1+
-              if (item.href === "/expense-report") return permissions.menu.expenseReports; // T1+
-              if (item.href === "/daily-log") return permissions.menu.dailyLog; // requiresDailyLog or T4+
-              if (item.href === "/dealer-rebates") return permissions.menu.dealerRebates; // T2+
-              if (item.href === "/dunlop-reporting") return permissions.menu.dunlopReporting; // T4+
-              if (item.href === "https://tiretrack-admin.vercel.app") return permissions.menu.tireTrackAdmin; // T2+
-              if (item.href === "http://34.228.222.11/classic") return permissions.menu.iePriceSystem; // T2+
               // Hide techOnly items from non-tech users
               if (item.techOnly && !hasTechAccess) return false;
-              if (!item.requiresPermission) return true;
-              if (item.requiresPermission === "viewShifts") return canViewShifts;
+
+              // Route-to-permission map — items without a mapping are hidden
+              const routePerms: Record<string, boolean> = {
+                // Hiring & HR
+                "/jobs": permissions.menu.jobListings,
+                "/applications": permissions.menu.applications,
+                "/personnel": permissions.menu.personnel,
+                "/settings/onboarding": permissions.menu.onboardingDocs,
+                // Scheduling
+                "/shifts": permissions.menu.shiftPlanning,
+                "/schedule-templates": permissions.menu.scheduleTemplates,
+                "/time-clock": permissions.menu.timeClock,
+                "/overtime": permissions.menu.overtime,
+                // Employee Portal
+                "/department-portal": permissions.menu.departmentPortal,
+                "/time-off": permissions.menu.timeCorrections,
+                "/call-offs": permissions.menu.callOffs,
+                "/announcements": permissions.menu.announcements,
+                // Equipment
+                "/equipment": permissions.menu.equipment,
+                "/locations": permissions.menu.locations,
+                "/safety-check/manager": permissions.menu.equipment,
+                "/settings/safety-checklists": permissions.menu.safetyCheckQR,
+                "/bin-labels": permissions.menu.binLabels,
+                // Finance
+                "/payroll": permissions.menu.payrollApproval,
+                "/settings/quickbooks": permissions.menu.quickbooks,
+                "/expense-report": permissions.menu.expenseReports,
+                "/mileage": permissions.menu.mileage,
+                // Tools
+                "/documents": permissions.menu.docHub,
+                "/projects": permissions.menu.projects,
+                "/daily-log": permissions.menu.dailyLog,
+                "/reports": permissions.menu.reports,
+                "/dealer-rebates": permissions.menu.dealerRebates,
+                "/dunlop-reporting": permissions.menu.dunlopReporting,
+                "/suggestions": permissions.menu.suggestions,
+                // People & Org
+                "/org-chart": permissions.menu.orgChart,
+                "/engagement": permissions.menu.engagement,
+                "/surveys": permissions.menu.surveys,
+                // System
+                "/users": permissions.menu.userManagement,
+                "/audit-log": permissions.menu.auditLog,
+                "/settings": permissions.menu.systemSettings,
+                "/deleted-records": permissions.menu.deletedRecords,
+                "/website-messages": permissions.menu.websiteMessages,
+              };
+
+              // Check exact match
+              if (item.href in routePerms) return routePerms[item.href];
+
+              // Tech wizard special case
+              if (item.href === "/tech-wizard") return hasTechAccess;
+
+              // External links with known permissions
+              if (item.href === "https://tiretrack-admin.vercel.app") return permissions.menu.tireTrackAdmin;
+              if (item.href === "http://34.228.222.11/classic") return permissions.menu.iePriceSystem;
+
+              // Default: show if no specific rule
               return true;
             });
 
