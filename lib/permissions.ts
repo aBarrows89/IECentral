@@ -682,7 +682,7 @@ export function getRoleDefaults(user: PermissionUser): Record<string, boolean> {
   defaults["dealerRebates.viewStats"] = tier >= 3; // director+
 
   // Dunlop Reporting permissions
-  defaults["dunlopReporting.envToggle"] = tier >= 5; // super admin only
+  defaults["dunlopReporting.envToggle"] = tier >= 4; // admin+
   defaults["dunlopReporting.rerun"] = tier >= 4; // admin+
   defaults["dunlopReporting.deleteHistory"] = tier >= 5; // super admin only
 

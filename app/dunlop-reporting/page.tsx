@@ -84,7 +84,7 @@ export default function DunlopReportingPage() {
   const visibleTabs = canToggleEnv ? ALL_TABS : ALL_TABS.filter(t => t !== "Settings");
 
   return (
-    <Protected minTier={4}>
+    <Protected>
       <div className="flex h-screen theme-bg-primary">
         <Sidebar />
         <main className="flex-1 overflow-y-auto">
@@ -147,7 +147,7 @@ export default function DunlopReportingPage() {
               <UploadRunTab isDark={isDark} env={env} userName={user?.name ?? "Unknown"} />
             )}
             {activeTab === "Run History" && (
-              <RunHistoryTab isDark={isDark} canDelete={permissions.hasPermission("dunlopReporting.deleteHistory")} />
+              <RunHistoryTab isDark={isDark} canDelete={permissions.hasPermission("dunlopReporting.deleteHistory")} canRerun={permissions.hasPermission("dunlopReporting.rerun")} env={env} userName={user?.name ?? "Unknown"} />
             )}
             {activeTab === "Status" && (
               <BackfillTab isDark={isDark} />
@@ -317,13 +317,12 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  // Month picker options — current month + last 36 months, exclude already submitted
+  // Month picker options — current month + last 36 months
   const monthOptions: string[] = [];
   const now = new Date();
   for (let i = 0; i <= 36; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const m = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
-    if (!submittedMonths.has(m)) monthOptions.push(m);
+    monthOptions.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
   // Check if there are pending backfill months
@@ -353,7 +352,7 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
               <option value="ALL">All Pending Months — Backfill ({pendingBackfillCount} months)</option>
             )}
             {monthOptions.map(m => (
-              <option key={m} value={m}>{formatMonth(m)}</option>
+              <option key={m} value={m}>{formatMonth(m)}{submittedMonths.has(m) ? " \u2714" : ""}</option>
             ))}
           </select>
           {monthOptions.length === 0 && !pendingBackfillCount && (
@@ -533,12 +532,13 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
 // TAB 2: RUN HISTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function RunHistoryTab({ isDark, canDelete }: { isDark: boolean; canDelete: boolean }) {
+function RunHistoryTab({ isDark, canDelete, canRerun, env, userName }: { isDark: boolean; canDelete: boolean; canRerun: boolean; env: "dev" | "prod"; userName: string }) {
   const [history, setHistory] = useState<RunLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [rerunning, setRerunning] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -554,6 +554,24 @@ function RunHistoryTab({ isDark, canDelete }: { isDark: boolean; canDelete: bool
       }
     })();
   }, []);
+
+  const handleRerun = async (run: RunLog, idx: number) => {
+    setRerunning(idx);
+    try {
+      // Re-upload the same S3 key and re-run
+      const res = await fetch(`${API_BASE}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ s3_key: `jmk-uploads/${run.month}/${run.fileName}`, month: run.month, env, runBy: userName }),
+      });
+      if (res.ok) {
+        const newRun: RunLog = await res.json();
+        setHistory(prev => [newRun, ...prev]);
+      }
+    } catch { /* ignore */ } finally {
+      setRerunning(null);
+    }
+  };
 
   const handleDelete = async (run: RunLog, idx: number) => {
     setDeleting(true);
@@ -680,8 +698,21 @@ function RunHistoryTab({ isDark, canDelete }: { isDark: boolean; canDelete: bool
                           </ul>
                         </div>
                       )}
+                      {canRerun && (
+                        <div className="mt-3 pt-3 border-t border-slate-700/30 flex items-center gap-4">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRerun(run, i); }}
+                            disabled={rerunning === i}
+                            className={`text-xs font-medium px-3 py-1 rounded ${
+                              isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                            } disabled:opacity-50`}
+                          >
+                            {rerunning === i ? "Re-running..." : "Re-run this month"}
+                          </button>
+                        </div>
+                      )}
                       {canDelete && (
-                        <div className="mt-3 pt-3 border-t border-slate-700/30">
+                        <div className={`${canRerun ? "mt-2" : "mt-3 pt-3 border-t border-slate-700/30"}`}>
                           {confirmDelete === i ? (
                             <div className="flex items-center gap-3">
                               <span className={`text-xs font-semibold ${isDark ? "text-red-400" : "text-red-600"}`}>
