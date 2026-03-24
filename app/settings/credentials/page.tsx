@@ -65,7 +65,7 @@ function CredentialsContent() {
   const [notes, setNotes] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
-  const credentials = useQuery(api.credentials.list);
+  const credentials = useQuery(api.credentials.list, user?._id ? { userId: user._id } : "skip");
   const createCredential = useMutation(api.credentials.create);
   const updateCredential = useMutation(api.credentials.update);
   const removeCredential = useMutation(api.credentials.remove);

@@ -11,22 +11,12 @@ async function hasDevAccess(ctx: any, userId: string): Promise<boolean> {
 
 // ============ QUERIES ============
 
-// List all credentials (dev team only)
+// List all credentials (super_admin only)
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    // Get user from database
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email))
-      .first();
-
-    if (!user || !(await hasDevAccess(ctx, user._id))) {
-      return [];
-    }
+  args: { userId: v.optional(v.id("users")) },
+  handler: async (ctx, args) => {
+    if (!args.userId) return [];
+    if (!(await hasDevAccess(ctx, args.userId))) return [];
 
     const credentials = await ctx.db.query("credentials").collect();
 
@@ -40,39 +30,18 @@ export const list = query({
 
 // Get a single credential
 export const get = query({
-  args: { id: v.id("credentials") },
+  args: { id: v.id("credentials"), userId: v.id("users") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email))
-      .first();
-
-    if (!user || !(await hasDevAccess(ctx, user._id))) {
-      return null;
-    }
-
+    if (!(await hasDevAccess(ctx, args.userId))) return null;
     return await ctx.db.get(args.id);
   },
 });
 
 // Get credentials by service
 export const getByService = query({
-  args: { service: v.string() },
+  args: { service: v.string(), userId: v.id("users") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email))
-      .first();
-
-    if (!user || !(await hasDevAccess(ctx, user._id))) {
-      return [];
-    }
+    if (!(await hasDevAccess(ctx, args.userId))) return [];
 
     return await ctx.db
       .query("credentials")
@@ -97,7 +66,6 @@ export const create = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Verify user has dev access
     if (!(await hasDevAccess(ctx, args.userId))) {
       throw new Error("You do not have permission to manage credentials");
     }
@@ -135,14 +103,12 @@ export const update = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Verify user has dev access
     if (!(await hasDevAccess(ctx, args.userId))) {
       throw new Error("You do not have permission to manage credentials");
     }
 
     const { id, userId, ...updates } = args;
 
-    // Filter out undefined values
     const cleanUpdates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
@@ -164,7 +130,6 @@ export const remove = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Verify user has dev access
     if (!(await hasDevAccess(ctx, args.userId))) {
       throw new Error("You do not have permission to manage credentials");
     }
