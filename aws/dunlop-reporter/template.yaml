@@ -260,9 +260,11 @@ Resources:
                   - !Sub "arn:aws:s3:::${JmkUploadsBucket}/*"
                   - !Sub "arn:aws:s3:::${OutputCsvsBucket}/*"
                   - !Sub "arn:aws:s3:::${RunLogsBucket}/*"
+                  - "arn:aws:s3:::ietires-sales-data/*"
                   - !Sub "arn:aws:s3:::${JmkUploadsBucket}"
                   - !Sub "arn:aws:s3:::${OutputCsvsBucket}"
                   - !Sub "arn:aws:s3:::${RunLogsBucket}"
+                  - "arn:aws:s3:::ietires-sales-data"
         - PolicyName: DunlopReporterSecretsAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -319,6 +321,7 @@ Resources:
           S3_JMK_UPLOADS_BUCKET: !Ref JmkUploadsBucket
           S3_OUTPUT_CSVS_BUCKET: !Ref OutputCsvsBucket
           S3_RUN_LOGS_BUCKET: !Ref RunLogsBucket
+          S3_SALES_DATA_BUCKET: ietires-sales-data
           SFTP_SECRETS_ARN: !Ref SftpCredentials
       Layers:
         - !Ref ParamikoLayer

@@ -19,6 +19,7 @@ import paramiko
 S3_JMK_BUCKET = os.environ.get("S3_JMK_UPLOADS_BUCKET", "ietires-dunlop-jmk-uploads")
 S3_OUTPUT_BUCKET = os.environ.get("S3_OUTPUT_CSVS_BUCKET", "ietires-dunlop-output-csvs")
 S3_LOGS_BUCKET = os.environ.get("S3_RUN_LOGS_BUCKET", "ietires-dunlop-run-logs")
+S3_SALES_BUCKET = os.environ.get("S3_SALES_DATA_BUCKET", "ietires-sales-data")
 
 CUSTOMER_NUMBER = "20118"
 COUNTRY = "US"
@@ -83,6 +84,12 @@ def handler(event, context):
         # 1. Read JMK file from S3
         raw_data = _read_s3_file(s3_key)
         rows = _parse_csv(raw_data)
+
+        # 1b. Save full parsed data to sales data bucket for dashboard
+        try:
+            _save_sales_data(rows, month)
+        except Exception:
+            pass  # Don't fail the Dunlop run if sales data save fails
 
         # 2. Apply filter pipeline
         filtered, summary = _filter_rows(rows, month, fanatic_jmks)
@@ -371,6 +378,58 @@ def _upload_sftp(csv_content, filename, env):
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+def _save_sales_data(rows, month):
+    """Save full parsed sales data to S3 for the sales dashboard.
+    Processes ALL rows (not just FAL/DUN), groups by date, and stores as JSON."""
+
+    COL_MAP = {
+        "item_id": COL_ITEM_ID, "mfg_id": COL_MFG_ID, "mfg_item_id": COL_MFG_ITEM_ID,
+        "loc_id": COL_LOC_ID, "trn_pur": COL_TRN_PUR, "qty": COL_QTY,
+        "sell_price": COL_SELL_PRICE, "activity_date": COL_ACTIVITY_DATE,
+    }
+
+    parsed_rows = []
+    for row in rows:
+        if len(row) <= COL_ACTIVITY_DATE:
+            continue
+        try:
+            qty_raw = float(row[COL_QTY].strip() or "0")
+            price_raw = float(row[COL_SELL_PRICE].strip() or "0")
+            ext_sell = float(row[14].strip() or "0") if len(row) > 14 else 0
+        except (ValueError, IndexError):
+            continue
+
+        date_str = row[COL_ACTIVITY_DATE].strip()
+        parsed = _parse_date(date_str)
+        if not parsed:
+            continue
+
+        parsed_rows.append({
+            "date": f"{parsed[0]}-{parsed[1]:02d}-{parsed[2]:02d}",
+            "item_id": _strip_trailing_chars(row[COL_ITEM_ID].strip()),
+            "description": row[1].strip() if len(row) > 1 else "",
+            "product_type": row[3].strip() if len(row) > 3 else "",
+            "brand": row[COL_MFG_ID].strip(),
+            "mfg_item": row[COL_MFG_ITEM_ID].strip(),
+            "loc": row[COL_LOC_ID].strip(),
+            "trn": row[COL_TRN_PUR].strip(),
+            "qty": int(qty_raw),
+            "price": round(price_raw, 2),
+            "ext_sell": round(ext_sell, 2),
+            "account": row[15].strip() if len(row) > 15 else "",
+            "customer": row[19].strip() if len(row) > 19 else "",
+        })
+
+    # Save to S3
+    sales_key = f"processed/{month}.json"
+    s3.put_object(
+        Bucket=S3_SALES_BUCKET,
+        Key=sales_key,
+        Body=json.dumps({"month": month, "rowCount": len(parsed_rows), "rows": parsed_rows}).encode("utf-8"),
+        ContentType="application/json",
+    )
+
 
 def _response(status_code, body):
     return {
