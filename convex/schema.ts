@@ -2877,6 +2877,7 @@ export default defineSchema({
     meetingId: v.id("meetings"),
     status: v.string(), // "recording" | "uploading" | "transcribing" | "generating" | "complete" | "error"
     audioFileId: v.optional(v.id("_storage")),
+    audioS3Key: v.optional(v.string()),
     transcript: v.optional(v.string()),
     summary: v.optional(v.string()),
     actionItems: v.optional(

@@ -128,10 +128,27 @@ export const updateAudioFile = mutation({
   },
 });
 
-// Generate a Convex file upload URL
+// Generate a Convex file upload URL (legacy — prefer S3)
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Store the S3 audio key and duration
+export const updateAudioS3Key = mutation({
+  args: {
+    notesId: v.id("meetingNotes"),
+    audioS3Key: v.string(),
+    duration: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.notesId, {
+      audioS3Key: args.audioS3Key,
+      duration: args.duration,
+      status: "transcribing",
+      updatedAt: Date.now(),
+    });
   },
 });
 

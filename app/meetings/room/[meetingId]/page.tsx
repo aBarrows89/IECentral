@@ -48,6 +48,7 @@ export default function MeetingRoomPage() {
   const createMeetingNotes = useMutation(api.meetingNotes.create);
   const updateNoteStatus = useMutation(api.meetingNotes.updateStatus);
   const updateAudioFile = useMutation(api.meetingNotes.updateAudioFile);
+  const updateAudioS3Key = useMutation(api.meetingNotes.updateAudioS3Key);
   const generateUploadUrl = useMutation(api.meetingNotes.generateUploadUrl);
   const transcribeAndGenerateNotes = useAction(api.meetingNoteActions.transcribeAndGenerateNotes);
 
@@ -157,24 +158,25 @@ export default function MeetingRoomPage() {
           status: "uploading",
         });
 
-        // Upload audio to Convex storage
-        const uploadUrl = await generateUploadUrl();
-        const uploadResponse = await fetch(uploadUrl, {
+        // Upload audio to S3 (avoids Convex storage limits)
+        const presignRes = await fetch("/api/meetings/upload-audio", {
           method: "POST",
-          headers: { "Content-Type": audioBlob!.type },
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meetingId: typedMeetingId, filename: "audio.webm" }),
+        });
+        if (!presignRes.ok) throw new Error("Failed to get S3 upload URL");
+        const { url: s3UploadUrl, key: s3Key } = await presignRes.json();
+
+        const uploadResponse = await fetch(s3UploadUrl, {
+          method: "PUT",
           body: audioBlob,
         });
+        if (!uploadResponse.ok) throw new Error("Failed to upload audio to S3");
 
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload audio file");
-        }
-
-        const { storageId } = await uploadResponse.json();
-
-        // Update notes with audio file reference
-        await updateAudioFile({
+        // Update notes with S3 key reference
+        await updateAudioS3Key({
           notesId: meetingNotesId!,
-          audioFileId: storageId,
+          audioS3Key: s3Key,
           duration: recordingDuration,
         });
 
