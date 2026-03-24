@@ -27,7 +27,8 @@ COUNTRY = "US"
 LOCATIONS = {
     "W07": {"address": "350 Pittsburgh Street", "city": "Uniontown", "state": "PA", "zip": "15401"},
     "W08": {"address": "410 Unity St", "city": "Latrobe", "state": "PA", "zip": "15650"},
-    "R10": {"address": "151 Feed Mill Rd", "city": "Everson", "state": "PA", "zip": "15631"},  # Confirmed
+    "W09": {"address": "207 Chestnut Ridge Rd", "city": "Latrobe", "state": "PA", "zip": "15650"},
+    "R10": {"address": "151 Feed Mill Rd", "city": "Everson", "state": "PA", "zip": "15631"},
 }
 
 VALID_LOCATIONS = set(LOCATIONS.keys())
