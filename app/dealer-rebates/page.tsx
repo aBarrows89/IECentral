@@ -911,12 +911,37 @@ function DealerManagementTab({ isDark }: { isDark: boolean }) {
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
           Show inactive
         </label>
-        <button
-          onClick={() => { setEditingDealer(null); resetForm(); setFormError(""); setShowAddModal(true); }}
-          className="px-4 py-2 rounded-lg text-sm font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-        >
-          + Add Dealer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (!dealers) return;
+              const rows = filteredDealers.map(d => [
+                d.jmk, d.name, d.fanaticId ?? "", d.dealerNumber ?? "",
+                d.programs.join(";"), d.primSec ?? "", d.isActive ? "Active" : "Inactive"
+              ]);
+              const csv = ["JMK,Name,Fanatic ID,Dealer Number,Programs,Prim/Sec,Status",
+                ...rows.map(r => r.map(v => String(v).includes(",") ? `"${v}"` : v).join(","))
+              ].join("\r\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `dealers_${programFilter}_${new Date().toISOString().slice(0,10)}.csv`;
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isDark ? "bg-slate-700 hover:bg-slate-600 text-slate-300" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => { setEditingDealer(null); resetForm(); setFormError(""); setShowAddModal(true); }}
+            className="px-4 py-2 rounded-lg text-sm font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+          >
+            + Add Dealer
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

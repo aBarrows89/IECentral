@@ -707,7 +707,12 @@ function RunHistoryTab({ isDark, canDelete, canRerun, env, userName }: { isDark:
                                 });
                                 if (res.ok) {
                                   const { url } = await res.json();
-                                  window.open(url, "_blank");
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = run.outputFile;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
                                 }
                               } catch { /* ignore */ }
                             }}
@@ -977,34 +982,6 @@ function SettingsTab({ isDark }: { isDark: boolean }) {
   }`;
   const labelClass = `block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`;
 
-  const CredsForm = ({ label, creds, setCreds }: { label: string; creds: SftpCreds; setCreds: (c: SftpCreds) => void }) => (
-    <div className={`rounded-xl border p-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-      <h3 className={`text-sm font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>{label}</h3>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Host</label>
-          <input className={inputClass} value={creds.host} onChange={(e) => setCreds({ ...creds, host: e.target.value })} />
-        </div>
-        <div>
-          <label className={labelClass}>Port</label>
-          <input className={inputClass} type="number" value={creds.port} onChange={(e) => setCreds({ ...creds, port: parseInt(e.target.value) || 22 })} />
-        </div>
-        <div>
-          <label className={labelClass}>Username</label>
-          <input className={inputClass} value={creds.username} onChange={(e) => setCreds({ ...creds, username: e.target.value })} />
-        </div>
-        <div>
-          <label className={labelClass}>Password</label>
-          <input className={inputClass} type={showPasswords ? "text" : "password"} value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
-        </div>
-        <div>
-          <label className={labelClass}>Directory</label>
-          <input className={inputClass} value={creds.directory} onChange={(e) => setCreds({ ...creds, directory: e.target.value })} />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1017,8 +994,36 @@ function SettingsTab({ isDark }: { isDark: boolean }) {
         </button>
       </div>
 
-      <CredsForm label="Dev Environment" creds={devCreds} setCreds={setDevCreds} />
-      <CredsForm label="Prod Environment" creds={prodCreds} setCreds={setProdCreds} />
+      {[
+        { label: "Dev Environment", creds: devCreds, setCreds: setDevCreds },
+        { label: "Prod Environment", creds: prodCreds, setCreds: setProdCreds },
+      ].map(({ label, creds, setCreds }) => (
+        <div key={label} className={`rounded-xl border p-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+          <h3 className={`text-sm font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>{label}</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Host</label>
+              <input className={inputClass} value={creds.host} onChange={(e) => setCreds({ ...creds, host: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelClass}>Port</label>
+              <input className={inputClass} type="number" value={creds.port} onChange={(e) => setCreds({ ...creds, port: parseInt(e.target.value) || 22 })} />
+            </div>
+            <div>
+              <label className={labelClass}>Username</label>
+              <input className={inputClass} value={creds.username} onChange={(e) => setCreds({ ...creds, username: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelClass}>Password</label>
+              <input className={inputClass} type={showPasswords ? "text" : "password"} value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelClass}>Directory</label>
+              <input className={inputClass} value={creds.directory} onChange={(e) => setCreds({ ...creds, directory: e.target.value })} />
+            </div>
+          </div>
+        </div>
+      ))}
 
       <div className="flex items-center gap-3">
         <button
