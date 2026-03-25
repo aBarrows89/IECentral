@@ -160,6 +160,8 @@ export const saveUpload = mutation({
       rowCount: v.number(),
     })),
     uploadedBy: v.id("users"),
+    dateRangeStart: v.optional(v.string()),
+    dateRangeEnd: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("dealerRebateUploads", {
@@ -173,6 +175,8 @@ export const saveUpload = mutation({
       resultData: args.resultData,
       dealerBreakdown: args.dealerBreakdown,
       uploadedBy: args.uploadedBy,
+      dateRangeStart: args.dateRangeStart,
+      dateRangeEnd: args.dateRangeEnd,
       createdAt: Date.now(),
     });
     return { success: true, id };

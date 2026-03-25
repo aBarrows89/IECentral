@@ -2240,6 +2240,8 @@ export default defineSchema({
       rowCount: v.number(),
     })),
     uploadedBy: v.id("users"),
+    dateRangeStart: v.optional(v.string()), // Earliest Activity Date in file (MM/DD/YY)
+    dateRangeEnd: v.optional(v.string()), // Latest Activity Date in file (MM/DD/YY)
     createdAt: v.number(),
   })
     .index("by_date", ["uploadDate"])
