@@ -176,12 +176,18 @@ export default function JMKShell({ children }: { children: React.ReactNode }) {
     setInputBuffer("");
   }, [menuLevel]);
 
-  // Keyboard
+  // Keyboard — use capture phase to intercept F-keys before page content
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "F12") { e.preventDefault(); setAppearance("modern"); return; }
-    if (e.key === "F3") { e.preventDefault(); setMenuLevel(prev => prev === null ? "main" : null); setInputBuffer(""); setSelectedIndex(0); return; }
-    if (e.key === "F10") { e.preventDefault(); goBack(); return; }
-    if (e.key === "F5") { e.preventDefault(); router.refresh(); return; }
+    // Intercept all F-keys to prevent browser defaults
+    if (e.key.startsWith("F") && !isNaN(Number(e.key.slice(1)))) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (e.key === "F1") { return; } // TODO: could open help
+    if (e.key === "F12") { setAppearance("modern"); return; }
+    if (e.key === "F3") { setMenuLevel(prev => prev === null ? "main" : null); setInputBuffer(""); setSelectedIndex(0); return; }
+    if (e.key === "F10") { goBack(); return; }
+    if (e.key === "F5") { router.refresh(); return; }
     if (e.key === "Escape") { goBack(); return; }
 
     if (showingMenu) {
@@ -228,8 +234,9 @@ export default function JMKShell({ children }: { children: React.ReactNode }) {
   }, [showingMenu, selectedIndex, inputBuffer, currentItems, router, setAppearance, navigateTo, openSubmenu, goBack]);
 
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    // Capture phase ensures F-keys are intercepted before any page element
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [handleKeyDown]);
 
   return (
