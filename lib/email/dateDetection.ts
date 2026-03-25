@@ -196,7 +196,14 @@ function applyTimeToDate(date: Date, timeText: string): { date: Date; hasTime: b
  */
 export function detectDates(content: string, emailDate?: Date | number): DetectedDate[] {
   const detected: DetectedDate[] = [];
-  const plainText = stripHtml(content);
+  // Strip quoted email threads — everything after "From:" / "On ... wrote:" / "------"
+  const strippedContent = content
+    .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, "")
+    .replace(/^[-_]{3,}[\s\S]*/m, "")
+    .replace(/^From:[\s\S]*/mi, "")
+    .replace(/^On .+ wrote:[\s\S]*/mi, "")
+    .replace(/^Sent:[\s\S]*/mi, "");
+  const plainText = stripHtml(strippedContent);
   const refDate = emailDate ? new Date(emailDate) : new Date();
 
   // US Date format (MM/DD/YYYY)
