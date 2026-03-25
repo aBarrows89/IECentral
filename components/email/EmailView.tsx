@@ -21,6 +21,7 @@ interface EmailViewProps {
   userId: Id<"users">;
   onBack: () => void;
   onReply: () => void;
+  onReplyAll: () => void;
   onForward: () => void;
 }
 
@@ -64,6 +65,7 @@ export default function EmailView({
   userId,
   onBack,
   onReply,
+  onReplyAll,
   onForward,
 }: EmailViewProps) {
   const router = useRouter();
@@ -313,6 +315,19 @@ export default function EmailView({
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+          </button>
+
+          <button
+            onClick={onReplyAll}
+            className={`p-2 rounded-lg transition-colors ${
+              isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+            title="Reply All"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14h10a8 8 0 018 8v2" opacity="0.5" />
             </svg>
           </button>
 
@@ -582,6 +597,7 @@ export default function EmailView({
               <div
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                 className="email-body"
+                style={isDark ? { color: '#e2e8f0' } : undefined}
               />
             ) : (
               <pre className="whitespace-pre-wrap font-sans text-sm theme-text-primary">
@@ -603,6 +619,17 @@ export default function EmailView({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
             Reply
+          </button>
+          <button
+            onClick={onReplyAll}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors ${
+              isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Reply All
           </button>
           <button
             onClick={onForward}

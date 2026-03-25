@@ -578,3 +578,22 @@ button {
     color: #6b7280 !important;
   }
 }
+
+/* Email body dark mode — override inline styles from HTML emails */
+.dark .email-body,
+.dark .email-body * {
+  color: #e2e8f0 !important;
+  background-color: transparent !important;
+}
+.dark .email-body a {
+  color: #38bdf8 !important;
+}
+.dark .email-body blockquote {
+  border-color: #475569 !important;
+  color: #94a3b8 !important;
+}
+.dark .email-body table,
+.dark .email-body td,
+.dark .email-body th {
+  border-color: #475569 !important;
+}

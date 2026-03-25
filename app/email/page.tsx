@@ -408,6 +408,7 @@ export default function EmailPage() {
                 userId={user._id}
                 onBack={handleBackToList}
                 onReply={handleReply}
+                onReplyAll={handleReplyAll}
                 onForward={handleForward}
               />
             ) : selectedEmail ? (
