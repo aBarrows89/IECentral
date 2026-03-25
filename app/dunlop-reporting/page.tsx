@@ -516,7 +516,7 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
               <div className={`mt-3 pt-3 border-t text-xs space-y-1 ${isDark ? "border-slate-700 text-slate-400" : "border-gray-200 text-gray-500"}`}>
                 <p>Total input rows: {result.filterSummary.totalInput}</p>
                 <p>After brand filter (FAL/DUN): {result.filterSummary.afterBrandFilter}</p>
-                <p>After location filter (W07/W08/R10): {result.filterSummary.afterLocationFilter}</p>
+                <p>After location filter (W07/W08/W09/R10): {result.filterSummary.afterLocationFilter}</p>
                 <p>After exclusions: {result.filterSummary.afterExclusions}</p>
                 <p>Final output: {result.filterSummary.finalOutput}</p>
               </div>
