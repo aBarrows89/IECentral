@@ -357,6 +357,14 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
     setResults(newResults);
     setStep(2);
 
+    // Extract date range from all filtered rows
+    const allDates = filteredRows
+      .map(cols => (cols[COL.ACTIVITY_DATE] ?? "").trim())
+      .filter(d => d.length > 0)
+      .sort();
+    const dateRangeStart = allDates.length > 0 ? allDates[0] : undefined;
+    const dateRangeEnd = allDates.length > 0 ? allDates[allDates.length - 1] : undefined;
+
     // Auto-save upload history for each program
     if (userId) {
       if (programs.falken && falkenOut.length > 0) {
@@ -390,6 +398,8 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
               rowCount: v.count,
             })),
             uploadedBy: userId,
+            dateRangeStart,
+            dateRangeEnd,
           });
           setSaved(p => ({ ...p, falken: true }));
         } catch (err) {
@@ -428,6 +438,8 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
               rowCount: v.count,
             })),
             uploadedBy: userId,
+            dateRangeStart,
+            dateRangeEnd,
           });
           setSaved(p => ({ ...p, milestar: true }));
         } catch (err) {
@@ -1279,6 +1291,11 @@ function UploadHistoryTab({ isDark }: { isDark: boolean }) {
               <div className={`flex gap-4 mt-2 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                 <span>{u.matchedRows} rows</span>
                 <span>{u.dealersMatched} dealers</span>
+                {(u as { dateRangeStart?: string; dateRangeEnd?: string }).dateRangeStart && (
+                  <span className={`font-medium ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
+                    {(u as { dateRangeStart?: string }).dateRangeStart} — {(u as { dateRangeEnd?: string }).dateRangeEnd}
+                  </span>
+                )}
               </div>
 
               {/* Expanded detail */}
