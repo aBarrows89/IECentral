@@ -776,19 +776,28 @@ By signing below, the Employee acknowledges that they have read, understand, and
   };
 
   return (
-    <div className={`flex h-screen theme-bg-primary`}>
+    <div className={`flex h-screen ${isDark ? "bg-slate-950" : "bg-gray-50"}`}>
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto">
         <MobileHeader />
         {/* Header */}
-        <header className={`sticky top-0 z-10 backdrop-blur-sm border-b px-4 sm:px-8 py-4 ${isDark ? "bg-slate-900/80 border-slate-700" : "bg-white/80 border-gray-200"}`}>
+        <div className={`border-b ${isDark ? "border-slate-800" : "border-gray-200"}`}>
+          <div className={`h-1 ${isDark ? "bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500" : "bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500"}`} />
+        <header className={`sticky top-0 z-10 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-4 ${isDark ? "bg-slate-950/80" : "bg-gray-50/80"}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Equipment</h1>
-              <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                Manage scanners, pickers, and vehicles
-              </p>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? "bg-purple-500/10" : "bg-indigo-50"}`}>
+                <svg className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-indigo-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Equipment</h1>
+                <p className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                  Pickers, vehicles, and computers
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {/* View Equipment Report Button */}
@@ -836,55 +845,43 @@ By signing below, the Employee acknowledges that they have read, understand, and
           </div>
 
           {/* Tabs and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-4">
+          <div className="flex flex-wrap items-center gap-3 mt-4">
+            {/* Scanner Manager Link */}
+            <button
+              onClick={() => router.push("/equipment/scanners")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${isDark ? "bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Scanner Fleet
+              <svg className="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+
+            <div className={`h-5 w-px ${isDark ? "bg-slate-700" : "bg-gray-300"}`} />
+
             {/* Equipment Type Tabs */}
-            <div className={`inline-flex rounded-lg p-1 ${isDark ? "bg-slate-800" : "bg-gray-200"}`}>
+            {(["pickers", "vehicles", "computers"] as const).map((tab) => (
               <button
-                onClick={() => router.push("/equipment/scanners")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${isDark ? "text-slate-400 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
-              >
-                Scanners
-                <svg className="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setActiveTab("pickers")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === "pickers"
-                    ? isDark ? "bg-cyan-500 text-white" : "bg-white text-gray-900 shadow-sm"
-                    : isDark ? "text-slate-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  activeTab === tab
+                    ? isDark ? "bg-purple-500/15 text-purple-400 border border-purple-500/20" : "bg-indigo-50 text-indigo-600 border border-indigo-200"
+                    : isDark ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                Pickers ({pickers?.length ?? 0})
+                {tab.charAt(0).toUpperCase() + tab.slice(1)} ({tab === "pickers" ? pickers?.length ?? 0 : tab === "vehicles" ? vehicles?.length ?? 0 : computers?.length ?? 0})
               </button>
-              <button
-                onClick={() => setActiveTab("vehicles")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === "vehicles"
-                    ? isDark ? "bg-cyan-500 text-white" : "bg-white text-gray-900 shadow-sm"
-                    : isDark ? "text-slate-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Vehicles ({vehicles?.length ?? 0})
-              </button>
-              <button
-                onClick={() => setActiveTab("computers")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === "computers"
-                    ? isDark ? "bg-cyan-500 text-white" : "bg-white text-gray-900 shadow-sm"
-                    : isDark ? "text-slate-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Computers ({computers?.length ?? 0})
-              </button>
-            </div>
+            ))}
 
             {/* Location Filter */}
             <select
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value as Id<"locations"> | "all")}
-              className={`px-3 py-2 text-sm rounded-lg border focus:outline-none ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+              className={`ml-auto px-3 py-1.5 text-xs rounded-lg border focus:outline-none ${isDark ? "bg-slate-900/50 border-slate-700 text-white focus:border-cyan-500" : "bg-white border-gray-200 text-gray-900 focus:border-blue-400"}`}
             >
               <option value="all">All Locations</option>
               {locations?.map((loc) => (
@@ -893,6 +890,7 @@ By signing below, the Employee acknowledges that they have read, understand, and
             </select>
           </div>
         </header>
+        </div>
 
         <div className="p-4 sm:p-8">
           {error && (
