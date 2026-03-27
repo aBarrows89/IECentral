@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ietires.scanneragent">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,7 +17,7 @@
     <application
         android:name=".ScannerAgentApp"
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@android:drawable/ic_menu_manage"
         android:label="IE Scanner Agent"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
@@ -26,6 +25,7 @@
         <!-- Device Admin Receiver (for lock/wipe) -->
         <receiver
             android:name=".DeviceAdminReceiver"
+            android:exported="true"
             android:permission="android.permission.BIND_DEVICE_ADMIN">
             <meta-data
                 android:name="android.app.device_admin"

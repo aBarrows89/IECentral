@@ -1,6 +1,7 @@
 package com.ietires.scanneragent
 
 import android.app.*
+import android.app.admin.DevicePolicyManager
 import android.content.*
 import android.location.LocationManager
 import android.net.wifi.WifiManager
