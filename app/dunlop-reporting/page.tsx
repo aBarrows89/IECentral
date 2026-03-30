@@ -22,6 +22,7 @@ BACKFILL_MONTHS.push("202601"); // Jan 2026
 BACKFILL_MONTHS.push("202602"); // Feb 2026
 
 function formatMonth(yyyymm: string): string {
+  if (yyyymm === "backfill") return "Jan 2024 – Feb 2026";
   const y = yyyymm.slice(0, 4);
   const m = parseInt(yyyymm.slice(4, 6), 10);
   const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
