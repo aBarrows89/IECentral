@@ -14,7 +14,7 @@ import ScannerStatusDot, { getScannerHealth } from "../components/ScannerStatusD
 import ScannerBatteryBar from "../components/ScannerBatteryBar";
 import WifiSignalIcon from "../components/WifiSignalIcon";
 
-type CommandType = "lock" | "unlock" | "wipe" | "install_apk" | "push_config" | "restart" | "update_pin";
+type CommandType = "lock" | "unlock" | "wipe" | "install_apk" | "push_config" | "restart";
 const EQUIPMENT_VALUE = 100;
 
 function ScannerDetailContent() {
@@ -218,7 +218,7 @@ function ScannerDetailContent() {
     { cmd: "unlock", label: "Unlock", icon: "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z", color: "emerald" },
     { cmd: "install_apk", label: "Push Update", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4", color: "cyan" },
     { cmd: "push_config", label: "Push Config", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z", color: "purple" },
-    { cmd: "update_pin", label: "Change PIN", icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z", color: "blue" },
+
     { cmd: "restart", label: "Restart", icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15", color: "slate" },
     { cmd: "wipe", label: "Factory Reset", icon: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16", color: "red", requiresAdmin: true },
   ];
@@ -554,11 +554,6 @@ function ScannerDetailContent() {
                     </div>
                     <label className={`block text-sm mb-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Type <span className="font-bold">{scanner.number}</span> to confirm:</label>
                     <input type="text" value={wipeConfirmText} onChange={(e) => setWipeConfirmText(e.target.value)} className={`${inputClass} mb-4`} placeholder={scanner.number} />
-                  </>
-                ) : pendingCommand === "update_pin" ? (
-                  <>
-                    <p className={`text-sm mb-3 ${isDark ? "text-slate-300" : "text-gray-600"}`}>Enter new PIN:</p>
-                    <input type="text" value={commandPayload} onChange={(e) => setCommandPayload(e.target.value.replace(/\D/g, "").slice(0, 6))} className={`${inputClass} mb-4`} placeholder="1234" maxLength={6} />
                   </>
                 ) : (
                   <p className={`text-sm mb-4 ${isDark ? "text-slate-300" : "text-gray-600"}`}>

@@ -59,6 +59,7 @@ class MqttService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Connecting..."))
+        lockDownPinSettings()
         startLocationUpdates()
         loadConfigAndConnect()
     }
@@ -305,7 +306,6 @@ class MqttService : Service() {
             "restart" -> restartDevice()
             "install_apk" -> installApk(payload.optJSONObject("payload"))
             "push_config" -> pushConfig(payload.optJSONObject("payload"))
-            "update_pin" -> updatePin(payload.optJSONObject("payload"))
         }
 
         // Acknowledge command
@@ -394,13 +394,14 @@ class MqttService : Service() {
         Log.i(TAG, "RT config pushed")
     }
 
-    private fun updatePin(payload: JSONObject?) {
-        val newPin = payload?.optString("pin") ?: return
+    private fun lockDownPinSettings() {
         val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val admin = ComponentName(this, DeviceAdminReceiver::class.java)
         if (dpm.isAdminActive(admin)) {
-            dpm.resetPassword(newPin, 0)
-            Log.i(TAG, "PIN updated")
+            // Require numeric PIN with minimum 4 digits — prevents disabling or weakening the lock
+            dpm.setPasswordQuality(admin, DevicePolicyManager.PASSWORD_QUALITY_NUMERIC)
+            dpm.setPasswordMinimumLength(admin, 4)
+            Log.i(TAG, "PIN policy enforced: numeric, min 4 digits")
         }
     }
 
