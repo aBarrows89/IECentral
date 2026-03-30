@@ -39,7 +39,8 @@ function ScannerDashboardContent() {
   const locations = useQuery(api.locations.listActiveWarehouses);
   const alerts = useQuery(api.scannerMdm.getScannersNeedingAttention);
   const createScanner = useMutation(api.scannerMdm.createScannerFromSetup);
-  const selectedLocCode = locations?.find((l) => l._id === addLocationId)?.locationCode;
+  const mdmConfigs = useQuery(api.scannerMdm.listMdmConfigs);
+  const selectedLocCode = mdmConfigs?.find((c) => c.locationId === addLocationId)?.locationCode;
   const nextNumber = useQuery(api.scannerMdm.getNextScannerNumber, selectedLocCode ? { locationCode: selectedLocCode } : "skip");
 
   const canEdit =
@@ -565,7 +566,10 @@ function ScannerDashboardContent() {
                         <select value={addLocationId} onChange={(e) => setAddLocationId(e.target.value as Id<"locations">)}
                           className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`}>
                           <option value="">Select location...</option>
-                          {locations?.map((l) => <option key={l._id} value={l._id}>{l.name} ({l.locationCode})</option>)}
+                          {locations?.map((l) => {
+                            const lc = mdmConfigs?.find((c) => c.locationId === l._id)?.locationCode;
+                            return <option key={l._id} value={l._id}>{l.name}{lc ? ` (${lc})` : ""}</option>;
+                          })}
                         </select>
                       </div>
                       <div>
