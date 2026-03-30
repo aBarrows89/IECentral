@@ -1,8 +1,11 @@
 package com.ietires.scanneragent
 
+import android.annotation.SuppressLint
 import android.app.*
 import android.app.admin.DevicePolicyManager
 import android.content.*
+import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
 import android.net.wifi.WifiManager
 import android.os.*
@@ -11,8 +14,14 @@ import org.eclipse.paho.android.service.MqttAndroidClient
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.openssl.PEMKeyPair
+import org.bouncycastle.openssl.PEMParser
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import java.io.File
+import java.io.FileReader
 import java.security.KeyStore
+import java.security.Security
 import java.security.cert.CertificateFactory
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -35,11 +44,23 @@ class MqttService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var thingName: String = ""
     private var iotEndpoint: String = ""
+    @Volatile private var lastLocation: Location? = null
+    private var locationManager: LocationManager? = null
+
+    private val locationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            lastLocation = location
+        }
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+        @Deprecated("Deprecated in API") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+    }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Connecting..."))
+        startLocationUpdates()
         loadConfigAndConnect()
     }
 
@@ -51,6 +72,7 @@ class MqttService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        locationManager?.removeUpdates(locationListener)
         mqttClient?.disconnect()
         super.onDestroy()
     }
@@ -112,6 +134,8 @@ class MqttService : Service() {
     }
 
     private fun createSslSocketFactory(): javax.net.ssl.SSLSocketFactory {
+        Security.addProvider(BouncyCastleProvider())
+
         val certFile = File(filesDir, "certificate.pem")
         val keyFile = File(filesDir, "private.key")
         val caFile = File(filesDir, "root-ca.pem")
@@ -125,12 +149,21 @@ class MqttService : Service() {
         val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         tmf.init(trustStore)
 
-        // Load client certificate + private key
+        // Load client certificate + private key via BouncyCastle
         val clientCert = cf.generateCertificate(certFile.inputStream())
+        val pemParser = PEMParser(FileReader(keyFile))
+        val pemObject = pemParser.readObject()
+        pemParser.close()
+        val converter = JcaPEMKeyConverter().setProvider("BC")
+        val privateKey = when (pemObject) {
+            is PEMKeyPair -> converter.getKeyPair(pemObject).private
+            is org.bouncycastle.asn1.pkcs.PrivateKeyInfo -> converter.getPrivateKey(pemObject)
+            else -> throw IllegalArgumentException("Unexpected PEM object: ${pemObject::class.java}")
+        }
+
         val keyStore = KeyStore.getInstance("PKCS12")
         keyStore.load(null)
-        keyStore.setCertificateEntry("client", clientCert)
-        // Note: In production, use BouncyCastle to load PEM private key into keystore
+        keyStore.setKeyEntry("client", privateKey, CharArray(0), arrayOf(clientCert))
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
         kmf.init(keyStore, CharArray(0))
 
@@ -167,7 +200,9 @@ class MqttService : Service() {
             put("apps", getInstalledAppVersions())
             put("agentVersion", BuildConfig.VERSION_NAME)
             put("androidVersion", Build.VERSION.RELEASE)
-            put("isLocked", false) // TODO: check actual lock state
+            val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val km = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
+            put("isLocked", km.isDeviceLocked)
             put("timestamp", System.currentTimeMillis() / 1000)
         }
 
@@ -207,19 +242,36 @@ class MqttService : Service() {
         return wm.connectionInfo.rssi
     }
 
-    private fun getGpsLocation(): JSONObject {
-        val result = JSONObject()
+    @SuppressLint("MissingPermission")
+    private fun startLocationUpdates() {
         try {
-            val lm = getSystemService(LOCATION_SERVICE) as LocationManager
-            val loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            if (loc != null) {
-                result.put("lat", loc.latitude)
-                result.put("lng", loc.longitude)
-                result.put("accuracy", loc.accuracy)
+            locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+            // Request updates every 5 minutes / 50 meters — whichever comes first
+            if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                locationManager?.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER, 5 * 60 * 1000L, 50f, locationListener
+                )
             }
+            if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                locationManager?.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER, 5 * 60 * 1000L, 50f, locationListener
+                )
+            }
+            // Seed with last known location if available
+            lastLocation = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
         } catch (e: SecurityException) {
             Log.w(TAG, "Location permission not granted")
+        }
+    }
+
+    private fun getGpsLocation(): JSONObject {
+        val result = JSONObject()
+        val loc = lastLocation
+        if (loc != null) {
+            result.put("lat", loc.latitude)
+            result.put("lng", loc.longitude)
+            result.put("accuracy", loc.accuracy)
         }
         return result
     }
@@ -228,10 +280,10 @@ class MqttService : Service() {
         val apps = JSONObject()
         val pm = packageManager
         try {
-            apps.put("tireTrack", pm.getPackageInfo("com.ietires.tiretrack", 0).versionName)
+            apps.put("tireTrack", pm.getPackageInfo("com.importexporttire.tiretrack", 0).versionName)
         } catch (e: Exception) { /* not installed */ }
         try {
-            apps.put("rtLocator", pm.getPackageInfo("com.rtsystems.rtlmobile", 0).versionName)
+            apps.put("rtLocator", pm.getPackageInfo("com.rt_systems.rtlhandsfree", 0).versionName)
         } catch (e: Exception) { /* not installed */ }
         apps.put("scannerAgent", BuildConfig.VERSION_NAME)
         return apps

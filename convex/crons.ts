@@ -101,4 +101,13 @@ crons.daily(
   {}
 );
 
+// ============ SCANNER MDM CRONS ============
+
+// Mark scanners as offline if no telemetry received in 5 minutes
+crons.interval(
+  "scanner-update-online-status",
+  { minutes: 5 },
+  internal.scannerMdm.bulkUpdateOnlineStatus
+);
+
 export default crons;
