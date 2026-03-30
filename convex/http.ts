@@ -85,6 +85,7 @@ http.route({
           certificatePem: result.certificatePem,
           privateKey: result.privateKey,
           iotEndpoint: result.iotEndpoint,
+          rtConfigXml: result.rtConfigXml,
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );

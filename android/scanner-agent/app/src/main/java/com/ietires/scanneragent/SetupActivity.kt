@@ -328,17 +328,18 @@ class SetupActivity : Activity() {
         var disabled = 0
         for (pkg in BLOATWARE) {
             try {
-                val pi = packageManager.getPackageInfo(pkg, 0)
-                if (pi != null) {
-                    // Can't disable system apps without root/device-owner,
-                    // but we can hide them from the launcher
-                    Log.i(TAG, "Bloatware found: $pkg (cannot disable without device owner)")
+                // pm disable-user works without root on Zebra devices
+                val process = Runtime.getRuntime().exec(arrayOf("pm", "disable-user", "--user", "0", pkg))
+                process.waitFor()
+                if (process.exitValue() == 0) {
+                    disabled++
+                    Log.i(TAG, "Disabled: $pkg")
                 }
             } catch (e: Exception) {
-                // Package not installed, skip
+                // Package not installed or can't disable, skip
             }
         }
-        Log.i(TAG, "Bloatware check complete")
+        Log.i(TAG, "Disabled $disabled bloatware apps")
     }
 
     private fun grantAppPermissions() {
@@ -397,6 +398,19 @@ class SetupActivity : Activity() {
         }
         File(filesDir, "iot_config.json").writeText(config.toString())
         Log.i(TAG, "Saved IoT config for ${data.getString("thingName")}")
+
+        // Save RT Locator config
+        val rtConfig = data.optString("rtConfigXml", "")
+        if (rtConfig.isNotEmpty()) {
+            try {
+                val docsDir = File(android.os.Environment.getExternalStorageDirectory(), "My Documents")
+                docsDir.mkdirs()
+                File(docsDir, "rtlconfig.xml").writeText(rtConfig)
+                Log.i(TAG, "Saved RT config to ${docsDir.absolutePath}/rtlconfig.xml")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not save RT config: ${e.message}")
+            }
+        }
     }
 
     private fun updateStatus(text: String, color: String = "#64748b") {

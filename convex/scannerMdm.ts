@@ -667,12 +667,30 @@ export const claimProvision = internalMutation({
       });
     }
 
+    // Fetch RT config for the scanner's location
+    let rtConfigXml: string | undefined;
+    if (scanner) {
+      const mdmConfig = await ctx.db
+        .query("scannerMdmConfigs")
+        .withIndex("by_location", (q) => q.eq("locationId", scanner.locationId))
+        .first();
+      if (mdmConfig) {
+        rtConfigXml = mdmConfig.rtConfigXml || `<RT>
+    <ORIENTATION>PORTRAIT</ORIENTATION>
+    <DEVICEID>${scanner.number}</DEVICEID>
+    <SCALEFACTOR>3.5</SCALEFACTOR>
+    <RTLMOBILEURL>${mdmConfig.rtLocatorUrl}</RTLMOBILEURL>
+</RT>`;
+      }
+    }
+
     return {
       success: true,
       thingName: record.thingName,
       certificatePem: record.certificatePem,
       privateKey: record.privateKey,
       iotEndpoint: record.iotEndpoint,
+      rtConfigXml,
     };
   },
 });
