@@ -50,14 +50,20 @@ def handler(event, context):
         if "wifiSignal" in event:
             telemetry["wifiSignal"] = event["wifiSignal"]
         if "gps" in event and isinstance(event["gps"], dict):
-            telemetry["gpsLatitude"] = event["gps"].get("lat")
-            telemetry["gpsLongitude"] = event["gps"].get("lng")
+            lat = event["gps"].get("lat")
+            lng = event["gps"].get("lng")
+            if lat is not None:
+                telemetry["gpsLatitude"] = lat
+            if lng is not None:
+                telemetry["gpsLongitude"] = lng
         if "apps" in event and isinstance(event["apps"], dict):
-            telemetry["installedApps"] = {
-                "tireTrack": event["apps"].get("tireTrack"),
-                "rtLocator": event["apps"].get("rtLocator"),
-                "scannerAgent": event["apps"].get("scannerAgent"),
-            }
+            apps = {}
+            for key in ("tireTrack", "rtLocator", "scannerAgent"):
+                val = event["apps"].get(key)
+                if val is not None:
+                    apps[key] = val
+            if apps:
+                telemetry["installedApps"] = apps
         if "agentVersion" in event:
             telemetry["agentVersion"] = event["agentVersion"]
         if "androidVersion" in event:
