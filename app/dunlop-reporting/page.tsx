@@ -257,44 +257,20 @@ function UploadRunTab({ isDark, env, userName }: { isDark: boolean; env: "dev" |
       const s3Key = await uploadFileToS3(file, isBatchMode ? "backfill" : month);
 
       if (isBatchMode) {
-        // Batch mode: run transform for each unsubmitted backfill month
+        // Batch mode: single combined run with all months in one file
         setState("processing");
-        const pendingMonths = BACKFILL_MONTHS.filter(m => !submittedMonths.has(m));
-        if (pendingMonths.length === 0) {
-          setError("All backfill months have already been submitted.");
-          setState("error");
-          return;
-        }
-        setBatchProgress({ current: 0, total: pendingMonths.length });
-        const results: RunLog[] = [];
-
-        for (let i = 0; i < pendingMonths.length; i++) {
-          setBatchProgress({ current: i + 1, total: pendingMonths.length });
-          try {
-            const runData = await runTransform(s3Key, pendingMonths[i]);
-            results.push(runData);
-            if (runData.sftpStatus === "success") {
-              setSubmittedMonths(prev => new Set([...prev, pendingMonths[i]]));
-            }
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Unknown error";
-            results.push({
-              month: pendingMonths[i],
-              fileName: file.name,
-              outputFile: "",
-              rows: 0,
-              sftpStatus: "failed",
-              env,
-              runBy: userName,
-              timestamp: new Date().toISOString(),
-              errors: [msg],
-            });
+        try {
+          const runData = await runTransform(s3Key, "backfill");
+          setResult(runData);
+          if (runData.sftpStatus === "success") {
+            setSubmittedMonths(prev => new Set([...prev, ...BACKFILL_MONTHS]));
           }
+          setState("complete");
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Unknown error";
+          setError(msg);
+          setState("error");
         }
-
-        setBatchResults(results);
-        setBatchProgress(null);
-        setState("complete");
       } else {
         // Single month mode
         setState("processing");

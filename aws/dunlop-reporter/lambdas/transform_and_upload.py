@@ -101,7 +101,10 @@ def handler(event, context):
         # 3. Build output CSV
         output_rows = _transform_rows(filtered)
         csv_content = _build_csv(output_rows)
-        output_filename = f"ImportExportTireCo_{month}_Sellout.csv"
+        if month == "backfill":
+            output_filename = "ImportExportTireCo_202401-202602_Sellout.csv"
+        else:
+            output_filename = f"ImportExportTireCo_{month}_Sellout.csv"
 
         # 4. Write output CSV to S3
         output_key = f"output-csvs/{output_filename}"
@@ -222,14 +225,18 @@ def _filter_rows(rows, month, fanatic_jmks=None):
             after_brand.append(row)
 
     # Step 6: Month filter — Activity Date year+month matches reporting month
-    target_year = int(month[:4])
-    target_month = int(month[4:6])
-    after_month = []
-    for row in after_brand:
-        date_str = row[COL_ACTIVITY_DATE].strip() if len(row) > COL_ACTIVITY_DATE else ""
-        parsed = _parse_date(date_str)
-        if parsed and parsed[0] == target_year and parsed[1] == target_month:
-            after_month.append(row)
+    # "backfill" mode skips month filtering (all months pass through)
+    if month == "backfill":
+        after_month = list(after_brand)
+    else:
+        target_year = int(month[:4])
+        target_month = int(month[4:6])
+        after_month = []
+        for row in after_brand:
+            date_str = row[COL_ACTIVITY_DATE].strip() if len(row) > COL_ACTIVITY_DATE else ""
+            parsed = _parse_date(date_str)
+            if parsed and parsed[0] == target_year and parsed[1] == target_month:
+                after_month.append(row)
 
     # Step 7: Fanatic exclusion — exclude FAL-brand rows sold to Fanatic dealer accounts
     # These are Falken tires sold to enrolled Fanatic dealers — reported separately via dealer rebates
