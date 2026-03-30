@@ -33,14 +33,14 @@ function ScannerDashboardContent() {
   const [newScannerId, setNewScannerId] = useState<Id<"scanners"> | null>(null);
 
   const fleet = useQuery(api.scannerMdm.getScannerFleetOverview);
-  const createScanner = useMutation(api.scannerMdm.createScannerFromSetup);
-  const selectedLocCode = locations?.find((l) => l._id === addLocationId)?.code;
-  const nextNumber = useQuery(api.scannerMdm.getNextScannerNumber, selectedLocCode ? { locationCode: selectedLocCode } : "skip");
   const scanners = useQuery(api.equipment.listScanners, {
     locationId: locationFilter !== "all" ? locationFilter : undefined,
   });
   const locations = useQuery(api.locations.listActiveWarehouses);
   const alerts = useQuery(api.scannerMdm.getScannersNeedingAttention);
+  const createScanner = useMutation(api.scannerMdm.createScannerFromSetup);
+  const selectedLocCode = locations?.find((l) => l._id === addLocationId)?.code;
+  const nextNumber = useQuery(api.scannerMdm.getNextScannerNumber, selectedLocCode ? { locationCode: selectedLocCode } : "skip");
 
   const canEdit =
     user?.role === "super_admin" ||
