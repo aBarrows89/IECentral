@@ -10,7 +10,7 @@ export const getScannerFleetOverview = query({
     const scanners = await ctx.db.query("scanners").collect();
     const locations = await ctx.db.query("locations").collect();
     const activeLocations = locations.filter(
-      (l) => l.isActive && (!l.locationType || l.locationType === "warehouse")
+      (l) => l.isActive && l.locationType === "warehouse"
     );
 
     const now = Date.now();
