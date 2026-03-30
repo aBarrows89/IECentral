@@ -37,8 +37,8 @@ def _handle_upload(body):
     if not filename or not month:
         return _response(400, {"error": "filename and month are required"})
 
-    if len(month) != 6 or not month.isdigit():
-        return _response(400, {"error": "month must be YYYYMM format"})
+    if month != "backfill" and (len(month) != 6 or not month.isdigit()):
+        return _response(400, {"error": "month must be YYYYMM format or 'backfill'"})
 
     key = f"jmk-uploads/{month}/{filename}"
 

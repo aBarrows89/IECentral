@@ -11,7 +11,7 @@ import { usePermissions } from "@/lib/usePermissions";
 
 const API_BASE = "/api/dunlop";
 
-// Backfill months: Jan 2024 through Jan 2026 (25 months)
+// Backfill months: Jan 2024 through Feb 2026 (26 months)
 const BACKFILL_MONTHS: string[] = [];
 for (let y = 2024; y <= 2025; y++) {
   for (let m = 1; m <= 12; m++) {
@@ -19,6 +19,7 @@ for (let y = 2024; y <= 2025; y++) {
   }
 }
 BACKFILL_MONTHS.push("202601"); // Jan 2026
+BACKFILL_MONTHS.push("202602"); // Feb 2026
 
 function formatMonth(yyyymm: string): string {
   const y = yyyymm.slice(0, 4);
