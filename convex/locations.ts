@@ -33,7 +33,7 @@ export const listActiveWarehouses = query({
       .query("locations")
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
-    return all.filter((l) => l.locationType === "warehouse");
+    return all.filter((l) => !l.locationType || l.locationType === "warehouse");
   },
 });
 
