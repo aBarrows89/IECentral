@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputFilter
 import android.text.InputType
 import android.util.Log
@@ -25,21 +26,35 @@ import java.util.concurrent.Executors
 
 /**
  * Setup screen shown when the scanner agent has no IoT config.
- * User enters a 6-character claim code from IECentral to provision the scanner.
- * After provisioning, automatically downloads and installs TireTrack + RT Locator.
+ * Handles: claim code → certs → enable unknown sources → download apps → install → configure device.
  */
 class SetupActivity : Activity() {
 
     companion object {
         const val TAG = "ScannerSetup"
-        const val INSTALL_REQUEST_CODE = 1001
+        const val UNKNOWN_SOURCES_REQUEST = 1001
+
+        // Zebra bloatware to disable
+        val BLOATWARE = listOf(
+            "com.google.android.youtube",
+            "com.google.android.music",
+            "com.google.android.videos",
+            "com.google.android.apps.docs",
+            "com.google.android.apps.photos",
+            "com.google.android.apps.maps",
+            "com.google.android.gm",
+            "com.google.android.apps.tachyon",
+            "com.google.android.googlequicksearchbox",
+            "com.android.chrome",
+            "com.android.vending", // Play Store
+        )
     }
 
     private lateinit var codeInput: EditText
     private lateinit var submitBtn: Button
     private lateinit var statusText: TextView
     private val executor = Executors.newSingleThreadExecutor()
-    private val apkInstallQueue = mutableListOf<File>()
+    private var pendingApkInstalls = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +66,6 @@ class SetupActivity : Activity() {
             setBackgroundColor(Color.WHITE)
         }
 
-        // Title
         layout.addView(TextView(this).apply {
             text = "IE Scanner Agent"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
@@ -60,7 +74,6 @@ class SetupActivity : Activity() {
             gravity = Gravity.CENTER
         })
 
-        // Subtitle
         layout.addView(TextView(this).apply {
             text = "Setup"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
@@ -69,7 +82,6 @@ class SetupActivity : Activity() {
             setPadding(0, dp(4), 0, dp(32))
         })
 
-        // Instructions
         layout.addView(TextView(this).apply {
             text = "Enter the provisioning code\nfrom IECentral"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -78,7 +90,6 @@ class SetupActivity : Activity() {
             setPadding(0, 0, 0, dp(24))
         })
 
-        // Code input
         codeInput = EditText(this).apply {
             hint = "XXXXXX"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
@@ -92,13 +103,10 @@ class SetupActivity : Activity() {
             setPadding(dp(16), dp(16), dp(16), dp(16))
             setBackgroundColor(Color.parseColor("#f1f5f9"))
         }
-        val inputParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 0, 0, dp(16)) }
-        layout.addView(codeInput, inputParams)
+        layout.addView(codeInput, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 0, 0, dp(16)) })
 
-        // Submit button
         submitBtn = Button(this).apply {
             text = "Submit"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
@@ -108,13 +116,10 @@ class SetupActivity : Activity() {
             isAllCaps = false
         }
         submitBtn.setOnClickListener { handleSubmit() }
-        val btnParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 0, 0, dp(16)) }
-        layout.addView(submitBtn, btnParams)
+        layout.addView(submitBtn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 0, 0, dp(16)) })
 
-        // Status text
         statusText = TextView(this).apply {
             text = ""
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -124,6 +129,15 @@ class SetupActivity : Activity() {
         layout.addView(statusText)
 
         setContentView(layout)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == UNKNOWN_SOURCES_REQUEST && pendingApkInstalls) {
+            pendingApkInstalls = false
+            // Continue setup after user enabled unknown sources
+            executor.execute { continueWithAppInstalls() }
+        }
     }
 
     private fun handleSubmit() {
@@ -136,8 +150,7 @@ class SetupActivity : Activity() {
 
         submitBtn.isEnabled = false
         codeInput.isEnabled = false
-        statusText.setTextColor(Color.parseColor("#64748b"))
-        statusText.text = "Provisioning..."
+        updateStatus("Provisioning...")
 
         executor.execute {
             try {
@@ -152,34 +165,31 @@ class SetupActivity : Activity() {
                     return@execute
                 }
 
-                // Save certs and config
                 saveProvisionData(result)
-
+                updateStatus("Provisioned! Configuring device...", "#10b981")
                 runOnUiThread {
-                    statusText.setTextColor(Color.parseColor("#10b981"))
-                    statusText.text = "Provisioned! Installing apps..."
                     submitBtn.visibility = View.GONE
                     codeInput.isEnabled = false
                 }
 
-                // Download and install apps
-                downloadAndInstallApps()
+                // Apply device settings
+                applyDeviceSettings()
 
-                // Start the MQTT service
-                runOnUiThread {
-                    statusText.text = "Starting agent..."
-                    val serviceIntent = Intent(this@SetupActivity, MqttService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(serviceIntent)
-                    } else {
-                        startService(serviceIntent)
+                // Disable bloatware
+                disableBloatware()
+
+                // Check unknown sources permission before installing apps
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                    pendingApkInstalls = true
+                    runOnUiThread {
+                        statusText.text = "Enable 'Install unknown apps' for Scanner Agent, then press Back"
+                        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                        startActivityForResult(intent, UNKNOWN_SOURCES_REQUEST)
                     }
-                    statusText.setTextColor(Color.parseColor("#10b981"))
-                    statusText.text = "Setup complete!"
-
-                    // Finish after a short delay
-                    statusText.postDelayed({ finish() }, 2000)
+                    return@execute
                 }
+
+                continueWithAppInstalls()
             } catch (e: Exception) {
                 Log.e(TAG, "Setup failed: ${e.message}", e)
                 runOnUiThread {
@@ -192,14 +202,48 @@ class SetupActivity : Activity() {
         }
     }
 
+    private fun continueWithAppInstalls() {
+        try {
+            downloadAndInstallApps()
+
+            // Grant permissions to installed apps
+            grantAppPermissions()
+
+            // Start MQTT service
+            runOnUiThread {
+                updateStatus("Starting agent...", "#10b981")
+                val serviceIntent = Intent(this@SetupActivity, MqttService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                updateStatus("Setup complete!", "#10b981")
+                statusText.postDelayed({ finish() }, 3000)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "App install failed: ${e.message}", e)
+            // Still start the agent even if app installs fail
+            runOnUiThread {
+                updateStatus("Apps may need manual install. Starting agent...", "#f59e0b")
+                val serviceIntent = Intent(this@SetupActivity, MqttService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                statusText.postDelayed({ finish() }, 3000)
+            }
+        }
+    }
+
     private fun downloadAndInstallApps() {
         val apps = listOf("tiretrack" to "TireTrack", "rtlocator" to "RT Locator")
 
         for ((appId, appName) in apps) {
             try {
-                runOnUiThread { statusText.text = "Fetching $appName..." }
+                updateStatus("Fetching $appName...")
 
-                // Get presigned download URL from API
                 val apiUrl = URL("${BuildConfig.APK_API_URL}?app=$appId")
                 val conn = apiUrl.openConnection() as HttpURLConnection
                 conn.connectTimeout = 15000
@@ -214,30 +258,37 @@ class SetupActivity : Activity() {
                     continue
                 }
 
-                // Download APK
-                runOnUiThread { statusText.text = "Downloading $appName..." }
+                updateStatus("Downloading $appName...")
                 val apkFile = File(cacheDir, "$appId.apk")
                 val dlConn = URL(downloadUrl).openConnection() as HttpURLConnection
                 dlConn.connectTimeout = 30000
-                dlConn.readTimeout = 120000
+                dlConn.readTimeout = 600000 // 10 min for large APKs like TireTrack (88MB)
                 dlConn.inputStream.use { input ->
                     FileOutputStream(apkFile).use { output ->
-                        input.copyTo(output)
+                        val buffer = ByteArray(8192)
+                        var totalRead = 0L
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+                            if (totalRead % (1024 * 1024) == 0L) {
+                                val mb = totalRead / (1024 * 1024)
+                                updateStatus("Downloading $appName... ${mb}MB")
+                            }
+                        }
                     }
                 }
                 dlConn.disconnect()
-                Log.i(TAG, "$appName downloaded: ${apkFile.length()} bytes")
+                Log.i(TAG, "$appName downloaded: ${apkFile.length() / 1024}KB")
 
-                // Install APK silently via Intent
-                runOnUiThread { statusText.text = "Installing $appName..." }
+                updateStatus("Installing $appName...")
                 installApk(apkFile)
 
-                // Brief pause between installs
-                Thread.sleep(3000)
+                // Wait for user to complete install prompt
+                Thread.sleep(5000)
 
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to install $appName: ${e.message}")
-                // Continue with next app — don't fail the whole setup
             }
         }
     }
@@ -245,7 +296,6 @@ class SetupActivity : Activity() {
     private fun installApk(apkFile: File) {
         val intent = Intent(Intent.ACTION_VIEW)
         val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // Use FileProvider for Android 7+
             FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
         } else {
             Uri.fromFile(apkFile)
@@ -253,6 +303,65 @@ class SetupActivity : Activity() {
         intent.setDataAndType(uri, "application/vnd.android.package-archive")
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
         startActivity(intent)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyDeviceSettings() {
+        try {
+            // Screen timeout: 30 minutes
+            Settings.System.putInt(contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, 1800000)
+            Log.i(TAG, "Screen timeout set to 30 min")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set screen timeout: ${e.message}")
+        }
+
+        try {
+            // Disable auto-rotate
+            Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
+            Log.i(TAG, "Auto-rotate disabled")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not disable auto-rotate: ${e.message}")
+        }
+    }
+
+    private fun disableBloatware() {
+        var disabled = 0
+        for (pkg in BLOATWARE) {
+            try {
+                val pi = packageManager.getPackageInfo(pkg, 0)
+                if (pi != null) {
+                    // Can't disable system apps without root/device-owner,
+                    // but we can hide them from the launcher
+                    Log.i(TAG, "Bloatware found: $pkg (cannot disable without device owner)")
+                }
+            } catch (e: Exception) {
+                // Package not installed, skip
+            }
+        }
+        Log.i(TAG, "Bloatware check complete")
+    }
+
+    private fun grantAppPermissions() {
+        // Grant storage permissions to RT Locator and TireTrack via pm grant
+        // This works on Zebra devices where the scanner agent has device admin
+        val grants = listOf(
+            "com.rt_systems.rtlhandsfree" to "android.permission.READ_EXTERNAL_STORAGE",
+            "com.rt_systems.rtlhandsfree" to "android.permission.WRITE_EXTERNAL_STORAGE",
+            "com.importexporttire.tiretrack" to "android.permission.READ_EXTERNAL_STORAGE",
+            "com.importexporttire.tiretrack" to "android.permission.WRITE_EXTERNAL_STORAGE",
+            "com.importexporttire.tiretrack" to "android.permission.CAMERA",
+        )
+        for ((pkg, perm) in grants) {
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("pm", "grant", pkg, perm))
+                process.waitFor()
+                if (process.exitValue() == 0) {
+                    Log.i(TAG, "Granted $perm to $pkg")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not grant $perm to $pkg: ${e.message}")
+            }
+        }
     }
 
     private fun claimProvision(code: String): JSONObject {
@@ -274,27 +383,27 @@ class SetupActivity : Activity() {
             conn.errorStream?.bufferedReader()?.readText() ?: """{"error": "HTTP $responseCode"}"""
         }
         conn.disconnect()
-
         return JSONObject(responseBody)
     }
 
     private fun saveProvisionData(data: JSONObject) {
         File(filesDir, "certificate.pem").writeText(data.getString("certificatePem"))
-        Log.i(TAG, "Saved certificate.pem")
-
         File(filesDir, "private.key").writeText(data.getString("privateKey"))
-        Log.i(TAG, "Saved private.key")
-
         val caBytes = assets.open("AmazonRootCA1.pem").readBytes()
         File(filesDir, "root-ca.pem").writeBytes(caBytes)
-        Log.i(TAG, "Saved root-ca.pem")
-
         val config = JSONObject().apply {
             put("thingName", data.getString("thingName"))
             put("iotEndpoint", data.getString("iotEndpoint"))
         }
         File(filesDir, "iot_config.json").writeText(config.toString())
-        Log.i(TAG, "Saved iot_config.json for ${data.getString("thingName")}")
+        Log.i(TAG, "Saved IoT config for ${data.getString("thingName")}")
+    }
+
+    private fun updateStatus(text: String, color: String = "#64748b") {
+        runOnUiThread {
+            statusText.setTextColor(Color.parseColor(color))
+            statusText.text = text
+        }
     }
 
     private fun dp(value: Int): Int {
