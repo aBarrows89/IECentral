@@ -10,7 +10,6 @@ import android.location.LocationManager
 import android.net.wifi.WifiManager
 import android.os.*
 import android.util.Log
-import org.eclipse.paho.android.service.MqttAndroidClient
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
@@ -40,7 +39,7 @@ class MqttService : Service() {
         const val TELEMETRY_INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
     }
 
-    private var mqttClient: MqttAndroidClient? = null
+    private var mqttClient: MqttAsyncClient? = null
     private val handler = Handler(Looper.getMainLooper())
     private var thingName: String = ""
     private var iotEndpoint: String = ""
@@ -94,7 +93,7 @@ class MqttService : Service() {
 
     private fun connectMqtt() {
         val serverUri = "ssl://$iotEndpoint:8883"
-        mqttClient = MqttAndroidClient(this, serverUri, thingName, MemoryPersistence())
+        mqttClient = MqttAsyncClient(serverUri, thingName, MemoryPersistence())
 
         mqttClient?.setCallback(object : MqttCallbackExtended {
             override fun connectComplete(reconnect: Boolean, serverURI: String) {
@@ -107,7 +106,6 @@ class MqttService : Service() {
             override fun connectionLost(cause: Throwable?) {
                 Log.w(TAG, "Connection lost: ${cause?.message}")
                 updateNotification("Reconnecting...")
-                // MqttAndroidClient handles auto-reconnect
             }
 
             override fun messageArrived(topic: String, message: MqttMessage) {
@@ -174,9 +172,14 @@ class MqttService : Service() {
 
     private fun subscribeToCommands() {
         val topic = "cmd/scanners/$thingName/#"
-        mqttClient?.subscribe(topic, 1) { _, _ ->
-            Log.i(TAG, "Subscribed to $topic")
-        }
+        mqttClient?.subscribe(topic, 1, null, object : IMqttActionListener {
+            override fun onSuccess(asyncActionToken: IMqttToken?) {
+                Log.i(TAG, "Subscribed to $topic")
+            }
+            override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                Log.e(TAG, "Subscribe failed: ${exception?.message}")
+            }
+        })
     }
 
     // ============ TELEMETRY ============
@@ -200,7 +203,6 @@ class MqttService : Service() {
             put("apps", getInstalledAppVersions())
             put("agentVersion", BuildConfig.VERSION_NAME)
             put("androidVersion", Build.VERSION.RELEASE)
-            val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
             val km = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
             put("isLocked", km.isDeviceLocked)
             put("timestamp", System.currentTimeMillis() / 1000)
