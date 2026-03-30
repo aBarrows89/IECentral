@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.InputFilter
@@ -13,8 +14,10 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -23,17 +26,20 @@ import java.util.concurrent.Executors
 /**
  * Setup screen shown when the scanner agent has no IoT config.
  * User enters a 6-character claim code from IECentral to provision the scanner.
+ * After provisioning, automatically downloads and installs TireTrack + RT Locator.
  */
 class SetupActivity : Activity() {
 
     companion object {
         const val TAG = "ScannerSetup"
+        const val INSTALL_REQUEST_CODE = 1001
     }
 
     private lateinit var codeInput: EditText
     private lateinit var submitBtn: Button
     private lateinit var statusText: TextView
     private val executor = Executors.newSingleThreadExecutor()
+    private val apkInstallQueue = mutableListOf<File>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -151,24 +157,31 @@ class SetupActivity : Activity() {
 
                 runOnUiThread {
                     statusText.setTextColor(Color.parseColor("#10b981"))
-                    statusText.text = "Provisioned! Starting agent..."
+                    statusText.text = "Provisioned! Installing apps..."
                     submitBtn.visibility = View.GONE
                     codeInput.isEnabled = false
                 }
 
+                // Download and install apps
+                downloadAndInstallApps()
+
                 // Start the MQTT service
-                Thread.sleep(1000)
                 runOnUiThread {
+                    statusText.text = "Starting agent..."
                     val serviceIntent = Intent(this@SetupActivity, MqttService::class.java)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(serviceIntent)
                     } else {
                         startService(serviceIntent)
                     }
-                    finish()
+                    statusText.setTextColor(Color.parseColor("#10b981"))
+                    statusText.text = "Setup complete!"
+
+                    // Finish after a short delay
+                    statusText.postDelayed({ finish() }, 2000)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Claim failed: ${e.message}", e)
+                Log.e(TAG, "Setup failed: ${e.message}", e)
                 runOnUiThread {
                     statusText.setTextColor(Color.parseColor("#ef4444"))
                     statusText.text = "Error: ${e.message}"
@@ -177,6 +190,69 @@ class SetupActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun downloadAndInstallApps() {
+        val apps = listOf("tiretrack" to "TireTrack", "rtlocator" to "RT Locator")
+
+        for ((appId, appName) in apps) {
+            try {
+                runOnUiThread { statusText.text = "Fetching $appName..." }
+
+                // Get presigned download URL from API
+                val apiUrl = URL("${BuildConfig.APK_API_URL}?app=$appId")
+                val conn = apiUrl.openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                val response = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+
+                val info = JSONObject(response)
+                val downloadUrl = info.optString("downloadUrl", "")
+                if (downloadUrl.isEmpty()) {
+                    Log.w(TAG, "$appName APK not available, skipping")
+                    continue
+                }
+
+                // Download APK
+                runOnUiThread { statusText.text = "Downloading $appName..." }
+                val apkFile = File(cacheDir, "$appId.apk")
+                val dlConn = URL(downloadUrl).openConnection() as HttpURLConnection
+                dlConn.connectTimeout = 30000
+                dlConn.readTimeout = 120000
+                dlConn.inputStream.use { input ->
+                    FileOutputStream(apkFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                dlConn.disconnect()
+                Log.i(TAG, "$appName downloaded: ${apkFile.length()} bytes")
+
+                // Install APK silently via Intent
+                runOnUiThread { statusText.text = "Installing $appName..." }
+                installApk(apkFile)
+
+                // Brief pause between installs
+                Thread.sleep(3000)
+
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to install $appName: ${e.message}")
+                // Continue with next app — don't fail the whole setup
+            }
+        }
+    }
+
+    private fun installApk(apkFile: File) {
+        val intent = Intent(Intent.ACTION_VIEW)
+        val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // Use FileProvider for Android 7+
+            FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
+        } else {
+            Uri.fromFile(apkFile)
+        }
+        intent.setDataAndType(uri, "application/vnd.android.package-archive")
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        startActivity(intent)
     }
 
     private fun claimProvision(code: String): JSONObject {
@@ -203,20 +279,16 @@ class SetupActivity : Activity() {
     }
 
     private fun saveProvisionData(data: JSONObject) {
-        // Save certificate
         File(filesDir, "certificate.pem").writeText(data.getString("certificatePem"))
         Log.i(TAG, "Saved certificate.pem")
 
-        // Save private key
         File(filesDir, "private.key").writeText(data.getString("privateKey"))
         Log.i(TAG, "Saved private.key")
 
-        // Save Root CA from bundled asset
         val caBytes = assets.open("AmazonRootCA1.pem").readBytes()
         File(filesDir, "root-ca.pem").writeBytes(caBytes)
         Log.i(TAG, "Saved root-ca.pem")
 
-        // Save IoT config
         val config = JSONObject().apply {
             put("thingName", data.getString("thingName"))
             put("iotEndpoint", data.getString("iotEndpoint"))

@@ -15,6 +15,7 @@ android {
         versionName "1.1.0"
 
         buildConfigField "String", "CLAIM_URL", '"https://outstanding-dalmatian-787.convex.site/claim-provision"'
+        buildConfigField "String", "APK_API_URL", '"https://7brylwlei6.execute-api.us-east-1.amazonaws.com/prod/scanner-mdm/apk"'
     }
 
     buildTypes {
