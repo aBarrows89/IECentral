@@ -333,29 +333,30 @@ class MqttService : Service() {
 
     @Suppress("DEPRECATION")
     private fun unlockDevice() {
-        // 1. Wake the screen
+        // 1. Wake the screen and keep it on
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         val wakeLock = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
             "ScannerAgent:Unlock"
         )
-        wakeLock.acquire(10_000) // 10 seconds
+        wakeLock.acquire(30_000) // Hold screen on for 30 seconds
 
-        // 2. Clear the PIN via device admin to dismiss the keyguard
-        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val admin = ComponentName(this, DeviceAdminReceiver::class.java)
-        if (dpm.isAdminActive(admin)) {
-            try {
-                dpm.resetPassword("", 0) // Clear PIN to unlock
-                Log.i(TAG, "Device unlocked — PIN cleared")
-            } catch (e: Exception) {
-                Log.w(TAG, "resetPassword failed: ${e.message}")
-            }
-        } else {
-            Log.w(TAG, "Device admin not active, cannot unlock")
+        // 2. Disable the keyguard
+        val km = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
+        val keyguardLock = km.newKeyguardLock("ScannerAgent")
+        keyguardLock.disableKeyguard()
+        Log.i(TAG, "Keyguard disabled")
+
+        // 3. Launch a transparent unlock Activity with window flags
+        try {
+            val unlockIntent = android.content.Intent(this, UnlockActivity::class.java)
+            unlockIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(unlockIntent)
+        } catch (e: Exception) {
+            Log.w(TAG, "UnlockActivity launch failed: ${e.message}")
         }
 
-        wakeLock.release()
+        Log.i(TAG, "Device unlock initiated")
     }
 
     private fun wipeDevice() {

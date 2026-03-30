@@ -68,5 +68,14 @@
             android:name=".SetupActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <!-- Unlock Activity (transparent, dismisses keyguard) -->
+        <activity
+            android:name=".UnlockActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
     </application>
 </manifest>
