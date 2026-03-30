@@ -200,6 +200,8 @@ export const updateScannerTelemetry = internalMutation({
     androidVersion: v.optional(v.string()),
     isLocked: v.optional(v.boolean()),
     lastCommandAck: v.optional(v.string()),
+    storageTotal: v.optional(v.number()),
+    storageFree: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const scanner = await ctx.db
@@ -209,10 +211,11 @@ export const updateScannerTelemetry = internalMutation({
 
     if (!scanner) return { success: false, error: "Scanner not found" };
 
+    const now = Date.now();
     const updates: Record<string, any> = {
       isOnline: true,
-      lastSeen: Date.now(),
-      updatedAt: Date.now(),
+      lastSeen: now,
+      updatedAt: now,
     };
 
     if (args.batteryLevel !== undefined) updates.batteryLevel = args.batteryLevel;
@@ -223,6 +226,79 @@ export const updateScannerTelemetry = internalMutation({
     if (args.agentVersion !== undefined) updates.agentVersion = args.agentVersion;
     if (args.androidVersion !== undefined) updates.androidVersion = args.androidVersion;
     if (args.isLocked !== undefined) updates.isLocked = args.isLocked;
+    if (args.storageTotal !== undefined) updates.storageTotal = args.storageTotal;
+    if (args.storageFree !== undefined) updates.storageFree = args.storageFree;
+
+    // === Alert generation ===
+    const existingAlerts: Array<{
+      type: string;
+      message: string;
+      createdAt: number;
+      resolved: boolean;
+    }> = scanner.scannerAlerts ?? [];
+
+    // Keep only the last 20 alerts to avoid unbounded growth
+    const recentAlerts = existingAlerts.slice(-20);
+
+    // Low battery alert: battery drops below 15%
+    if (args.batteryLevel !== undefined && args.batteryLevel < 15) {
+      // Only alert if no active (unresolved) low_battery alert exists
+      const hasActiveBatteryAlert = recentAlerts.some(
+        (a) => a.type === "low_battery" && !a.resolved
+      );
+      if (!hasActiveBatteryAlert) {
+        recentAlerts.push({
+          type: "low_battery",
+          message: `Battery critically low at ${args.batteryLevel}%`,
+          createdAt: now,
+          resolved: false,
+        });
+      }
+    } else if (args.batteryLevel !== undefined && args.batteryLevel >= 15) {
+      // Resolve active low_battery alerts when battery recovers
+      for (const alert of recentAlerts) {
+        if (alert.type === "low_battery" && !alert.resolved) {
+          alert.resolved = true;
+        }
+      }
+    }
+
+    // Offline alert: scanner was offline for >30 min and is now back online
+    if (scanner.isOnline === false && scanner.lastSeen) {
+      const offlineDuration = now - scanner.lastSeen;
+      const thirtyMinutes = 30 * 60 * 1000;
+      if (offlineDuration > thirtyMinutes) {
+        recentAlerts.push({
+          type: "offline",
+          message: `Scanner was offline for ${Math.round(offlineDuration / 60000)} minutes`,
+          createdAt: now,
+          resolved: true, // Resolved because it's back online now
+        });
+      }
+    }
+
+    // Low storage alert: free storage below 500MB
+    if (args.storageFree !== undefined && args.storageFree < 500) {
+      const hasActiveStorageAlert = recentAlerts.some(
+        (a) => a.type === "low_storage" && !a.resolved
+      );
+      if (!hasActiveStorageAlert) {
+        recentAlerts.push({
+          type: "low_storage",
+          message: `Storage critically low: ${args.storageFree}MB free`,
+          createdAt: now,
+          resolved: false,
+        });
+      }
+    } else if (args.storageFree !== undefined && args.storageFree >= 500) {
+      for (const alert of recentAlerts) {
+        if (alert.type === "low_storage" && !alert.resolved) {
+          alert.resolved = true;
+        }
+      }
+    }
+
+    updates.scannerAlerts = recentAlerts;
 
     await ctx.db.patch(scanner._id, updates);
 
@@ -237,7 +313,7 @@ export const updateScannerTelemetry = internalMutation({
       if (command && command.status === "sent") {
         await ctx.db.patch(command._id, {
           status: "acknowledged",
-          acknowledgedAt: Date.now(),
+          acknowledgedAt: now,
         });
       }
     }

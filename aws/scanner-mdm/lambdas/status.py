@@ -72,6 +72,10 @@ def handler(event, context):
             telemetry["isLocked"] = event["isLocked"]
         if "lastCommandAck" in event:
             telemetry["lastCommandAck"] = event["lastCommandAck"]
+        if "storageTotal" in event:
+            telemetry["storageTotal"] = event["storageTotal"]
+        if "storageFree" in event:
+            telemetry["storageFree"] = event["storageFree"]
 
         # POST to Convex HTTP endpoint
         creds = get_credentials()

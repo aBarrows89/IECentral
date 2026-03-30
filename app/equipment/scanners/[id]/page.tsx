@@ -389,6 +389,37 @@ function ScannerDetailContent() {
                       <span className={`text-sm font-medium ${isProvisioned ? (isDark ? "text-emerald-400" : "text-emerald-600") : (isDark ? "text-slate-500" : "text-gray-400")}`}>{isProvisioned ? "Yes" : "No"}</span>
                     </div>
                   </div>
+                  {/* Storage usage */}
+                  {scanner.storageTotal != null && scanner.storageFree != null && (
+                    <div className="mt-4 pt-3 border-t" style={{ borderColor: isDark ? "rgba(51,65,85,0.5)" : "rgba(229,231,235,0.8)" }}>
+                      <div className={`text-[10px] uppercase tracking-wider mb-2 ${isDark ? "text-slate-600" : "text-gray-400"}`}>Storage</div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-gray-200"}`}>
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                scanner.storageFree < 500
+                                  ? "bg-red-500"
+                                  : scanner.storageFree < 2000
+                                    ? "bg-amber-500"
+                                    : isDark ? "bg-cyan-500" : "bg-blue-500"
+                              }`}
+                              style={{ width: `${Math.max(2, Math.round(((scanner.storageTotal - scanner.storageFree) / scanner.storageTotal) * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className={`text-xs font-medium whitespace-nowrap ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                          {scanner.storageFree >= 1024
+                            ? `${(scanner.storageFree / 1024).toFixed(1)} GB`
+                            : `${scanner.storageFree} MB`} free
+                          {" / "}
+                          {scanner.storageTotal >= 1024
+                            ? `${(scanner.storageTotal / 1024).toFixed(1)} GB`
+                            : `${scanner.storageTotal} MB`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   {scanner.installedApps && (
                     <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t" style={{ borderColor: isDark ? "rgba(51,65,85,0.5)" : "rgba(229,231,235,0.8)" }}>
                       {scanner.installedApps.tireTrack && <span className={`text-[11px] px-2 py-0.5 rounded-full ${isDark ? "bg-cyan-500/10 text-cyan-400" : "bg-blue-50 text-blue-600"}`}>TireTrack v{scanner.installedApps.tireTrack}</span>}
@@ -397,6 +428,35 @@ function ScannerDetailContent() {
                     </div>
                   )}
                 </div>
+
+                {/* Alerts — shown when there are active alerts */}
+                {scanner.scannerAlerts && scanner.scannerAlerts.filter((a: any) => !a.resolved).length > 0 && (
+                  <div className={`${cardClass} !border-amber-500/30`}>
+                    <h3 className={sectionTitle}>Active Alerts</h3>
+                    <div className="space-y-2">
+                      {scanner.scannerAlerts
+                        .filter((a: any) => !a.resolved)
+                        .map((alert: any, i: number) => (
+                          <div key={i} className={`flex items-center gap-2 p-2.5 rounded-lg ${
+                            alert.type === "low_battery" ? (isDark ? "bg-red-500/10" : "bg-red-50") :
+                            alert.type === "offline" ? (isDark ? "bg-amber-500/10" : "bg-amber-50") :
+                            (isDark ? "bg-orange-500/10" : "bg-orange-50")
+                          }`}>
+                            <svg className={`w-4 h-4 flex-shrink-0 ${
+                              alert.type === "low_battery" ? "text-red-400" :
+                              alert.type === "offline" ? "text-amber-400" : "text-orange-400"
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <div className="flex-1">
+                              <span className={`text-xs font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{alert.message}</span>
+                              <span className={`text-[10px] ml-2 ${isDark ? "text-slate-600" : "text-gray-400"}`}>{timeAgo(alert.createdAt)}</span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Provision Card — shown for unprovisioned scanners */}
                 {canEdit && !isProvisioned && (
@@ -506,7 +566,18 @@ function ScannerDetailContent() {
                               <span className={`text-xs font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{cmd.command}</span>
                               <span className={`text-[10px] ${isDark ? "text-slate-600" : "text-gray-400"}`}>{cmd.issuedByName}</span>
                             </div>
-                            <span className={`text-[10px] ${isDark ? "text-slate-600" : "text-gray-400"}`}>{formatDate(cmd.issuedAt)}</span>
+                            <div className="text-right">
+                              <div className={`text-[10px] ${isDark ? "text-slate-600" : "text-gray-400"}`}>{formatDate(cmd.issuedAt)}</div>
+                              {cmd.acknowledgedAt && (
+                                <div className={`text-[10px] ${isDark ? "text-cyan-600" : "text-cyan-500"}`}>ACK {timeAgo(cmd.acknowledgedAt)}</div>
+                              )}
+                              {cmd.completedAt && (
+                                <div className={`text-[10px] ${isDark ? "text-emerald-600" : "text-emerald-500"}`}>Done {timeAgo(cmd.completedAt)}</div>
+                              )}
+                              {cmd.errorMessage && (
+                                <div className="text-[10px] text-red-400">{cmd.errorMessage}</div>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

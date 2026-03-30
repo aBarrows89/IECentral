@@ -856,10 +856,20 @@ export default defineSchema({
     })),
     agentVersion: v.optional(v.string()),
     androidVersion: v.optional(v.string()),
+    // Storage telemetry
+    storageTotal: v.optional(v.number()), // Total internal storage in MB
+    storageFree: v.optional(v.number()), // Free internal storage in MB
     // MDM state
     isLocked: v.optional(v.boolean()),
     lastCommandId: v.optional(v.string()),
     lastCommandStatus: v.optional(v.string()), // "pending" | "acknowledged" | "completed" | "failed"
+    // Alerts
+    scannerAlerts: v.optional(v.array(v.object({
+      type: v.string(), // "low_battery" | "offline" | "low_storage"
+      message: v.string(),
+      createdAt: v.number(),
+      resolved: v.boolean(),
+    }))),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

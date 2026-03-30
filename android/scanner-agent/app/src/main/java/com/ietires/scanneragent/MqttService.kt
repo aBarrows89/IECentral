@@ -17,8 +17,14 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.PEMKeyPair
 import org.bouncycastle.openssl.PEMParser
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
+import android.net.Uri
+import android.os.StatFs
+import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
 import java.io.FileReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.KeyStore
 import java.security.Security
 import java.security.cert.CertificateFactory
@@ -207,6 +213,16 @@ class MqttService : Service() {
             val km = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
             put("isLocked", km.isDeviceLocked)
             put("timestamp", System.currentTimeMillis() / 1000)
+
+            // Storage telemetry
+            try {
+                val stat = StatFs(Environment.getDataDirectory().path)
+                val blockSize = stat.blockSizeLong
+                put("storageTotal", (stat.blockCountLong * blockSize) / (1024 * 1024))
+                put("storageFree", (stat.availableBlocksLong * blockSize) / (1024 * 1024))
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read storage stats: ${e.message}")
+            }
         }
 
         val topic = "dt/scanners/$thingName/telemetry"
@@ -371,27 +387,76 @@ class MqttService : Service() {
     }
 
     private fun restartDevice() {
-        // Requires device owner or root
+        // Try multiple reboot strategies — device owner API requires DEVICE_OWNER which we
+        // don't have; Runtime.exec("reboot") works on some Zebra devices with device admin.
         try {
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
-            pm.reboot("scanner-mdm-restart")
+            Log.i(TAG, "Attempting reboot via Runtime.exec")
+            Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
         } catch (e: Exception) {
-            Log.w(TAG, "Reboot failed (may need device owner): ${e.message}")
+            Log.w(TAG, "su reboot failed, trying without su: ${e.message}")
+            try {
+                Runtime.getRuntime().exec("reboot")
+            } catch (e2: Exception) {
+                Log.w(TAG, "Direct reboot failed, trying am broadcast: ${e2.message}")
+                try {
+                    Runtime.getRuntime().exec(arrayOf(
+                        "am", "broadcast", "-a", "android.intent.action.REBOOT"
+                    ))
+                } catch (e3: Exception) {
+                    Log.e(TAG, "All reboot methods failed: ${e3.message}")
+                }
+            }
         }
     }
 
     private fun installApk(payload: JSONObject?) {
         val downloadUrl = payload?.optString("downloadUrl") ?: return
         Log.i(TAG, "Downloading APK from: $downloadUrl")
-        // TODO: Download APK, trigger install via Intent or PackageInstaller
+
+        Thread {
+            try {
+                // Download APK to cache directory
+                val apkFile = File(cacheDir, "mdm_update.apk")
+                val conn = URL(downloadUrl).openConnection() as HttpURLConnection
+                conn.connectTimeout = 30000
+                conn.readTimeout = 600000 // 10 min for large APKs
+                conn.inputStream.use { input ->
+                    FileOutputStream(apkFile).use { output ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                        }
+                    }
+                }
+                conn.disconnect()
+                Log.i(TAG, "APK downloaded: ${apkFile.length() / 1024}KB")
+
+                // Trigger install via Intent + FileProvider (same pattern as SetupActivity)
+                val intent = Intent(Intent.ACTION_VIEW)
+                val uri: Uri = FileProvider.getUriForFile(
+                    this@MqttService,
+                    "${packageName}.fileprovider",
+                    apkFile
+                )
+                intent.setDataAndType(uri, "application/vnd.android.package-archive")
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                startActivity(intent)
+                Log.i(TAG, "APK install intent launched")
+            } catch (e: Exception) {
+                Log.e(TAG, "APK install failed: ${e.message}", e)
+            }
+        }.start()
     }
 
     private fun pushConfig(payload: JSONObject?) {
         val xmlContent = payload?.optString("configXml") ?: return
-        val configDir = File(Environment.getExternalStorageDirectory(), "My Documents")
+        // Use direct /sdcard/My Documents/ path — works on Zebra TC51 Android 8.1
+        // Environment.getExternalStorageDirectory() is deprecated and unreliable
+        val configDir = File("/sdcard/My Documents")
         configDir.mkdirs()
         File(configDir, "rtlconfig.xml").writeText(xmlContent)
-        Log.i(TAG, "RT config pushed")
+        Log.i(TAG, "RT config pushed to ${configDir.absolutePath}/rtlconfig.xml")
     }
 
     private fun lockDownPinSettings() {
