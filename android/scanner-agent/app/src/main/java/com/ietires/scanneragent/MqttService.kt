@@ -331,9 +331,31 @@ class MqttService : Service() {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun unlockDevice() {
-        // Unlock requires user interaction on most Android versions
-        Log.i(TAG, "Unlock requested — user must unlock manually")
+        // 1. Wake the screen
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        val wakeLock = pm.newWakeLock(
+            PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+            "ScannerAgent:Unlock"
+        )
+        wakeLock.acquire(10_000) // 10 seconds
+
+        // 2. Clear the PIN via device admin to dismiss the keyguard
+        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val admin = ComponentName(this, DeviceAdminReceiver::class.java)
+        if (dpm.isAdminActive(admin)) {
+            try {
+                dpm.resetPassword("", 0) // Clear PIN to unlock
+                Log.i(TAG, "Device unlocked — PIN cleared")
+            } catch (e: Exception) {
+                Log.w(TAG, "resetPassword failed: ${e.message}")
+            }
+        } else {
+            Log.w(TAG, "Device admin not active, cannot unlock")
+        }
+
+        wakeLock.release()
     }
 
     private fun wipeDevice() {
