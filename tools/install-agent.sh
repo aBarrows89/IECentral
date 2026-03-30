@@ -54,11 +54,21 @@ adb shell pm grant com.ietires.scanneragent android.permission.WRITE_EXTERNAL_ST
 adb shell pm grant com.ietires.scanneragent android.permission.READ_EXTERNAL_STORAGE 2>/dev/null || true
 echo "✓ Permissions granted"
 
-# Activate device admin
+# Remove any existing Google accounts (required for device owner)
 echo ""
-echo "Activating device admin..."
-adb shell dpm set-active-admin com.ietires.scanneragent/.DeviceAdminReceiver 2>/dev/null || echo "⚠ Device admin activation failed — do manually"
-echo "✓ Device admin set"
+echo "Removing accounts for device owner setup..."
+adb shell pm clear com.google.android.gms 2>/dev/null || true
+
+# Set as device OWNER (not just admin) — enables silent installs and full control
+echo ""
+echo "Setting device owner..."
+if adb shell dpm set-device-owner com.ietires.scanneragent/.DeviceAdminReceiver 2>&1 | grep -q "Success"; then
+  echo "✓ Device OWNER set (full control: silent installs, kiosk mode)"
+else
+  echo "⚠ Device owner failed — trying device admin as fallback..."
+  adb shell dpm set-active-admin com.ietires.scanneragent/.DeviceAdminReceiver 2>/dev/null || echo "⚠ Device admin also failed — do manually"
+  echo "  Note: Without device owner, app installs require user tap"
+fi
 
 # Disable bloatware
 echo ""

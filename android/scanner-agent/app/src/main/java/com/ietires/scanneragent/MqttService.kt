@@ -321,6 +321,7 @@ class MqttService : Service() {
             "wipe" -> wipeDevice()
             "restart" -> restartDevice()
             "install_apk" -> installApk(payload.optJSONObject("payload"))
+            "uninstall_app" -> uninstallApp(payload.optJSONObject("payload"))
             "push_config" -> pushConfig(payload.optJSONObject("payload"))
         }
 
@@ -387,25 +388,55 @@ class MqttService : Service() {
     }
 
     private fun restartDevice() {
-        // Try multiple reboot strategies — device owner API requires DEVICE_OWNER which we
-        // don't have; Runtime.exec("reboot") works on some Zebra devices with device admin.
+        // Try device owner reboot first (cleanest), then fallbacks
+        if (isDeviceOwner()) {
+            try {
+                val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+                val admin = ComponentName(this, DeviceAdminReceiver::class.java)
+                dpm.reboot(admin)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "Device owner reboot failed: ${e.message}")
+            }
+        }
         try {
-            Log.i(TAG, "Attempting reboot via Runtime.exec")
             Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
         } catch (e: Exception) {
-            Log.w(TAG, "su reboot failed, trying without su: ${e.message}")
             try {
                 Runtime.getRuntime().exec("reboot")
             } catch (e2: Exception) {
-                Log.w(TAG, "Direct reboot failed, trying am broadcast: ${e2.message}")
                 try {
-                    Runtime.getRuntime().exec(arrayOf(
-                        "am", "broadcast", "-a", "android.intent.action.REBOOT"
-                    ))
+                    Runtime.getRuntime().exec(arrayOf("am", "broadcast", "-a", "android.intent.action.REBOOT"))
                 } catch (e3: Exception) {
                     Log.e(TAG, "All reboot methods failed: ${e3.message}")
                 }
             }
+        }
+    }
+
+    private fun uninstallApp(payload: JSONObject?) {
+        val packageName = payload?.optString("packageName") ?: return
+        Log.i(TAG, "Uninstalling: $packageName")
+
+        if (isDeviceOwner()) {
+            // Silent uninstall via PackageInstaller
+            try {
+                val installer = getPackageManager().packageInstaller
+                val callbackIntent = Intent("com.ietires.scanneragent.UNINSTALL_COMPLETE")
+                val pendingIntent = android.app.PendingIntent.getBroadcast(
+                    this, 0, callbackIntent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                installer.uninstall(packageName, pendingIntent.intentSender)
+                Log.i(TAG, "Silent uninstall initiated for $packageName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Silent uninstall failed: ${e.message}")
+            }
+        } else {
+            // Fallback: intent-based uninstall (requires user tap)
+            val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
         }
     }
 
@@ -432,21 +463,70 @@ class MqttService : Service() {
                 conn.disconnect()
                 Log.i(TAG, "APK downloaded: ${apkFile.length() / 1024}KB")
 
-                // Trigger install via Intent + FileProvider (same pattern as SetupActivity)
+                // Try silent install first (requires device owner)
+                if (silentInstall(apkFile)) {
+                    Log.i(TAG, "Silent install succeeded")
+                    return@Thread
+                }
+
+                // Fallback: trigger install via Intent (requires user tap)
+                Log.i(TAG, "Falling back to intent-based install")
                 val intent = Intent(Intent.ACTION_VIEW)
                 val uri: Uri = FileProvider.getUriForFile(
-                    this@MqttService,
-                    "${packageName}.fileprovider",
-                    apkFile
+                    this@MqttService, "${packageName}.fileprovider", apkFile
                 )
                 intent.setDataAndType(uri, "application/vnd.android.package-archive")
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                 startActivity(intent)
-                Log.i(TAG, "APK install intent launched")
             } catch (e: Exception) {
                 Log.e(TAG, "APK install failed: ${e.message}", e)
             }
         }.start()
+    }
+
+    private fun silentInstall(apkFile: File): Boolean {
+        return try {
+            val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val admin = ComponentName(this, DeviceAdminReceiver::class.java)
+            if (!dpm.isDeviceOwnerApp(packageName)) {
+                Log.i(TAG, "Not device owner — cannot silent install")
+                return false
+            }
+
+            val installer = packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            )
+            params.setSize(apkFile.length())
+
+            val sessionId = installer.createSession(params)
+            val session = installer.openSession(sessionId)
+
+            session.openWrite("apk", 0, apkFile.length()).use { output ->
+                apkFile.inputStream().use { input ->
+                    input.copyTo(output)
+                }
+                session.fsync(output)
+            }
+
+            // Create a PendingIntent for the install result
+            val callbackIntent = Intent("com.ietires.scanneragent.INSTALL_COMPLETE")
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, sessionId, callbackIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            session.commit(pendingIntent.intentSender)
+            Log.i(TAG, "Silent install session committed")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Silent install failed: ${e.message}")
+            false
+        }
+    }
+
+    private fun isDeviceOwner(): Boolean {
+        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        return dpm.isDeviceOwnerApp(packageName)
     }
 
     private fun pushConfig(payload: JSONObject?) {
