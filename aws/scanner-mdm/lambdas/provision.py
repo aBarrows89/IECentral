@@ -10,6 +10,7 @@ import boto3
 import urllib.request
 
 iot = boto3.client("iot")
+iot_data = boto3.client("iot-data")
 secrets = boto3.client("secretsmanager")
 
 THING_GROUP = os.environ.get("IOT_THING_GROUP", "ietires-scanners")
@@ -87,7 +88,7 @@ def handler(event, context):
         iot.attach_thing_principal(thingName=thing_name, principal=cert_arn)
 
         # Set initial device shadow
-        iot.update_thing_shadow(
+        iot_data.update_thing_shadow(
             thingName=thing_name,
             payload=json.dumps(
                 {
