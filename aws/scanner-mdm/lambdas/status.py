@@ -29,8 +29,10 @@ def handler(event, context):
     """
     Event comes from IoT Rule SQL:
     SELECT *, topic(3) as thingName
-    FROM '$aws/things/+/shadow/update/documents'
-    WHERE startswith(topic(3), 'scanner-')
+    FROM 'dt/scanners/+/telemetry'
+
+    The event IS the raw telemetry payload from the device,
+    plus thingName injected by the SQL.
     """
     try:
         thing_name = event.get("thingName")
@@ -38,38 +40,32 @@ def handler(event, context):
             print("No thingName in event")
             return
 
-        # Extract reported state from shadow update
-        current = event.get("current", {}).get("state", {}).get("reported", {})
-        if not current:
-            print(f"No reported state for {thing_name}")
-            return
-
-        # Build telemetry payload for Convex
+        # Build telemetry payload for Convex — event IS the raw telemetry
         telemetry = {
             "iotThingName": thing_name,
         }
 
-        if "battery" in current:
-            telemetry["batteryLevel"] = current["battery"]
-        if "wifiSignal" in current:
-            telemetry["wifiSignal"] = current["wifiSignal"]
-        if "gps" in current and isinstance(current["gps"], dict):
-            telemetry["gpsLatitude"] = current["gps"].get("lat")
-            telemetry["gpsLongitude"] = current["gps"].get("lng")
-        if "apps" in current and isinstance(current["apps"], dict):
+        if "battery" in event:
+            telemetry["batteryLevel"] = event["battery"]
+        if "wifiSignal" in event:
+            telemetry["wifiSignal"] = event["wifiSignal"]
+        if "gps" in event and isinstance(event["gps"], dict):
+            telemetry["gpsLatitude"] = event["gps"].get("lat")
+            telemetry["gpsLongitude"] = event["gps"].get("lng")
+        if "apps" in event and isinstance(event["apps"], dict):
             telemetry["installedApps"] = {
-                "tireTrack": current["apps"].get("tireTrack"),
-                "rtLocator": current["apps"].get("rtLocator"),
-                "scannerAgent": current["apps"].get("scannerAgent"),
+                "tireTrack": event["apps"].get("tireTrack"),
+                "rtLocator": event["apps"].get("rtLocator"),
+                "scannerAgent": event["apps"].get("scannerAgent"),
             }
-        if "agentVersion" in current:
-            telemetry["agentVersion"] = current["agentVersion"]
-        if "androidVersion" in current:
-            telemetry["androidVersion"] = current["androidVersion"]
-        if "isLocked" in current:
-            telemetry["isLocked"] = current["isLocked"]
-        if "lastCommandAck" in current:
-            telemetry["lastCommandAck"] = current["lastCommandAck"]
+        if "agentVersion" in event:
+            telemetry["agentVersion"] = event["agentVersion"]
+        if "androidVersion" in event:
+            telemetry["androidVersion"] = event["androidVersion"]
+        if "isLocked" in event:
+            telemetry["isLocked"] = event["isLocked"]
+        if "lastCommandAck" in event:
+            telemetry["lastCommandAck"] = event["lastCommandAck"]
 
         # POST to Convex HTTP endpoint
         creds = get_credentials()

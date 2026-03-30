@@ -166,7 +166,7 @@ Resources:
     Properties:
       RuleName: scanner_telemetry_to_lambda
       TopicRulePayload:
-        Sql: "SELECT *, topic(3) as thingName FROM '$aws/things/+/shadow/update/documents' WHERE startswith(topic(3), 'scanner-')"
+        Sql: "SELECT *, topic(3) as thingName FROM 'dt/scanners/+/telemetry'"
         Actions:
           - Lambda:
               FunctionArn: !GetAtt StatusFunction.Arn
