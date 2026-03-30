@@ -50,15 +50,22 @@ function ScannerDetailContent() {
   const [repairRequired, setRepairRequired] = useState(false);
   const [readyForReassignment, setReadyForReassignment] = useState(true);
 
+  // Provision state
+  const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [provisionStep, setProvisionStep] = useState<"confirm" | "generating" | "code" | "error">("confirm");
+  const [provisionError, setProvisionError] = useState("");
+
   // Queries
   const scanner = useQuery(api.scannerMdm.getScannerDetail, { id: scannerId });
   const personnel = useQuery(api.equipment.listActivePersonnel);
+  const provisionCode = useQuery(api.scannerMdm.getProvisionCode, { scannerId });
 
   // Mutations
   const logCommand = useMutation(api.scannerMdm.logScannerCommand);
   const assignWithAgreement = useMutation(api.equipment.assignEquipmentWithAgreement);
   const returnWithCheck = useMutation(api.equipment.returnEquipmentWithCheck);
   const unassignScanner = useMutation(api.equipment.unassignScanner);
+  const storePendingProvision = useMutation(api.scannerMdm.storePendingProvision);
 
   const canEdit = user?.role === "super_admin" || user?.role === "admin" || user?.role === "warehouse_director" || user?.role === "warehouse_manager";
   const isSuperAdmin = user?.role === "super_admin";
@@ -99,6 +106,46 @@ function ScannerDetailContent() {
       setPendingCommand(null);
     } catch (err) { console.error("Command failed:", err); }
     finally { setSending(false); }
+  };
+
+  const handleProvision = async () => {
+    if (!scanner || !user) return;
+    setProvisionStep("generating");
+    setProvisionError("");
+    try {
+      // Call provision Lambda to create IoT thing + certs
+      const res = await fetch("/api/scanner-mdm/provision", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serialNumber: scanner.serialNumber ?? scanner.number,
+          locationCode: scanner.locationName?.substring(0, 3) ?? "W08",
+          scannerNumber: scanner.number,
+          scannerId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Provision failed");
+      }
+      const data = await res.json();
+
+      // Store certs with claim code in Convex
+      await storePendingProvision({
+        scannerId,
+        thingName: data.thingName,
+        thingArn: data.thingArn,
+        certificateArn: data.certificateArn,
+        certificatePem: data.certificatePem,
+        privateKey: data.privateKey,
+        iotEndpoint: data.iotEndpoint,
+        userId: user._id,
+      });
+
+      setProvisionStep("code");
+    } catch (err) {
+      setProvisionError(err instanceof Error ? err.message : "Unknown error");
+      setProvisionStep("error");
+    }
   };
 
   // Assignment handlers
@@ -350,6 +397,77 @@ function ScannerDetailContent() {
                     </div>
                   )}
                 </div>
+
+                {/* Provision Card — shown for unprovisioned scanners */}
+                {canEdit && !isProvisioned && (
+                  <div className={`${cardClass} border-dashed`}>
+                    <h3 className={sectionTitle}>IoT Management</h3>
+                    <p className={`text-sm mb-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                      This scanner is not provisioned for remote management.
+                    </p>
+                    <button onClick={() => { setProvisionStep("confirm"); setShowProvisionModal(true); setProvisionError(""); }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-cyan-600 hover:bg-cyan-500 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
+                      Provision Scanner
+                    </button>
+                  </div>
+                )}
+
+                {/* Provision Modal */}
+                {showProvisionModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => provisionStep !== "generating" && setShowProvisionModal(false)}>
+                    <div className={`w-full max-w-md rounded-2xl border p-6 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
+                      {provisionStep === "confirm" && (
+                        <>
+                          <h3 className={`text-lg font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>Provision Scanner</h3>
+                          <p className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                            This will create IoT credentials for <strong>{scanner.number}</strong> and generate a setup code.
+                          </p>
+                          <div className="flex gap-3 justify-end">
+                            <button onClick={() => setShowProvisionModal(false)} className={`px-4 py-2 text-sm rounded-lg ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}>Cancel</button>
+                            <button onClick={handleProvision} className="px-4 py-2 text-sm font-medium rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white">Provision</button>
+                          </div>
+                        </>
+                      )}
+                      {provisionStep === "generating" && (
+                        <div className="text-center py-8">
+                          <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Creating IoT credentials...</p>
+                        </div>
+                      )}
+                      {provisionStep === "code" && provisionCode && (
+                        <>
+                          <h3 className={`text-lg font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>Setup Code Ready</h3>
+                          <p className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Enter this code on the scanner&apos;s setup screen:</p>
+                          <div className={`text-center py-6 rounded-xl mb-4 ${isDark ? "bg-slate-800" : "bg-gray-50"}`}>
+                            <div className={`text-4xl font-mono font-bold tracking-[0.3em] ${isDark ? "text-cyan-400" : "text-blue-600"}`}>{provisionCode.code}</div>
+                            <div className={`text-xs mt-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                              {provisionCode.claimed ? (
+                                <span className="text-emerald-500 font-medium">Claimed! Scanner is provisioning...</span>
+                              ) : (
+                                <>Expires {new Date(provisionCode.expiresAt).toLocaleTimeString()}</>
+                              )}
+                            </div>
+                          </div>
+                          {provisionCode.claimed ? (
+                            <button onClick={() => setShowProvisionModal(false)} className="w-full px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Done</button>
+                          ) : (
+                            <button onClick={() => { navigator.clipboard.writeText(provisionCode.code); }} className={`w-full px-4 py-2 text-sm rounded-lg border ${isDark ? "border-slate-700 text-slate-300 hover:bg-slate-800" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>Copy Code</button>
+                          )}
+                        </>
+                      )}
+                      {provisionStep === "error" && (
+                        <>
+                          <h3 className={`text-lg font-bold mb-2 text-red-500`}>Provisioning Failed</h3>
+                          <p className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{provisionError}</p>
+                          <div className="flex gap-3 justify-end">
+                            <button onClick={() => setShowProvisionModal(false)} className={`px-4 py-2 text-sm rounded-lg ${isDark ? "text-slate-400" : "text-gray-500"}`}>Close</button>
+                            <button onClick={handleProvision} className="px-4 py-2 text-sm font-medium rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white">Retry</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Remote Actions */}
                 {canEdit && isProvisioned && (

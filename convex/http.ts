@@ -52,6 +52,51 @@ http.route({
   }),
 });
 
+// Claim provision endpoint — scanner agent redeems a claim code to get IoT certs
+http.route({
+  path: "/claim-provision",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const code = body?.code;
+
+      if (!code || typeof code !== "string" || code.length !== 6) {
+        return new Response(
+          JSON.stringify({ error: "Invalid code format" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const result = await ctx.runMutation(internal.scannerMdm.claimProvision, {
+        code: code.toUpperCase(),
+      });
+
+      if (!result.success) {
+        return new Response(
+          JSON.stringify({ error: result.error }),
+          { status: 410, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          thingName: result.thingName,
+          certificatePem: result.certificatePem,
+          privateKey: result.privateKey,
+          iotEndpoint: result.iotEndpoint,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: "Failed to process claim" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
 // Health check endpoint
 http.route({
   path: "/health",

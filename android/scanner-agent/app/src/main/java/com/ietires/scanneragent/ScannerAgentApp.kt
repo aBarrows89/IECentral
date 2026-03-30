@@ -4,18 +4,23 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import java.io.File
 
 class ScannerAgentApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Log.i(MqttService.TAG, "Scanner Agent app started")
 
-        // Start the MQTT service
-        val intent = Intent(this, MqttService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
+        // Only start MQTT service if provisioned (config exists)
+        if (File(filesDir, "iot_config.json").exists()) {
+            val intent = Intent(this, MqttService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
         } else {
-            startService(intent)
+            Log.i(MqttService.TAG, "Not provisioned — waiting for setup")
         }
     }
 }

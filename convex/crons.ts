@@ -103,6 +103,13 @@ crons.daily(
 
 // ============ SCANNER MDM CRONS ============
 
+// Clean up expired scanner provision codes (null out cert data)
+crons.daily(
+  "scanner-cleanup-expired-provision-codes",
+  { hourUTC: 3, minuteUTC: 30 },
+  internal.scannerMdm.cleanupExpiredProvisionCodes
+);
+
 // Mark scanners as offline if no telemetry received in 5 minutes
 crons.interval(
   "scanner-update-online-status",

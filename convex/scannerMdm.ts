@@ -578,3 +578,138 @@ export const getNextScannerNumber = query({
     return `${prefix}${String(next).padStart(3, "0")}`;
   },
 });
+
+// ============ WEB PROVISIONING (CLAIM CODE FLOW) ============
+
+const CLAIM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No 0/O/I/1
+const CLAIM_CODE_LENGTH = 6;
+const CLAIM_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function generateClaimCode(): string {
+  let code = "";
+  for (let i = 0; i < CLAIM_CODE_LENGTH; i++) {
+    code += CLAIM_CODE_CHARS[Math.floor(Math.random() * CLAIM_CODE_CHARS.length)];
+  }
+  return code;
+}
+
+export const storePendingProvision = mutation({
+  args: {
+    scannerId: v.id("scanners"),
+    thingName: v.string(),
+    thingArn: v.string(),
+    certificateArn: v.string(),
+    certificatePem: v.string(),
+    privateKey: v.string(),
+    iotEndpoint: v.string(),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Generate a unique code
+    let code = generateClaimCode();
+    const now = Date.now();
+
+    // Ensure uniqueness among active (unclaimed, unexpired) codes
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const existing = await ctx.db
+        .query("scannerProvisionCodes")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .first();
+      if (!existing || existing.claimed || existing.expiresAt < now) break;
+      code = generateClaimCode();
+    }
+
+    await ctx.db.insert("scannerProvisionCodes", {
+      code,
+      scannerId: args.scannerId,
+      thingName: args.thingName,
+      thingArn: args.thingArn,
+      certificateArn: args.certificateArn,
+      certificatePem: args.certificatePem,
+      privateKey: args.privateKey,
+      iotEndpoint: args.iotEndpoint,
+      expiresAt: now + CLAIM_CODE_TTL_MS,
+      claimed: false,
+      createdBy: args.userId,
+      createdAt: now,
+    });
+
+    return { code, expiresAt: now + CLAIM_CODE_TTL_MS };
+  },
+});
+
+export const claimProvision = internalMutation({
+  args: { code: v.string() },
+  handler: async (ctx, args) => {
+    const record = await ctx.db
+      .query("scannerProvisionCodes")
+      .withIndex("by_code", (q) => q.eq("code", args.code.toUpperCase()))
+      .first();
+
+    if (!record) return { success: false, error: "Invalid code" };
+    if (record.claimed) return { success: false, error: "Code already used" };
+    if (record.expiresAt < Date.now()) return { success: false, error: "Code expired" };
+    if (!record.certificatePem || !record.privateKey) {
+      return { success: false, error: "Code expired" };
+    }
+
+    // Mark as claimed
+    await ctx.db.patch(record._id, { claimed: true, claimedAt: Date.now() });
+
+    // Ensure scanner is marked provisioned
+    const scanner = await ctx.db.get(record.scannerId);
+    if (scanner && scanner.mdmStatus !== "provisioned") {
+      await ctx.db.patch(record.scannerId, {
+        mdmStatus: "provisioned",
+        provisionedAt: Date.now(),
+        isOnline: false,
+        updatedAt: Date.now(),
+      });
+    }
+
+    return {
+      success: true,
+      thingName: record.thingName,
+      certificatePem: record.certificatePem,
+      privateKey: record.privateKey,
+      iotEndpoint: record.iotEndpoint,
+    };
+  },
+});
+
+export const getProvisionCode = query({
+  args: { scannerId: v.id("scanners") },
+  handler: async (ctx, args) => {
+    const codes = await ctx.db
+      .query("scannerProvisionCodes")
+      .withIndex("by_scanner", (q) => q.eq("scannerId", args.scannerId))
+      .order("desc")
+      .take(1);
+
+    if (codes.length === 0) return null;
+    const latest = codes[0];
+    if (latest.expiresAt < Date.now() && !latest.claimed) return null;
+    return {
+      code: latest.code,
+      expiresAt: latest.expiresAt,
+      claimed: latest.claimed,
+      claimedAt: latest.claimedAt,
+    };
+  },
+});
+
+export const cleanupExpiredProvisionCodes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const codes = await ctx.db.query("scannerProvisionCodes").collect();
+    let cleaned = 0;
+    for (const code of codes) {
+      if ((code.claimed || code.expiresAt < oneDayAgo) && code.certificatePem) {
+        await ctx.db.patch(code._id, { certificatePem: undefined, privateKey: undefined });
+        cleaned++;
+      }
+    }
+    return { cleaned };
+  },
+});

@@ -1000,6 +1000,25 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_issued", ["issuedAt"]),
 
+  // Scanner provision codes — temporary claim codes for web-based provisioning
+  scannerProvisionCodes: defineTable({
+    code: v.string(), // 6-char uppercase alphanumeric claim code
+    scannerId: v.id("scanners"),
+    thingName: v.string(),
+    thingArn: v.string(),
+    certificateArn: v.string(),
+    certificatePem: v.optional(v.string()), // Nulled after expiry/cleanup
+    privateKey: v.optional(v.string()), // Nulled after expiry/cleanup
+    iotEndpoint: v.string(),
+    expiresAt: v.number(), // Unix timestamp, 15 min from creation
+    claimed: v.boolean(),
+    claimedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_scanner", ["scannerId"]),
+
   // Vehicles (company fleet)
   vehicles: defineTable({
     // Identification
