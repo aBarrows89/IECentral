@@ -6,7 +6,7 @@ import Protected from "../../protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "../../theme-context";
 import { useAuth } from "../../auth-context";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import ScannerStatusDot, { getScannerHealth, ScannerHealth } from "./components/ScannerStatusDot";
@@ -25,8 +25,17 @@ function ScannerDashboardContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedScannerId, setSelectedScannerId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ serialNumber: "", model: "Zebra TC51", notes: "", pin: "" });
+  const [addLocationId, setAddLocationId] = useState<Id<"locations"> | "">("");
+  const [addStep, setAddStep] = useState<"form" | "saving" | "done">("form");
+  const [addError, setAddError] = useState("");
+  const [newScannerId, setNewScannerId] = useState<Id<"scanners"> | null>(null);
 
   const fleet = useQuery(api.scannerMdm.getScannerFleetOverview);
+  const createScanner = useMutation(api.scannerMdm.createScannerFromSetup);
+  const selectedLocCode = locations?.find((l) => l._id === addLocationId)?.code;
+  const nextNumber = useQuery(api.scannerMdm.getNextScannerNumber, selectedLocCode ? { locationCode: selectedLocCode } : "skip");
   const scanners = useQuery(api.equipment.listScanners, {
     locationId: locationFilter !== "all" ? locationFilter : undefined,
   });
@@ -138,6 +147,15 @@ function ScannerDashboardContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <button
+                      onClick={() => { setShowAddModal(true); setAddStep("form"); setAddError(""); setAddForm({ serialNumber: "", model: "Zebra TC51", notes: "", pin: "" }); setAddLocationId(""); }}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-cyan-600 hover:bg-cyan-500 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      Add Scanner
+                    </button>
+                  )}
                   {canEdit && (
                     <button
                       onClick={() => router.push("/equipment/scanners/settings")}
@@ -533,6 +551,110 @@ function ScannerDashboardContent() {
               </div>
             )}
           </div>
+
+          {/* Add Scanner Modal */}
+          {showAddModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => addStep !== "saving" && setShowAddModal(false)}>
+              <div className={`w-full max-w-md rounded-2xl border p-6 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
+                {addStep === "form" && (
+                  <>
+                    <h3 className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>Add Scanner</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Location</label>
+                        <select value={addLocationId} onChange={(e) => setAddLocationId(e.target.value as Id<"locations">)}
+                          className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`}>
+                          <option value="">Select location...</option>
+                          {locations?.map((l) => <option key={l._id} value={l._id}>{l.name} ({l.code})</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Serial Number</label>
+                        <input value={addForm.serialNumber} onChange={(e) => setAddForm((f) => ({ ...f, serialNumber: e.target.value }))}
+                          placeholder="e.g., 20322524202269"
+                          className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Model</label>
+                          <input value={addForm.model} onChange={(e) => setAddForm((f) => ({ ...f, model: e.target.value }))}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`} />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>PIN (4-6 digits)</label>
+                          <input value={addForm.pin} onChange={(e) => setAddForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                            placeholder="1234" maxLength={6}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Notes (optional)</label>
+                        <input value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+                          className={`w-full px-3 py-2 text-sm border rounded-lg ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-gray-50 border-gray-300 text-gray-900"}`} />
+                      </div>
+                      {addError && <p className="text-sm text-red-500">{addError}</p>}
+                    </div>
+                    <div className="flex gap-3 justify-end mt-5">
+                      <button onClick={() => setShowAddModal(false)} className={`px-4 py-2 text-sm rounded-lg ${isDark ? "text-slate-400" : "text-gray-500"}`}>Cancel</button>
+                      <button onClick={async () => {
+                        if (!addLocationId || !addForm.serialNumber || !addForm.pin || addForm.pin.length < 4) {
+                          setAddError("Location, serial number, and PIN (4+ digits) are required.");
+                          return;
+                        }
+                        setAddStep("saving");
+                        setAddError("");
+                        try {
+                          const loc = locations?.find((l) => l._id === addLocationId);
+                          const result = await createScanner({
+                            number: nextNumber ?? `${selectedLocCode}-001`,
+                            pin: addForm.pin,
+                            serialNumber: addForm.serialNumber,
+                            model: addForm.model,
+                            locationId: addLocationId as Id<"locations">,
+                            notes: addForm.notes || undefined,
+                          });
+                          setNewScannerId(result.scannerId as Id<"scanners">);
+                          setAddStep("done");
+                        } catch (err) {
+                          setAddError(err instanceof Error ? err.message : "Failed to create scanner");
+                          setAddStep("form");
+                        }
+                      }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white">
+                        Create Scanner
+                      </button>
+                    </div>
+                  </>
+                )}
+                {addStep === "saving" && (
+                  <div className="text-center py-8">
+                    <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                    <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Creating scanner...</p>
+                  </div>
+                )}
+                {addStep === "done" && (
+                  <>
+                    <div className="text-center py-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${isDark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                        <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      </div>
+                      <h3 className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Scanner Created</h3>
+                      <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Go to the scanner detail page to provision it.</p>
+                    </div>
+                    <div className="flex gap-3 justify-end mt-4">
+                      <button onClick={() => setShowAddModal(false)} className={`px-4 py-2 text-sm rounded-lg ${isDark ? "text-slate-400" : "text-gray-500"}`}>Close</button>
+                      {newScannerId && (
+                        <button onClick={() => router.push(`/equipment/scanners/${newScannerId}`)}
+                          className="px-4 py-2 text-sm font-medium rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white">
+                          Provision Now
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </Protected>
