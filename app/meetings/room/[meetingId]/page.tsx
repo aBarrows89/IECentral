@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTheme } from "@/app/theme-context";
 import { useAuth } from "@/app/auth-context";
@@ -205,9 +205,10 @@ export default function MeetingRoomPage() {
 
   // Join meeting on mount
   const startMeeting = useMutation(api.meetings.start);
+  const joiningRef = useRef(false);
 
   useEffect(() => {
-    if (hasJoined || !user || !meeting) return;
+    if (hasJoined || !user || !meeting || joiningRef.current) return;
 
     // Meeting already ended
     if (meeting.status === "ended") {
@@ -215,21 +216,20 @@ export default function MeetingRoomPage() {
       return;
     }
 
+    joiningRef.current = true;
+
     async function join() {
       try {
-        // Start + join in parallel when host; just join otherwise
         const isHost = String(meeting!.hostId) === String(user!._id);
-        const promises: Promise<unknown>[] = [
-          joinMeeting({ meetingId: typedMeetingId, userId: user!._id }),
-        ];
         if (isHost && (meeting!.status === "lobby" || meeting!.status === "scheduled")) {
-          promises.push(startMeeting({ meetingId: typedMeetingId }));
+          await startMeeting({ meetingId: typedMeetingId });
         }
-        await Promise.all(promises);
+        await joinMeeting({ meetingId: typedMeetingId, userId: user!._id });
         setHasJoined(true);
       } catch (err) {
         console.error("Failed to join meeting:", err);
-        setError("Failed to join meeting.");
+        joiningRef.current = false;
+        setError("Failed to join meeting. Please try refreshing the page.");
       }
     }
 
