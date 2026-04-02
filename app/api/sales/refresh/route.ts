@@ -30,7 +30,17 @@ const COL = {
   CUSTOMER_NAME: 19,
 } as const;
 
-const s3 = new S3Client({ region: "us-east-1" });
+const s3 = new S3Client({
+  region: process.env.S3_REGION || "us-east-1",
+  ...(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+    ? {
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+        },
+      }
+    : {}),
+});
 
 // Cron secret for Vercel cron jobs
 const CRON_SECRET = process.env.CRON_SECRET;
