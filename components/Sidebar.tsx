@@ -19,6 +19,7 @@ interface NavItem {
   requiresPermission?: "viewPersonnel" | "viewShifts" | "manageTimeOff" | "departmentPortal";
   techOnly?: boolean; // Special access for tech team emails
   external?: boolean; // Opens in new tab
+  section?: string; // Section label for visual grouping within a nav group
 }
 
 interface NavGroup {
@@ -42,38 +43,30 @@ const NAV_ITEMS: NavItem[] = [
 // Collapsible nav groups
 const NAV_GROUPS: NavGroup[] = [
   {
-    id: "hiring",
-    label: "Hiring & HR",
+    id: "people-hr",
+    label: "People & HR",
     icon: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
     requiresPermission: "viewPersonnel",
     items: [
-      { href: "/jobs", label: "Job Listings", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
+      // Hiring
+      { href: "/jobs", label: "Job Listings", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", section: "Hiring" },
       { href: "/applications", label: "Applications", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
       { href: "/personnel", label: "Personnel", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
-    ],
-  },
-  {
-    id: "scheduling",
-    label: "Scheduling",
-    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-    requiresPermission: "viewShifts",
-    items: [
-      { href: "/shifts", label: "Shift Planning", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+      // Scheduling
+      { href: "/shifts", label: "Shift Planning", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", section: "Scheduling" },
       { href: "/schedule-templates", label: "Schedule Templates", icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" },
       { href: "/time-clock", label: "Time Clock", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
       { href: "/overtime", label: "Saturday Overtime", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
-    ],
-  },
-  {
-    id: "employee-portal",
-    label: "Employee Portal",
-    icon: "M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-    requiresPermission: "manageTimeOff",
-    items: [
-      { href: "/department-portal", label: "Department Portal", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+      // Employee Portal
+      { href: "/department-portal", label: "Department Portal", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4", section: "Portal" },
       { href: "/time-off", label: "Time Off Requests", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
       { href: "/call-offs", label: "Call-Offs", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" },
       { href: "/announcements", label: "Announcements", icon: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" },
+      // Organization
+      { href: "/users", label: "Users", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z", section: "Organization" },
+      { href: "/org-chart", label: "Org Chart", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+      { href: "/settings/onboarding", label: "Onboarding Docs", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+      { href: "/engagement", label: "Engagement", icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" },
     ],
   },
   {
@@ -116,17 +109,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/credentials", label: "Credentials", icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" },
       { href: "https://tiretrack-admin.vercel.app", label: "TireTrack Admin", icon: "M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", external: true },
       { href: "http://34.228.222.11/classic", label: "IE Price System", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", external: true },
-    ],
-  },
-  {
-    id: "people",
-    label: "People & Org",
-    icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
-    items: [
-      { href: "/users", label: "Users", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
-      { href: "/org-chart", label: "Org Chart", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-      { href: "/settings/onboarding", label: "Onboarding Docs", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-      { href: "/engagement", label: "Engagement", icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" },
     ],
   },
   {
@@ -836,7 +818,10 @@ export default function Sidebar() {
                 {/* Nested items */}
                 {isOpen && (
                   <div className="ml-4 mt-1 space-y-1">
-                    {filteredItems.map((item) => {
+                    {filteredItems.map((item, itemIdx) => {
+                      // Render section label when section changes
+                      const prevItem = itemIdx > 0 ? filteredItems[itemIdx - 1] : null;
+                      const showSection = item.section && item.section !== prevItem?.section;
                       const isActive = !item.external && (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)));
                       const linkClass = `flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
                         isActive
@@ -870,7 +855,7 @@ export default function Sidebar() {
                           )}
                         </>
                       );
-                      return item.external ? (
+                      const linkEl = item.external ? (
                         <a
                           key={item.href}
                           href={item.href}
@@ -891,6 +876,18 @@ export default function Sidebar() {
                           {iconAndLabel}
                         </Link>
                       );
+
+                      if (showSection) {
+                        return (
+                          <div key={item.href}>
+                            <p className={`text-[10px] font-semibold uppercase tracking-wider px-3 pt-3 pb-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                              {item.section}
+                            </p>
+                            {linkEl}
+                          </div>
+                        );
+                      }
+                      return linkEl;
                     })}
                   </div>
                 )}
