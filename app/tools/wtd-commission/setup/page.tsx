@@ -47,6 +47,32 @@ interface FormState {
   commissionValue: string;
 }
 
+// Brand code → full name mapping (from OEA07V MFG Id values)
+const BRAND_MAP: Record<string, string> = {
+  ACHIL: "Achilles", ADV: "Advance", AGS: "AGS", AM: "Americus", APL: "Aplus",
+  ARC: "Arcomet", ARI: "Arize", AROY: "Arroyo", ARS: "American Roadstar",
+  ATL: "Atlas", ATT: "Atturo", BFG: "BF Goodrich", BLK: "Blacklion",
+  BRIDG: "Bridgestone", CARL: "Carlisle", CEL: "Celsius", CNV: "Conversol",
+  CON: "Continental", COO: "Cooper", COS: "Cosmo", CRM: "Crossmax",
+  CWN: "Crown", DCE: "DC", DEE: "Deestone", DEL: "Deli", DELIN: "Delinte",
+  DOR: "Doral", DUN: "Dunlop", FAL: "Falken", FED: "Federal",
+  FIN: "Finalist", FIR: "Firestone", FLW: "Fullway", FORC: "Forceum",
+  FORT: "Fortress", FUZ: "Fuzion", GAL: "Galaxy", GDY: "Goodyear",
+  GEN: "General", GREEN: "Greenmax", GTRAD: "GT Radial", HAN: "Hankook",
+  HRC: "Hercules", IRN: "Ironman", KLY: "Kelly", KN: "Kenda",
+  KUMHO: "Kumho", LAN: "Landsail", LEAO: "Leao", LFN: "Lexani",
+  LION: "Lionhart", LNS: "Landsail", LVR: "Landvigator", LXN: "Lexani",
+  MAX: "Maxxis", MICK: "Mickey Thompson", MIL: "Milestar", MOHWK: "Mohawk",
+  MONT: "Montego", NEX: "Nexen", NOK: "Nokian", OX: "Ohtsu",
+  OTAN: "Otani", PET: "Petlas", PIR: "Pirelli", RADAR: "Radar",
+  RBP: "RBP", SCP: "Scorpion", SIG: "Sigma", SOL: "Solidtyre",
+  STF: "Starfire", SUM: "Sumitomo", TBB: "TBB", TKN: "Tokunbo",
+  TND: "Thunderer", TOY: "Toyo", TRD: "TRD", TRI: "Triangle",
+  TRX: "Trazano", TVS: "Traverse", UNI: "Uniroyal", VAL: "Valiante",
+  VN: "Venom", VRC: "Vercelli", VT: "Vitour", VTG: "Vintage",
+  WES: "Westlake", WF: "Windforce", YOK: "Yokohama", ZET: "Zeta",
+};
+
 const EMPTY_FORM: FormState = {
   customerName: "",
   customerNumber: "",
@@ -368,28 +394,44 @@ export default function WTDCommissionSetupPage() {
                       </label>
                       {!form.allBrands && (
                         <>
-                          <div className="flex gap-2">
+                          <div className="relative">
                             <input
                               type="text"
                               value={form.brandInput}
                               onChange={(e) => setForm((f) => ({ ...f, brandInput: e.target.value }))}
                               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddBrand(); } }}
-                              className={`flex-1 px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                              placeholder="e.g. WTD, FED"
+                              className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                              placeholder="e.g. FAL, AROY, DUN — search by code or name"
                             />
-                            <button
-                              type="button"
-                              onClick={handleAddBrand}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                            >
-                              Add
-                            </button>
+                            {form.brandInput.length >= 1 && (
+                              <div className={`absolute z-20 w-full mt-1 rounded-lg border shadow-xl max-h-40 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}>
+                                {Object.entries(BRAND_MAP)
+                                  .filter(([code, name]) => {
+                                    const q = form.brandInput.toLowerCase();
+                                    return (code.toLowerCase().includes(q) || name.toLowerCase().includes(q)) && !form.brands.includes(code);
+                                  })
+                                  .slice(0, 10)
+                                  .map(([code, name]) => (
+                                    <button
+                                      key={code}
+                                      type="button"
+                                      onClick={() => {
+                                        setForm((f) => ({ ...f, brands: [...f.brands, code], brandInput: "" }));
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-700 hover:bg-gray-100"}`}
+                                    >
+                                      <span className="font-mono font-bold">{code}</span>
+                                      <span className={`ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>{name}</span>
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
                           </div>
                           {form.brands.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {form.brands.map((b) => (
                                 <span key={b} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-700"}`}>
-                                  {b}
+                                  {b}{BRAND_MAP[b] ? ` (${BRAND_MAP[b]})` : ""}
                                   <button onClick={() => handleRemoveBrand(b)} className="hover:text-red-400">&times;</button>
                                 </span>
                               ))}
@@ -500,7 +542,7 @@ export default function WTDCommissionSetupPage() {
                             </p>
                             <p>
                               <span className="font-medium">Brands:</span>{" "}
-                              {c.qualifyingBrands.includes("ALL") ? "All Brands" : c.qualifyingBrands.join(", ")}
+                              {c.qualifyingBrands.includes("ALL") ? "All Brands" : c.qualifyingBrands.map((b: string) => BRAND_MAP[b] ? `${b} (${BRAND_MAP[b]})` : b).join(", ")}
                             </p>
                             <p>
                               <span className="font-medium">Commission:</span>{" "}

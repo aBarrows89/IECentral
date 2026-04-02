@@ -195,9 +195,10 @@ export default function WTDCommissionReportPage() {
       setReports(generatedReports);
       setRunState("success");
 
-      // Auto-save each report to history
+      // Auto-save each report to Convex history + S3
       if (user?._id && generatedReports.length > 0) {
         for (const report of generatedReports) {
+          // Save to Convex
           await saveReport({
             customerName: report.customerName,
             customerNumber: report.customerNumber,
@@ -210,6 +211,22 @@ export default function WTDCommissionReportPage() {
             generatedBy: user._id,
             generatedByName: user.name || "Unknown",
           });
+
+          // Save to S3
+          fetch("/api/wtd-commission/save-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customerNumber: report.customerNumber,
+              startDate,
+              endDate,
+              report: {
+                ...report,
+                generatedBy: user.name || "Unknown",
+                generatedAt: new Date().toISOString(),
+              },
+            }),
+          }).catch((err) => console.error("S3 report save failed:", err));
         }
       }
     } catch (err) {
@@ -665,15 +682,45 @@ export default function WTDCommissionReportPage() {
         </main>
       </div>
 
-      {/* Print styles */}
+      {/* Print styles — match PDF export layout */}
       <style jsx global>{`
         @media print {
-          body { background: white !important; }
+          body { background: white !important; color: black !important; font-family: Arial, Helvetica, sans-serif !important; font-size: 11px !important; }
           .print\\:hidden { display: none !important; }
-          .print\\:break-inside-avoid { break-inside: avoid; }
-          aside, header.sticky { display: none !important; }
-          main { overflow: visible !important; }
-          .theme-bg-primary { background: white !important; }
+          .print\\:break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+          aside, header.sticky, nav { display: none !important; }
+          main { overflow: visible !important; padding: 0 !important; }
+          .theme-bg-primary, .flex.h-screen { background: white !important; }
+          .max-w-6xl { max-width: 100% !important; padding: 0 20px !important; }
+
+          /* Report card styling */
+          .rounded-xl { border-radius: 0 !important; border: none !important; box-shadow: none !important; background: white !important; }
+
+          /* Header */
+          .rounded-xl .px-6.py-4.border-b {
+            background: #f3f4f6 !important; border-bottom: 2px solid #10b981 !important;
+            padding: 12px 16px !important; margin-bottom: 0 !important;
+          }
+          .rounded-xl .px-6.py-4.border-b h2 { color: black !important; font-size: 16px !important; }
+          .rounded-xl .px-6.py-4.border-b span, .rounded-xl .px-6.py-4.border-b div { color: #555 !important; }
+
+          /* Table */
+          table { border-collapse: collapse !important; width: 100% !important; }
+          th { background: #10b981 !important; color: white !important; padding: 8px 12px !important; font-size: 11px !important; text-align: left !important; border: 1px solid #0d9668 !important; }
+          th:nth-child(n+5) { text-align: right !important; }
+          td { padding: 6px 12px !important; border: 1px solid #e5e7eb !important; color: black !important; font-size: 10px !important; }
+          td:nth-child(n+5) { text-align: right !important; }
+          tr:nth-child(even) td { background: #f9fafb !important; }
+          tbody tr:hover td { background: inherit !important; }
+
+          /* Footer */
+          tfoot td { background: #f3f4f6 !important; color: black !important; font-weight: bold !important; font-size: 12px !important; border: 1px solid #e5e7eb !important; }
+
+          /* Spacing between reports */
+          .space-y-8 > * + * { margin-top: 30px !important; page-break-before: auto; }
+
+          /* Hide all non-essential colors */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
     </Protected>
