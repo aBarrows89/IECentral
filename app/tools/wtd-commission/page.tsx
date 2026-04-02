@@ -160,7 +160,7 @@ export default function WTDCommissionReportPage() {
             orderNo: row.orderNo,
             mfgItemId: row.mfgItemId,
             description: row.description,
-            qty: row.qty,
+            qty: Math.abs(row.qty),
             unitCost: row.unitCost,
             commissionAmount: Math.round(commissionAmount * 100) / 100,
           };
