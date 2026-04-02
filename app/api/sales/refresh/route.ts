@@ -11,10 +11,11 @@ const JMK_PREFIX = "jmk-uploads";
 const SALES_BUCKET = "ietires-sales-data";
 
 // OEA07V column indices (zero-based)
+// Col 2 = Sidewall, Col 3 = Product Type, Col 16 = Inv Id, Col 17 = PO Id
 const COL = {
   ITEM_ID: 0,
   DESCRIPTION: 1,
-  DCLASS: 2,
+  SIDEWALL: 2,
   PRODUCT_TYPE: 3,
   BRAND: 4,
   MFG_ITEM_ID: 5,

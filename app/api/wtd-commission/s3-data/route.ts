@@ -5,20 +5,29 @@ const S3_BUCKET = "ietires-dunlop-jmk-uploads";
 const S3_PREFIX = "jmk-uploads";
 
 // OEA07V column indices (zero-based)
+// Verified against actual CSV header:
+// Col 0: Item Id, Col 1: Item Description, Col 2: Sidewall, Col 3: Product Type,
+// Col 4: MFG Id, Col 5: MFG's Item Id, Col 6: UPC Code, Col 7: EAN Code,
+// Col 8: Loc Id, Col 9: Trn Pur, Col 10: Qty Sl/Rc, Col 11: U/Cost FET/In,
+// Col 12: Ext Cost FET In, Col 13: U/Sell FET/In, Col 14: Ext Sell FET In,
+// Col 15: Account Id, Col 16: Inv Id, Col 17: PO Id, Col 18: Activity Date,
+// Col 19: Abbreviated Name
 const COL = {
   ITEM_ID: 0,
   DESCRIPTION: 1,
-  DCLASS: 2,
-  BRAND: 4,        // MFG Id
-  MFG_ITEM_ID: 5,  // Product mfg code
+  SIDEWALL: 2,
+  PRODUCT_TYPE: 3,   // "Dclass" in setup UI maps to Product Type
+  BRAND: 4,          // MFG Id
+  MFG_ITEM_ID: 5,    // MFG's Item Id (product mfg code)
   TRN_PUR: 9,
   QTY: 10,
-  UNIT_COST: 11,
-  UNIT_SELL: 13,
+  UNIT_COST: 11,     // U/Cost FET/In
+  UNIT_SELL: 13,     // U/Sell FET/In
   ACCOUNT_ID: 15,
-  ORDER_NO: 16,
+  INV_ID: 16,        // Invoice Id
+  PO_ID: 17,         // PO Id
   ACTIVITY_DATE: 18,
-  CUSTOMER_NAME: 19,
+  CUSTOMER_NAME: 19, // Abbreviated Name
 } as const;
 
 const s3 = new S3Client({ region: "us-east-1" });
@@ -220,7 +229,7 @@ export async function POST(request: NextRequest) {
       parsedRows.push({
         itemId,
         description: row[COL.DESCRIPTION]?.trim() || "",
-        dclass: row[COL.DCLASS]?.trim() || "",
+        dclass: row[COL.PRODUCT_TYPE]?.trim() || "",  // "Dclass" maps to Product Type column
         brand: row[COL.BRAND]?.trim() || "",
         mfgItemId: row[COL.MFG_ITEM_ID]?.trim() || "",
         trnPur: row[COL.TRN_PUR]?.trim() || "",
@@ -228,7 +237,7 @@ export async function POST(request: NextRequest) {
         unitCost: isNaN(unitCost) ? 0 : Math.abs(unitCost),
         unitSell: isNaN(unitSell) ? 0 : Math.abs(unitSell),
         accountId: row[COL.ACCOUNT_ID]?.trim() || "",
-        orderNo: row[COL.ORDER_NO]?.trim() || "",
+        orderNo: row[COL.INV_ID]?.trim() || "",  // Invoice ID used as order reference
         activityDate: dateStr,
         customerName: row[COL.CUSTOMER_NAME]?.trim() || "",
       });
