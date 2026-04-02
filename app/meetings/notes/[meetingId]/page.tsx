@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
+import { useAuth } from "@/app/auth-context";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -43,13 +44,17 @@ export default function MeetingNotesPage() {
   const params = useParams();
   const router = useRouter();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === "dark";
 
   const meetingId = params.meetingId as string;
   const typedMeetingId = meetingId as unknown as Id<"meetings">;
 
   const meeting = useQuery(api.meetings.get, { meetingId: typedMeetingId });
-  const notes = useQuery(api.meetingNotes.getByMeeting, { meetingId: typedMeetingId });
+  const notes = useQuery(api.meetingNotes.getByMeeting, {
+    meetingId: typedMeetingId,
+    userId: user?._id,
+  });
   const participants = useQuery(api.meetingParticipants.getByMeeting, { meetingId: typedMeetingId });
   const toggleActionItem = useMutation(api.meetingNotes.toggleActionItem);
 

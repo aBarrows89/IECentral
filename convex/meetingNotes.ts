@@ -4,23 +4,82 @@ import { Id } from "./_generated/dataModel";
 
 // ============ QUERIES ============
 
-// Get meeting notes for a specific meeting
+// Get meeting notes for a specific meeting — restricted to participants/host
 export const getByMeeting = query({
-  args: { meetingId: v.id("meetings") },
+  args: {
+    meetingId: v.id("meetings"),
+    userId: v.optional(v.id("users")),
+  },
   handler: async (ctx, args) => {
-    const notes = await ctx.db
+    // If userId provided, verify they're host or participant
+    if (args.userId) {
+      const meeting = await ctx.db.get(args.meetingId);
+      if (!meeting) return null;
+      const isHost = meeting.hostId === args.userId;
+      if (!isHost) {
+        const participant = await ctx.db
+          .query("meetingParticipants")
+          .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
+          .filter((q) => q.eq(q.field("userId"), args.userId))
+          .first();
+        if (!participant) return null;
+      }
+    }
+
+    return await ctx.db
       .query("meetingNotes")
       .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
       .first();
+  },
+});
+
+// Get meeting notes by ID — restricted to participants/host
+export const get = query({
+  args: {
+    notesId: v.id("meetingNotes"),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const notes = await ctx.db.get(args.notesId);
+    if (!notes) return null;
+
+    if (args.userId) {
+      const meeting = await ctx.db.get(notes.meetingId);
+      if (!meeting) return null;
+      const isHost = meeting.hostId === args.userId;
+      if (!isHost) {
+        const participant = await ctx.db
+          .query("meetingParticipants")
+          .withIndex("by_meeting", (q) => q.eq("meetingId", notes.meetingId))
+          .filter((q) => q.eq(q.field("userId"), args.userId))
+          .first();
+        if (!participant) return null;
+      }
+    }
+
     return notes;
   },
 });
 
-// Get meeting notes by ID
-export const get = query({
-  args: { notesId: v.id("meetingNotes") },
+// Get meeting notes via invite token — for external users who were invited
+export const getByInviteToken = query({
+  args: {
+    meetingId: v.id("meetings"),
+    token: v.string(),
+  },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.notesId);
+    // Verify token belongs to this meeting
+    const invite = await ctx.db
+      .query("meetingInvites")
+      .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
+      .filter((q) => q.eq(q.field("inviteToken"), args.token))
+      .first();
+    if (!invite) return null;
+
+    return await ctx.db
+      .query("meetingNotes")
+      .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
+      .first();
   },
 });
 
