@@ -33,7 +33,17 @@ export const transcribeAndGenerateNotes = action({
         // Fetch from S3 via presigned URL
         const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
         const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-        const s3 = new S3Client({ region: "us-east-1" });
+        const s3 = new S3Client({
+          region: process.env.S3_REGION || "us-east-1",
+          ...(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+            ? {
+                credentials: {
+                  accessKeyId: process.env.S3_ACCESS_KEY_ID,
+                  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+                },
+              }
+            : {}),
+        });
         const command = new GetObjectCommand({
           Bucket: "iecentral-meeting-recordings",
           Key: notes.audioS3Key,
