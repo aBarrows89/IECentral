@@ -140,3 +140,95 @@ export const checkAccess = query({
     return records[0].userIds.includes(args.userId);
   },
 });
+
+// ─── REPORT HISTORY ─────────────────────────────────────────────────────────
+
+const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+
+export const saveReport = mutation({
+  args: {
+    customerName: v.string(),
+    customerNumber: v.string(),
+    startDate: v.string(),
+    endDate: v.string(),
+    commissionType: v.string(),
+    commissionValue: v.number(),
+    lineItems: v.array(
+      v.object({
+        orderNo: v.string(),
+        brand: v.string(),
+        mfgItemId: v.string(),
+        description: v.string(),
+        qty: v.number(),
+        unitCost: v.number(),
+        commissionAmount: v.number(),
+      })
+    ),
+    grandTotal: v.number(),
+    generatedBy: v.id("users"),
+    generatedByName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    return await ctx.db.insert("wtdCommissionReports", {
+      ...args,
+      lineItemCount: args.lineItems.length,
+      createdAt: now,
+      expiresAt: now + TWELVE_MONTHS_MS,
+    });
+  },
+});
+
+export const listReports = query({
+  handler: async (ctx) => {
+    const reports = await ctx.db
+      .query("wtdCommissionReports")
+      .withIndex("by_created")
+      .order("desc")
+      .collect();
+    // Return without lineItems for the list view (smaller payload)
+    return reports.map((r) => ({
+      _id: r._id,
+      customerName: r.customerName,
+      customerNumber: r.customerNumber,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      commissionType: r.commissionType,
+      commissionValue: r.commissionValue,
+      grandTotal: r.grandTotal,
+      lineItemCount: r.lineItemCount,
+      generatedByName: r.generatedByName,
+      createdAt: r.createdAt,
+      expiresAt: r.expiresAt,
+    }));
+  },
+});
+
+export const getReport = query({
+  args: { id: v.id("wtdCommissionReports") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+export const deleteReport = mutation({
+  args: { id: v.id("wtdCommissionReports") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const cleanupExpiredReports = mutation({
+  handler: async (ctx) => {
+    const now = Date.now();
+    const expired = await ctx.db
+      .query("wtdCommissionReports")
+      .withIndex("by_expires")
+      .filter((q) => q.lt(q.field("expiresAt"), now))
+      .collect();
+    for (const report of expired) {
+      await ctx.db.delete(report._id);
+    }
+    return { deleted: expired.length };
+  },
+});

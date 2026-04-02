@@ -3096,6 +3096,35 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  wtdCommissionReports: defineTable({
+    customerName: v.string(),
+    customerNumber: v.string(),
+    startDate: v.string(),
+    endDate: v.string(),
+    commissionType: v.string(),
+    commissionValue: v.number(),
+    lineItems: v.array(
+      v.object({
+        orderNo: v.string(),
+        brand: v.string(),
+        mfgItemId: v.string(),
+        description: v.string(),
+        qty: v.number(),
+        unitCost: v.number(),
+        commissionAmount: v.number(),
+      })
+    ),
+    grandTotal: v.number(),
+    lineItemCount: v.number(),
+    generatedBy: v.id("users"),
+    generatedByName: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(), // 12 months from creation for auto-cleanup
+  })
+    .index("by_customer", ["customerNumber"])
+    .index("by_created", ["createdAt"])
+    .index("by_expires", ["expiresAt"]),
+
   // ============ WEB PUSH SUBSCRIPTIONS ============
   webPushSubscriptions: defineTable({
     userId: v.id("users"),

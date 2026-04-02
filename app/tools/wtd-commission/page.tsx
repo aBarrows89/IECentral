@@ -6,8 +6,9 @@ import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
 import { useAuth } from "@/app/auth-context";
 import { usePermissions } from "@/lib/usePermissions";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
@@ -78,6 +79,11 @@ export default function WTDCommissionReportPage() {
   // Access: T4+ or on override list
   const canAccess = permissions.tier >= 4 || hasOverrideAccess === true;
 
+  const reportHistory = useQuery(api.wtdCommission.listReports);
+  const saveReport = useMutation(api.wtdCommission.saveReport);
+  const deleteReport = useMutation(api.wtdCommission.deleteReport);
+
+  const [activeTab, setActiveTab] = useState<"generate" | "history">("generate");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -85,6 +91,13 @@ export default function WTDCommissionReportPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [reports, setReports] = useState<CustomerReport[]>([]);
   const [rawRowCount, setRawRowCount] = useState(0);
+  const [viewingReportId, setViewingReportId] = useState<string | null>(null);
+
+  // Load a historical report for viewing
+  const viewingReport = useQuery(
+    api.wtdCommission.getReport,
+    viewingReportId ? { id: viewingReportId as Id<"wtdCommissionReports"> } : "skip"
+  );
 
   const typedCustomers = customers as CustomerConfig[] | undefined;
 
@@ -181,11 +194,29 @@ export default function WTDCommissionReportPage() {
 
       setReports(generatedReports);
       setRunState("success");
+
+      // Auto-save each report to history
+      if (user?._id && generatedReports.length > 0) {
+        for (const report of generatedReports) {
+          await saveReport({
+            customerName: report.customerName,
+            customerNumber: report.customerNumber,
+            startDate,
+            endDate,
+            commissionType: report.commissionType,
+            commissionValue: report.commissionValue,
+            lineItems: report.lineItems,
+            grandTotal: report.grandTotal,
+            generatedBy: user._id,
+            generatedByName: user.name || "Unknown",
+          });
+        }
+      }
     } catch (err) {
       setRunState("error");
       setErrorMsg(err instanceof Error ? err.message : "Unknown error");
     }
-  }, [startDate, endDate, typedCustomers, selectedCustomerId]);
+  }, [startDate, endDate, typedCustomers, selectedCustomerId, saveReport, user]);
 
   // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
@@ -335,9 +366,134 @@ export default function WTDCommissionReportPage() {
                 </Link>
               )}
             </div>
+            {/* Tabs */}
+            <div className="flex gap-1 mt-4">
+              {(["generate", "history"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => { setActiveTab(tab); setViewingReportId(null); }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                    activeTab === tab
+                      ? isDark ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                      : isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {tab === "generate" ? "Generate Report" : `History (${reportHistory?.length ?? 0})`}
+                </button>
+              ))}
+            </div>
           </header>
 
           <div className="max-w-6xl mx-auto px-6 py-6">
+            {/* ─── HISTORY TAB ─── */}
+            {activeTab === "history" && (
+              <div>
+                {viewingReportId && viewingReport ? (
+                  // Viewing a specific historical report
+                  <div>
+                    <button
+                      onClick={() => setViewingReportId(null)}
+                      className={`mb-4 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                    >
+                      &larr; Back to History
+                    </button>
+                    <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                      <div className={`px-6 py-4 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
+                        <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{viewingReport.customerName}</h2>
+                        <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                          <span>Account: {viewingReport.customerNumber}</span>
+                          <span>Date Range: {viewingReport.startDate} to {viewingReport.endDate}</span>
+                          <span>Commission: {viewingReport.commissionType === "percentage" ? `${viewingReport.commissionValue}% of product cost` : `$${viewingReport.commissionValue.toFixed(2)} per unit`}</span>
+                          <span>Generated: {new Date(viewingReport.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
+                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Order #</th>
+                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Brand</th>
+                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Mfg Code</th>
+                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Description</th>
+                              <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Qty</th>
+                              <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Commission</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {viewingReport.lineItems.map((li: CommissionLineItem, i: number) => (
+                              <tr key={i} className={`border-b ${isDark ? "border-slate-700/50 hover:bg-slate-700/30" : "border-gray-100 hover:bg-gray-50"}`}>
+                                <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.orderNo}</td>
+                                <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.brand}</td>
+                                <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.mfgItemId}</td>
+                                <td className={`px-4 py-2.5 ${isDark ? "text-white" : "text-gray-900"}`}>{li.description}</td>
+                                <td className={`px-4 py-2.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.qty}</td>
+                                <td className={`px-4 py-2.5 text-right font-medium ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${li.commissionAmount.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className={isDark ? "bg-slate-800" : "bg-gray-50"}>
+                              <td colSpan={5} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Grand Total</td>
+                              <td className={`px-4 py-3 text-right font-bold text-lg ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${viewingReport.grandTotal.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // History list
+                  <>
+                    {!reportHistory || reportHistory.length === 0 ? (
+                      <div className={`rounded-xl border p-8 text-center ${isDark ? "bg-slate-800/30 border-slate-700 text-slate-400" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+                        No saved reports yet. Generate a report to save it automatically.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {reportHistory.map((r) => (
+                          <div
+                            key={r._id}
+                            className={`rounded-xl border p-4 flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{r.customerName}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-mono ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-600"}`}>{r.customerNumber}</span>
+                              </div>
+                              <div className={`text-xs space-x-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                                <span>{r.startDate} to {r.endDate}</span>
+                                <span>{r.lineItemCount} items</span>
+                                <span className={`font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${r.grandTotal.toFixed(2)}</span>
+                                <span>by {r.generatedByName}</span>
+                                <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+                                <span className={`${isDark ? "text-slate-500" : "text-gray-400"}`}>expires {new Date(r.expiresAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setViewingReportId(r._id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => { if (confirm("Delete this report?")) deleteReport({ id: r._id }); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ─── GENERATE TAB ─── */}
+            {activeTab === "generate" && <>
             {/* Controls */}
             <div className={`rounded-xl border p-5 mb-6 print:hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               <div className="flex flex-wrap items-end gap-4">
@@ -504,6 +660,7 @@ export default function WTDCommissionReportPage() {
                 )}
               </>
             )}
+            </>}
           </div>
         </main>
       </div>
