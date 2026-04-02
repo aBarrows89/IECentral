@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Protected from "./protected";
@@ -13,8 +13,26 @@ import { api } from "@/convex/_generated/api";
 import { SearchButton } from "@/components/GlobalSearch";
 import ActivityFeed from "@/components/ActivityFeed";
 import EmailWidget from "@/components/EmailWidget";
+import FinancialSnapshotWidget from "@/components/FinancialSnapshotWidget";
 import { Id } from "@/convex/_generated/dataModel";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // Combined type for website messages
 interface WebsiteMessage {
@@ -49,7 +67,68 @@ const DASHBOARD_CARDS = [
   { id: "activityFeed", label: "Activity Feed", description: "Recent system activity" },
   { id: "tenureCheckIns", label: "Tenure Check-ins", description: "Due employee milestone reviews" },
   { id: "email", label: "Email", description: "Recent unread emails from your inbox" },
+  { id: "financialSnapshot", label: "Financial Snapshot", description: "Sales KPIs and revenue breakdown (super admin)" },
 ];
+
+// Sortable card component for settings modal
+function SortableCard({
+  card,
+  enabled,
+  onToggle,
+  isDark,
+}: {
+  card: { id: string; label: string; description: string };
+  enabled: boolean;
+  onToggle: () => void;
+  isDark: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 p-4 rounded-lg border cursor-default transition-colors ${
+        enabled
+          ? isDark ? "bg-cyan-500/10 border-cyan-500/30" : "bg-blue-50 border-blue-200"
+          : isDark ? "bg-slate-900/50 border-slate-700" : "bg-gray-50 border-gray-200"
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className={`cursor-grab active:cursor-grabbing p-1 rounded ${isDark ? "text-slate-500 hover:text-slate-300" : "text-gray-400 hover:text-gray-600"}`}
+        title="Drag to reorder"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+        </svg>
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <p className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>{card.label}</p>
+        <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>{card.description}</p>
+      </div>
+
+      <label className="cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={onToggle} className="sr-only" />
+        <div className={`relative w-11 h-6 rounded-full transition-colors ${
+          enabled ? (isDark ? "bg-cyan-500" : "bg-blue-500") : (isDark ? "bg-slate-600" : "bg-gray-300")
+        }`}>
+          <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${
+            enabled ? "translate-x-5" : "translate-x-0.5"
+          }`} />
+        </div>
+      </label>
+    </div>
+  );
+}
 
 function DashboardContent() {
   const { user, isOfficeManager, isSuperAdmin } = useAuth();
@@ -158,6 +237,50 @@ function DashboardContent() {
     if (!dashboardSettings) return true;
     return dashboardSettings.enabledCards.includes(cardId);
   };
+
+  // Get ordered cards for settings modal
+  const [settingsCardOrder, setSettingsCardOrder] = useState<string[]>([]);
+  useEffect(() => {
+    if (dashboardSettings?.cardOrder) {
+      // Start from saved order, add any new cards not yet in order
+      const saved = dashboardSettings.cardOrder;
+      const allIds = DASHBOARD_CARDS.map((c) => c.id);
+      const ordered = [...saved.filter((id: string) => allIds.includes(id))];
+      for (const id of allIds) {
+        if (!ordered.includes(id)) ordered.push(id);
+      }
+      setSettingsCardOrder(ordered);
+    } else {
+      setSettingsCardOrder(DASHBOARD_CARDS.map((c) => c.id));
+    }
+  }, [dashboardSettings]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Handle drag end — reorder and persist
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || !user) return;
+
+      const oldIndex = settingsCardOrder.indexOf(active.id as string);
+      const newIndex = settingsCardOrder.indexOf(over.id as string);
+      const newOrder = arrayMove(settingsCardOrder, oldIndex, newIndex);
+      setSettingsCardOrder(newOrder);
+
+      // Persist
+      await saveSettings({
+        userId: user._id,
+        enabledCards: dashboardSettings?.enabledCards ?? DASHBOARD_CARDS.map((c) => c.id),
+        cardOrder: newOrder,
+      });
+    },
+    [settingsCardOrder, user, saveSettings, dashboardSettings]
+  );
 
   // Handle card toggle
   const handleToggleCard = async (cardId: string) => {
@@ -1176,6 +1299,11 @@ function DashboardContent() {
           </div>
           )}
 
+          {/* Financial Snapshot Widget - T5 only */}
+          {widgets.financialSnapshot && isCardEnabled("financialSnapshot") && (
+            <FinancialSnapshotWidget />
+          )}
+
           {/* Email Widget */}
           {isCardEnabled("email") && user?.hasEmailAccess && (
             <EmailWidget />
@@ -1288,58 +1416,37 @@ function DashboardContent() {
             </div>
 
             <p className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-              Choose which cards to display on your dashboard. Your preferences are saved automatically.
+              Toggle cards on/off and drag to reorder. Changes are saved automatically.
             </p>
 
-            <div className="space-y-3 mb-6">
-              {DASHBOARD_CARDS.map((card) => {
-                const enabled = isCardEnabled(card.id);
-                // Hide cards based on RBAC permissions
-                if (card.id === "projects" && !widgets.activeProjects) return null;
-                if (card.id === "applications" && !widgets.recentApplications) return null;
-                if (card.id === "websiteMessages" && !widgets.websiteMessages) return null;
-                if (card.id === "hiringAnalytics" && !widgets.hiringAnalytics) return null;
-                if (card.id === "tenureCheckIns" && !widgets.tenureCheckins) return null;
-                if (card.id === "activityFeed" && !widgets.activityFeed) return null;
-                if (card.id === "email" && !user?.hasEmailAccess) return null;
-                return (
-                  <label
-                    key={card.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
-                      enabled
-                        ? isDark ? "bg-cyan-500/10 border-cyan-500/30" : "bg-blue-50 border-blue-200"
-                        : isDark ? "bg-slate-900/50 border-slate-700" : "bg-gray-50 border-gray-200"
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                        {card.label}
-                      </p>
-                      <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                        {card.description}
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <input
-                        type="checkbox"
-                        checked={enabled}
-                        onChange={() => handleToggleCard(card.id)}
-                        className="sr-only"
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={settingsCardOrder} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 mb-6">
+                  {settingsCardOrder.map((cardId) => {
+                    const card = DASHBOARD_CARDS.find((c) => c.id === cardId);
+                    if (!card) return null;
+                    // Hide cards based on RBAC permissions
+                    if (card.id === "projects" && !widgets.activeProjects) return null;
+                    if (card.id === "applications" && !widgets.recentApplications) return null;
+                    if (card.id === "websiteMessages" && !widgets.websiteMessages) return null;
+                    if (card.id === "hiringAnalytics" && !widgets.hiringAnalytics) return null;
+                    if (card.id === "tenureCheckIns" && !widgets.tenureCheckins) return null;
+                    if (card.id === "activityFeed" && !widgets.activityFeed) return null;
+                    if (card.id === "email" && !user?.hasEmailAccess) return null;
+                    if (card.id === "financialSnapshot" && !widgets.financialSnapshot) return null;
+                    return (
+                      <SortableCard
+                        key={card.id}
+                        card={card}
+                        enabled={isCardEnabled(card.id)}
+                        onToggle={() => handleToggleCard(card.id)}
+                        isDark={isDark}
                       />
-                      <div className={`relative w-11 h-6 rounded-full transition-colors ${
-                        enabled
-                          ? isDark ? "bg-cyan-500" : "bg-blue-500"
-                          : isDark ? "bg-slate-600" : "bg-gray-300"
-                      }`}>
-                        <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${
-                          enabled ? "translate-x-5" : "translate-x-0.5"
-                        }`} />
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-700">
               <button

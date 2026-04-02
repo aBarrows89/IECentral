@@ -178,6 +178,7 @@ export interface MenuPermissions {
   // Tools
   dealerRebates: boolean;
   dunlopReporting: boolean;
+  wtdCommission: boolean;
   tireTrackAdmin: boolean;
   iePriceSystem: boolean;
 }
@@ -267,6 +268,7 @@ export function getMenuPermissions(user: PermissionUser): MenuPermissions {
     // Tools - T2+
     dealerRebates: tier >= 2,
     dunlopReporting: tier >= 4, // T4+ (Admin: full access, Manager: via override)
+    wtdCommission: tier >= 4, // T4+ default (lower tiers via access override list)
     tireTrackAdmin: tier >= 2,
     iePriceSystem: tier >= 2,
   };
@@ -473,6 +475,7 @@ export interface DashboardWidgetPermissions {
   hiringAnalytics: boolean;
   activityFeed: boolean;
   tenureCheckins: boolean;
+  financialSnapshot: boolean;
 }
 
 export function getDashboardWidgetPermissions(user: PermissionUser): DashboardWidgetPermissions {
@@ -485,6 +488,7 @@ export function getDashboardWidgetPermissions(user: PermissionUser): DashboardWi
     hiringAnalytics: tier >= 2, // T2+
     activityFeed: tier >= 2, // T2+
     tenureCheckins: tier >= 2, // T2+
+    financialSnapshot: tier >= 5, // T5 only (super admin)
   };
 }
 
@@ -604,6 +608,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   { key: "dunlopReporting.envToggle", label: "Dunlop Env Toggle", description: "Switch between dev and prod SFTP environments", category: "documents" },
   { key: "dunlopReporting.rerun", label: "Dunlop Re-run", description: "Re-run a previous Dunlop sellout submission", category: "documents" },
   { key: "dunlopReporting.deleteHistory", label: "Dunlop Delete History", description: "Delete Dunlop run history entries", category: "documents" },
+  { key: "menu.wtdCommission", label: "WTD Commission", description: "Access WTD commission report tool", category: "documents" },
   { key: "menu.tireTrackAdmin", label: "TireTrack Admin", description: "Access TireTrack admin panel", category: "documents" },
   { key: "menu.iePriceSystem", label: "IE Price System", description: "Access IE Price System tool", category: "documents" },
   { key: "dealerRebates.deactivateDealers", label: "Deactivate Dealers", description: "Deactivate or reactivate dealers in the rebate tool", category: "documents" },
@@ -617,6 +622,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   { key: "dashboard.hiringAnalytics", label: "Hiring Analytics Widget", description: "Show hiring analytics on dashboard", category: "reports" },
   { key: "dashboard.activityFeed", label: "Activity Feed Widget", description: "Show activity feed on dashboard", category: "reports" },
   { key: "dashboard.tenureCheckins", label: "Tenure Check-ins Widget", description: "Show tenure check-ins on dashboard", category: "reports" },
+  { key: "dashboard.financialSnapshot", label: "Financial Snapshot Widget", description: "Show financial KPIs on dashboard (super admin only)", category: "reports" },
 ];
 
 /**
@@ -773,6 +779,7 @@ export function canAccessRoute(user: PermissionUser, route: string): boolean {
     "/time-off": "menu.timeCorrections",
     "/dealer-rebates": "menu.dealerRebates",
     "/dunlop-reporting": "menu.dunlopReporting",
+    "/tools/wtd-commission": "menu.wtdCommission",
   };
 
   // Check exact match first

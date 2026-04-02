@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/sales/refresh",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

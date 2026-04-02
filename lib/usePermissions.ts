@@ -173,6 +173,7 @@ export function usePermissions(): UsePermissionsResult {
       hiringAnalytics: false,
       activityFeed: false,
       tenureCheckins: false,
+      financialSnapshot: false,
     },
     canAccessRoute: () => false,
     getAccessibleLocations: () => [],

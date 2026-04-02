@@ -105,6 +105,7 @@ import type * as timeOffRequests from "../timeOffRequests.js";
 import type * as timesheetApprovals from "../timesheetApprovals.js";
 import type * as webPush from "../webPush.js";
 import type * as writeUps from "../writeUps.js";
+import type * as wtdCommission from "../wtdCommission.js";
 
 import type {
   ApiFromModules,
@@ -210,6 +211,7 @@ declare const fullApi: ApiFromModules<{
   timesheetApprovals: typeof timesheetApprovals;
   webPush: typeof webPush;
   writeUps: typeof writeUps;
+  wtdCommission: typeof wtdCommission;
 }>;
 
 /**

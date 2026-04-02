@@ -3074,6 +3074,28 @@ export default defineSchema({
     .index("by_category", ["category"])
     .index("by_active", ["isActive"]),
 
+  // ============ WTD COMMISSION REPORT ============
+  wtdCommissionCustomers: defineTable({
+    customerName: v.string(),
+    customerNumber: v.string(),
+    qualifyingDclasses: v.array(v.string()),
+    qualifyingBrands: v.array(v.string()), // Brand codes; includes "ALL" for all brands
+    commissionType: v.string(), // "percentage" | "flat"
+    commissionValue: v.number(), // Percentage (e.g. 5 for 5%) or flat dollar amount per unit
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_customer_number", ["customerNumber"])
+    .index("by_active", ["isActive"]),
+
+  wtdCommissionAccess: defineTable({
+    userIds: v.array(v.id("users")), // Users granted access regardless of RBAC tier
+    updatedBy: v.id("users"),
+    updatedAt: v.number(),
+  }),
+
   // ============ WEB PUSH SUBSCRIPTIONS ============
   webPushSubscriptions: defineTable({
     userId: v.id("users"),
