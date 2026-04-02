@@ -120,7 +120,7 @@ export default function WTDCommissionSetupPage() {
       customerName: c.customerName,
       customerNumber: c.customerNumber,
       dclassInput: "",
-      dclasses: [...c.qualifyingDclasses],
+      dclasses: c.qualifyingDclasses.filter((d: string) => [".", "^", "[", "]", ":", "~", "-", "<"].includes(d)),
       brandInput: "",
       brands: hasAll ? [] : [...c.qualifyingBrands],
       allBrands: hasAll,
