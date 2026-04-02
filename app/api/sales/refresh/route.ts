@@ -53,13 +53,15 @@ function stripTrailingChars(s: string): string {
 }
 
 /**
- * Parse date string (M/D/YYYY) → { year, month, day }
+ * Parse date string (M/D/YY or M/D/YYYY) → { year, month, day }
  */
 function parseDate(dateStr: string): { year: number; month: number; day: number } | null {
-  const parts = dateStr.trim().split("/");
+  const clean = dateStr.replace(/"/g, "").trim();
+  const parts = clean.split("/");
   if (parts.length !== 3) return null;
-  const [m, d, y] = parts.map(Number);
-  if (!m || !d || !y) return null;
+  let [m, d, y] = parts.map(Number);
+  if (!m || !d || isNaN(y)) return null;
+  if (y < 100) y += 2000;
   return { year: y, month: m, day: d };
 }
 

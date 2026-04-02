@@ -43,13 +43,16 @@ const s3 = new S3Client({
 });
 
 /**
- * Parse a date string in M/D/YYYY format to a Date object.
+ * Parse a date string in M/D/YY or M/D/YYYY format to a Date object.
  */
 function parseActivityDate(dateStr: string): Date | null {
-  const parts = dateStr.trim().split("/");
+  const clean = dateStr.replace(/"/g, "").trim();
+  const parts = clean.split("/");
   if (parts.length !== 3) return null;
-  const [m, d, y] = parts.map(Number);
-  if (!m || !d || !y) return null;
+  let [m, d, y] = parts.map(Number);
+  if (!m || !d || isNaN(y)) return null;
+  // Handle 2-digit year
+  if (y < 100) y += 2000;
   return new Date(y, m - 1, d);
 }
 
