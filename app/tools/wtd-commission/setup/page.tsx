@@ -320,10 +320,16 @@ export default function WTDCommissionSetupPage() {
                     <div>
                       <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Qualifying Item Suffixes</label>
                       <p className={`text-[11px] mb-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Item ID ending character determines product ownership</p>
-                      <div className="flex gap-3">
+                      <div className="flex flex-wrap gap-2">
                         {[
                           { value: ".", label: '. (dot)' },
                           { value: "^", label: '^ (caret)' },
+                          { value: "[", label: '[ (bracket)' },
+                          { value: "]", label: '] (bracket)' },
+                          { value: ":", label: ': (colon)' },
+                          { value: "~", label: '~ (tilde)' },
+                          { value: "-", label: '- (dash)' },
+                          { value: "<", label: '< (angle)' },
                         ].map((suffix) => (
                           <label key={suffix.value} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
                             form.dclasses.includes(suffix.value)
