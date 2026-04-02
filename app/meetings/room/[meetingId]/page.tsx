@@ -217,16 +217,15 @@ export default function MeetingRoomPage() {
 
     async function join() {
       try {
-        // Start the meeting if host and not yet active
+        // Start + join in parallel when host; just join otherwise
         const isHost = String(meeting!.hostId) === String(user!._id);
+        const promises: Promise<unknown>[] = [
+          joinMeeting({ meetingId: typedMeetingId, userId: user!._id }),
+        ];
         if (isHost && (meeting!.status === "lobby" || meeting!.status === "scheduled")) {
-          await startMeeting({ meetingId: typedMeetingId });
+          promises.push(startMeeting({ meetingId: typedMeetingId }));
         }
-
-        await joinMeeting({
-          meetingId: typedMeetingId,
-          userId: user!._id,
-        });
+        await Promise.all(promises);
         setHasJoined(true);
       } catch (err) {
         console.error("Failed to join meeting:", err);

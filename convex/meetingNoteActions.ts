@@ -3,7 +3,6 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
-import Anthropic from "@anthropic-ai/sdk";
 import { Id } from "./_generated/dataModel";
 
 export const transcribeAndGenerateNotes = action({
@@ -112,6 +111,7 @@ export const transcribeAndGenerateNotes = action({
           keyTopics: [],
         });
       } else {
+        const { default: Anthropic } = await import("@anthropic-ai/sdk");
         const anthropic = new Anthropic({
           apiKey: process.env.ANTHROPIC_API_KEY,
         });
