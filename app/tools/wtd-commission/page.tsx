@@ -133,12 +133,9 @@ export default function WTDCommissionReportPage() {
           // Must match customer number (account ID)
           if (row.accountId.toUpperCase() !== config.customerNumber.toUpperCase()) return false;
 
-          // Item ID must end in . or ^
-          if (!row.itemId.endsWith(".") && !row.itemId.endsWith("^")) return false;
-
-          // Dclass must match
+          // Item ID must end with a qualifying suffix (. or ^ etc)
           if (config.qualifyingDclasses.length > 0) {
-            if (!config.qualifyingDclasses.some((d) => d.toUpperCase() === row.dclass.toUpperCase())) return false;
+            if (!config.qualifyingDclasses.some((suffix: string) => row.itemId.endsWith(suffix))) return false;
           }
 
           // Brand must match (unless "ALL")

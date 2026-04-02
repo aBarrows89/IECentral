@@ -316,36 +316,36 @@ export default function WTDCommissionSetupPage() {
                       />
                     </div>
 
-                    {/* Qualifying Dclasses */}
+                    {/* Qualifying Item Suffixes */}
                     <div>
-                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Qualifying Dclasses</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={form.dclassInput}
-                          onChange={(e) => setForm((f) => ({ ...f, dclassInput: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddDclass(); } }}
-                          className={`flex-1 px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                          placeholder="Type and press Enter"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddDclass}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                        >
-                          Add
-                        </button>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Qualifying Item Suffixes</label>
+                      <p className={`text-[11px] mb-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Item ID ending character determines product ownership</p>
+                      <div className="flex gap-3">
+                        {[
+                          { value: ".", label: '. (dot)' },
+                          { value: "^", label: '^ (caret)' },
+                        ].map((suffix) => (
+                          <label key={suffix.value} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                            form.dclasses.includes(suffix.value)
+                              ? isDark ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" : "bg-emerald-100 border-emerald-300 text-emerald-700"
+                              : isDark ? "bg-slate-900 border-slate-600 text-slate-400" : "bg-white border-gray-300 text-gray-500"
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={form.dclasses.includes(suffix.value)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm((f) => ({ ...f, dclasses: [...f.dclasses, suffix.value] }));
+                                } else {
+                                  setForm((f) => ({ ...f, dclasses: f.dclasses.filter((d) => d !== suffix.value) }));
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <span className="text-sm font-mono font-bold">{suffix.label}</span>
+                          </label>
+                        ))}
                       </div>
-                      {form.dclasses.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {form.dclasses.map((d) => (
-                            <span key={d} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-700"}`}>
-                              {d}
-                              <button onClick={() => handleRemoveDclass(d)} className="hover:text-red-400">&times;</button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     {/* Qualifying Brands */}
@@ -489,8 +489,8 @@ export default function WTDCommissionSetupPage() {
                           </div>
                           <div className={`text-xs space-y-0.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                             <p>
-                              <span className="font-medium">Dclasses:</span>{" "}
-                              {c.qualifyingDclasses.length > 0 ? c.qualifyingDclasses.join(", ") : "None"}
+                              <span className="font-medium">Item Suffixes:</span>{" "}
+                              {c.qualifyingDclasses.length > 0 ? c.qualifyingDclasses.map((d: string) => d === "." ? ". (dot)" : d === "^" ? "^ (caret)" : d).join(", ") : "None"}
                             </p>
                             <p>
                               <span className="font-medium">Brands:</span>{" "}
