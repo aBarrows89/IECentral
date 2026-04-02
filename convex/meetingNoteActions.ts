@@ -67,12 +67,46 @@ export const transcribeAndGenerateNotes = action({
         console.error("OPENAI_API_KEY not configured - using placeholder transcript");
         transcript = "[Transcription unavailable - OPENAI_API_KEY not configured. Audio was recorded successfully.]";
       } else {
-        const formData = new FormData();
-        const audioBlob = new Blob([audioBuffer], { type: "audio/webm" });
-        formData.append("file", audioBlob, "meeting-audio.webm");
-        formData.append("model", "whisper-1");
-        formData.append("response_format", "text");
-        formData.append("language", "en");
+        // Build multipart form data manually (Blob/FormData unavailable in Convex runtime)
+        const boundary = "----ConvexBoundary" + Date.now().toString(36);
+        const audioBytes = new Uint8Array(audioBuffer);
+
+        const parts: Uint8Array[] = [];
+        const enc = new TextEncoder();
+
+        // File part
+        parts.push(enc.encode(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="meeting-audio.webm"\r\nContent-Type: audio/webm\r\n\r\n`
+        ));
+        parts.push(audioBytes);
+        parts.push(enc.encode("\r\n"));
+
+        // Model part
+        parts.push(enc.encode(
+          `--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`
+        ));
+
+        // Response format part
+        parts.push(enc.encode(
+          `--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\ntext\r\n`
+        ));
+
+        // Language part
+        parts.push(enc.encode(
+          `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nen\r\n`
+        ));
+
+        // Closing boundary
+        parts.push(enc.encode(`--${boundary}--\r\n`));
+
+        // Concatenate all parts
+        const totalLength = parts.reduce((sum, p) => sum + p.length, 0);
+        const body = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const part of parts) {
+          body.set(part, offset);
+          offset += part.length;
+        }
 
         const whisperResponse = await fetch(
           "https://api.openai.com/v1/audio/transcriptions",
@@ -80,8 +114,9 @@ export const transcribeAndGenerateNotes = action({
             method: "POST",
             headers: {
               Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              "Content-Type": `multipart/form-data; boundary=${boundary}`,
             },
-            body: formData,
+            body: body,
           }
         );
 
