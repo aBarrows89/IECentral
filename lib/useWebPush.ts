@@ -79,7 +79,7 @@ export function useWebPush(userId: Id<"users"> | undefined) {
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
+        applicationServerKey,
       });
 
       // Extract keys
