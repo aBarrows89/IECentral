@@ -57,8 +57,66 @@ export default function MeetingNotesPage() {
   });
   const participants = useQuery(api.meetingParticipants.getByMeeting, { meetingId: typedMeetingId });
   const toggleActionItem = useMutation(api.meetingNotes.toggleActionItem);
+  const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
+  const saveToDocHub = useMutation(api.meetingNotes.saveToDocHub);
 
   const [showTranscript, setShowTranscript] = useState(false);
+  const [savingToDocHub, setSavingToDocHub] = useState(false);
+  const [savedToDocHub, setSavedToDocHub] = useState(false);
+
+  const handleSaveToDocHub = async () => {
+    if (!notes || !meeting || !user || notes.status !== "complete") return;
+    setSavingToDocHub(true);
+    try {
+      // Generate HTML
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${meeting.title} - Meeting Notes</title>
+<style>body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px 20px;color:#333}
+h1{font-size:24px;border-bottom:2px solid #10b981;padding-bottom:8px}
+h2{font-size:18px;margin-top:24px;color:#1f2937}
+.meta{color:#6b7280;font-size:14px;margin-bottom:20px}
+.summary{line-height:1.7;white-space:pre-wrap}
+.action-item{padding:8px 0;border-bottom:1px solid #e5e7eb}
+.action-item .assignee{color:#0891b2;font-size:13px}
+.decision,.followup{padding:4px 0}
+.transcript{white-space:pre-wrap;color:#6b7280;font-size:13px;line-height:1.6;margin-top:8px;padding:16px;background:#f9fafb;border-radius:8px}
+</style></head><body>
+<h1>${meeting.title}</h1>
+<div class="meta">
+  <div>Date: ${meeting.startedAt ? new Date(meeting.startedAt).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "N/A"}</div>
+  ${notes.duration ? `<div>Duration: ${Math.floor(notes.duration / 60)} minutes</div>` : ""}
+</div>
+${notes.summary ? `<h2>Summary</h2><div class="summary">${notes.summary}</div>` : ""}
+${notes.actionItems?.length ? `<h2>Action Items</h2>${notes.actionItems.map((a: { text: string; assignee?: string; completed: boolean }) => `<div class="action-item">${a.completed ? "&#9745;" : "&#9744;"} ${a.text}${a.assignee ? ` <span class="assignee">— ${a.assignee}</span>` : ""}</div>`).join("")}` : ""}
+${notes.decisions?.length ? `<h2>Key Decisions</h2>${notes.decisions.map((d: string) => `<div class="decision">• ${d}</div>`).join("")}` : ""}
+${notes.followUps?.length ? `<h2>Follow-ups</h2>${notes.followUps.map((f: string) => `<div class="followup">• ${f}</div>`).join("")}` : ""}
+${notes.transcript ? `<h2>Transcript</h2><div class="transcript">${notes.transcript}</div>` : ""}
+</body></html>`;
+
+      // Upload to Convex storage
+      const uploadUrl = await generateUploadUrl();
+      const blob = new Blob([html], { type: "text/html" });
+      const uploadRes = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": "text/html" }, body: blob });
+      if (!uploadRes.ok) throw new Error("Failed to upload");
+      const { storageId } = await uploadRes.json();
+
+      // Save document with auto-created folder
+      await saveToDocHub({
+        meetingTitle: meeting.title,
+        fileId: storageId,
+        fileSize: blob.size,
+        userId: user._id,
+        userName: user.name || "Unknown",
+      });
+
+      setSavedToDocHub(true);
+    } catch (err) {
+      console.error("Failed to save to DocHub:", err);
+      alert("Failed to save to DocHub. Please try again.");
+    } finally {
+      setSavingToDocHub(false);
+    }
+  };
 
   // Loading state
   if (meeting === undefined || notes === undefined) {
@@ -142,6 +200,20 @@ export default function MeetingNotesPage() {
                   Meeting Notes
                 </p>
               </div>
+              {/* Save to DocHub button */}
+              {notes?.status === "complete" && (
+                <button
+                  onClick={handleSaveToDocHub}
+                  disabled={savingToDocHub || savedToDocHub}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                    savedToDocHub
+                      ? isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                      : isDark ? "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30" : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                  }`}
+                >
+                  {savedToDocHub ? "Saved to DocHub" : savingToDocHub ? "Saving..." : "Save to DocHub"}
+                </button>
+              )}
             </div>
 
             {/* Meeting Info Card */}

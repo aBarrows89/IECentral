@@ -236,6 +236,74 @@ export const toggleActionItem = mutation({
   },
 });
 
+// ============ SAVE TO DOCHUB ============
+
+export const saveToDocHub = mutation({
+  args: {
+    meetingTitle: v.string(),
+    fileId: v.id("_storage"),
+    fileSize: v.number(),
+    userId: v.id("users"),
+    userName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Find or create "Meeting Notes" folder
+    const existingFolders = await ctx.db
+      .query("documentFolders")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("name"), "Meeting Notes"),
+          q.eq(q.field("isActive"), true)
+        )
+      )
+      .collect();
+
+    let folderId: Id<"documentFolders">;
+    if (existingFolders.length > 0) {
+      folderId = existingFolders[0]._id;
+    } else {
+      folderId = await ctx.db.insert("documentFolders", {
+        name: "Meeting Notes",
+        description: "Auto-generated meeting notes from IE Central meetings",
+        visibility: "private",
+        createdBy: args.userId,
+        createdByName: args.userName,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Create document
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      year: "numeric", month: "short", day: "numeric",
+    });
+    const fileName = `${args.meetingTitle} - ${dateStr}.html`;
+
+    const docId = await ctx.db.insert("documents", {
+      name: `${args.meetingTitle} - Notes`,
+      description: `Meeting notes generated on ${dateStr}`,
+      category: "other",
+      folderId,
+      fileId: args.fileId,
+      fileName,
+      fileType: "text/html",
+      fileSize: args.fileSize,
+      uploadedBy: args.userId,
+      uploadedByName: args.userName,
+      visibility: "private",
+      isActive: true,
+      downloadCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return docId;
+  },
+});
+
 // ============ INTERNAL MUTATIONS (for actions) ============
 
 export const internalUpdateTranscript = internalMutation({
