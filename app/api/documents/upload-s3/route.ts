@@ -9,7 +9,17 @@ const REGION = process.env.AWS_REGION || "us-east-1";
 // Import from components/dochub/types.ts instead: S3_SIZE_THRESHOLD
 const S3_SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
-const s3 = new S3Client({ region: REGION });
+const s3 = new S3Client({
+  region: REGION,
+  ...(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+    ? {
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+        },
+      }
+    : {}),
+});
 
 export async function POST(request: NextRequest) {
   try {
