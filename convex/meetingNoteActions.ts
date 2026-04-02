@@ -111,11 +111,7 @@ export const transcribeAndGenerateNotes = action({
           keyTopics: [],
         });
       } else {
-        const anthropicModule = await import("@anthropic-ai/sdk");
-        const AnthropicClass = anthropicModule.default || anthropicModule.Anthropic || anthropicModule;
-        const anthropic = new AnthropicClass({
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        });
+        const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
         const prompt = `You are an AI meeting assistant. Analyze the following meeting transcript and generate comprehensive meeting notes.
 
@@ -152,19 +148,29 @@ IMPORTANT RULES:
 8. Return ONLY valid JSON, no other text`;
 
         try {
-          const response = await anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 4096,
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
+          // Call Anthropic API directly (SDK has bundling issues in Convex)
+          const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": ANTHROPIC_API_KEY!,
+              "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 4096,
+              messages: [{ role: "user", content: prompt }],
+            }),
           });
 
-          const content = response.content[0];
-          if (content.type !== "text") {
+          if (!claudeResponse.ok) {
+            const errText = await claudeResponse.text();
+            throw new Error(`Claude API error: ${claudeResponse.status} - ${errText}`);
+          }
+
+          const response = await claudeResponse.json();
+          const content = response.content?.[0];
+          if (!content || content.type !== "text") {
             throw new Error("Unexpected response type from Claude");
           }
 

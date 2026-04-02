@@ -236,23 +236,22 @@ export default function MeetingRoomPage() {
     join();
   }, [user, meeting, hasJoined, joinMeeting, startMeeting, typedMeetingId]);
 
-  // Sync media state to Convex
+  // Sync media state to Convex (debounced to avoid rapid mutation calls)
+  const mediaStateRef = useRef({ isAudioEnabled, isVideoEnabled, isScreenSharing });
+  mediaStateRef.current = { isAudioEnabled, isVideoEnabled, isScreenSharing };
+
   useEffect(() => {
     if (!myParticipant) return;
-
-    updateMediaState({
-      participantId: myParticipant._id,
-      isMuted: !isAudioEnabled,
-      isCameraOff: !isVideoEnabled,
-      isScreenSharing,
-    }).catch(() => {});
-  }, [
-    isAudioEnabled,
-    isVideoEnabled,
-    isScreenSharing,
-    myParticipant,
-    updateMediaState,
-  ]);
+    const timer = setTimeout(() => {
+      updateMediaState({
+        participantId: myParticipant._id,
+        isMuted: !mediaStateRef.current.isAudioEnabled,
+        isCameraOff: !mediaStateRef.current.isVideoEnabled,
+        isScreenSharing: mediaStateRef.current.isScreenSharing,
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isAudioEnabled, isVideoEnabled, isScreenSharing, myParticipant, updateMediaState]);
 
   // Handle leaving
   const handleLeave = useCallback(async () => {
