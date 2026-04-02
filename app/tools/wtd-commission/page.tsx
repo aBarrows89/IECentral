@@ -41,6 +41,7 @@ interface CustomerConfig {
 
 interface CommissionLineItem {
   orderNo: string;
+  brand: string;
   mfgItemId: string;
   description: string;
   qty: number;
@@ -158,6 +159,7 @@ export default function WTDCommissionReportPage() {
 
           return {
             orderNo: row.orderNo,
+            brand: row.brand,
             mfgItemId: row.mfgItemId,
             description: row.description,
             qty: Math.abs(row.qty),
@@ -222,15 +224,16 @@ export default function WTDCommissionReportPage() {
 
       autoTable(doc, {
         startY: y,
-        head: [["Order #", "Mfg Code", "Description", "Qty", "Commission"]],
+        head: [["Order #", "Brand", "Mfg Code", "Description", "Qty", "Commission"]],
         body: report.lineItems.map((li) => [
           li.orderNo,
+          li.brand,
           li.mfgItemId,
           li.description,
           String(li.qty),
           `$${li.commissionAmount.toFixed(2)}`,
         ]),
-        foot: [["", "", "", "Grand Total", `$${report.grandTotal.toFixed(2)}`]],
+        foot: [["", "", "", "", "Grand Total", `$${report.grandTotal.toFixed(2)}`]],
         theme: "grid",
         headStyles: { fillColor: [16, 185, 129] },
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
@@ -259,9 +262,10 @@ export default function WTDCommissionReportPage() {
           }`,
         ],
         [],
-        ["Order #", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
+        ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
         ...report.lineItems.map((li) => [
           li.orderNo,
+          li.brand,
           li.mfgItemId,
           li.description,
           li.qty,
@@ -269,13 +273,13 @@ export default function WTDCommissionReportPage() {
           li.commissionAmount,
         ]),
         [],
-        ["", "", "", "", "Grand Total", report.grandTotal],
+        ["", "", "", "", "", "Grand Total", report.grandTotal],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       // Set column widths
       ws["!cols"] = [
-        { wch: 12 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 },
+        { wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 },
       ];
 
       const safeName = report.customerName.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 28);
@@ -461,6 +465,7 @@ export default function WTDCommissionReportPage() {
                             <thead>
                               <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
                                 <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Order #</th>
+                                <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Brand</th>
                                 <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Mfg Code</th>
                                 <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Description</th>
                                 <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Qty</th>
@@ -474,6 +479,7 @@ export default function WTDCommissionReportPage() {
                                   className={`border-b ${isDark ? "border-slate-700/50 hover:bg-slate-700/30" : "border-gray-100 hover:bg-gray-50"}`}
                                 >
                                   <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.orderNo}</td>
+                                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.brand}</td>
                                   <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.mfgItemId}</td>
                                   <td className={`px-4 py-2.5 ${isDark ? "text-white" : "text-gray-900"}`}>{li.description}</td>
                                   <td className={`px-4 py-2.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.qty}</td>
@@ -485,7 +491,7 @@ export default function WTDCommissionReportPage() {
                             </tbody>
                             <tfoot>
                               <tr className={isDark ? "bg-slate-800" : "bg-gray-50"}>
-                                <td colSpan={4} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
+                                <td colSpan={5} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
                                   Grand Total
                                 </td>
                                 <td className={`px-4 py-3 text-right font-bold text-lg ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
