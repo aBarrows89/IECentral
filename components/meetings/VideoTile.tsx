@@ -91,7 +91,7 @@ export default function VideoTile({
         autoPlay
         playsInline
         muted={isLocal}
-        className={`w-full h-full object-cover ${
+        className={`w-full h-full ${isScreenSharing ? "object-contain bg-black" : "object-cover"} ${
           isCameraOff && !isScreenSharing ? "hidden" : ""
         } ${isLocal && !isScreenSharing ? "-scale-x-100" : ""}`}
       />

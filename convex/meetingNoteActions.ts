@@ -111,8 +111,9 @@ export const transcribeAndGenerateNotes = action({
           keyTopics: [],
         });
       } else {
-        const { default: Anthropic } = await import("@anthropic-ai/sdk");
-        const anthropic = new Anthropic({
+        const anthropicModule = await import("@anthropic-ai/sdk");
+        const AnthropicClass = anthropicModule.default || anthropicModule.Anthropic || anthropicModule;
+        const anthropic = new AnthropicClass({
           apiKey: process.env.ANTHROPIC_API_KEY,
         });
 
