@@ -50,6 +50,13 @@ function ScannerDetailContent() {
   const [repairRequired, setRepairRequired] = useState(false);
   const [readyForReassignment, setReadyForReassignment] = useState(true);
 
+  // PIN change state
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
+
   // Provision state
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [provisionStep, setProvisionStep] = useState<"confirm" | "generating" | "code" | "error">("confirm");
@@ -66,6 +73,7 @@ function ScannerDetailContent() {
   const returnWithCheck = useMutation(api.equipment.returnEquipmentWithCheck);
   const unassignScanner = useMutation(api.equipment.unassignScanner);
   const storePendingProvision = useMutation(api.scannerMdm.storePendingProvision);
+  const updateScanner = useMutation(api.equipment.updateScanner);
 
   const canEdit = user?.role === "super_admin" || user?.role === "admin" || user?.role === "warehouse_director" || user?.role === "warehouse_manager";
   const isSuperAdmin = user?.role === "super_admin";
@@ -296,7 +304,6 @@ function ScannerDetailContent() {
                       { label: "Agent", value: scanner.agentVersion ? `v${scanner.agentVersion}` : null },
                       { label: "IoT Name", value: scanner.iotThingName },
                       { label: "MDM", value: scanner.mdmStatus },
-                      { label: "PIN", value: scanner.pin },
                       { label: "Status", value: scanner.status },
                     ].filter((r) => r.value).map(({ label, value }) => (
                       <div key={label} className="flex items-center justify-between">
@@ -304,6 +311,21 @@ function ScannerDetailContent() {
                         <span className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-gray-700"}`}>{value}</span>
                       </div>
                     ))}
+                    {/* PIN with change button */}
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] ${isDark ? "text-slate-600" : "text-gray-400"}`}>PIN</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-mono font-medium ${isDark ? "text-slate-300" : "text-gray-700"}`}>{scanner.pin || "Not set"}</span>
+                        {canEdit && (
+                          <button
+                            onClick={() => { setShowPinModal(true); setNewPin(""); setConfirmPin(""); setPinError(""); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                          >
+                            Change
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -741,6 +763,80 @@ function ScannerDetailContent() {
                   <button onClick={handleReturn} disabled={sending}
                     className={`px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${isDark ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-amber-500 text-white hover:bg-amber-600"}`}>
                     {sending ? "Processing..." : "Complete Return"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PIN Change Modal */}
+          {showPinModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPinModal(false)}>
+              <div className={`w-full max-w-sm rounded-xl p-6 mx-4 ${isDark ? "bg-slate-800" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
+                <h3 className={`text-lg font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Change PIN</h3>
+                <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                  {scanner?.iotThingName || scanner?.serialNumber || "Scanner"} — minimum 4 numeric digits
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>New PIN</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={newPin}
+                      onChange={(e) => { setNewPin(e.target.value.replace(/\D/g, "")); setPinError(""); }}
+                      maxLength={8}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm font-mono tracking-widest text-center text-lg ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                      placeholder="0000"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Confirm PIN</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={confirmPin}
+                      onChange={(e) => { setConfirmPin(e.target.value.replace(/\D/g, "")); setPinError(""); }}
+                      maxLength={8}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm font-mono tracking-widest text-center text-lg ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                      placeholder="0000"
+                    />
+                  </div>
+
+                  {pinError && (
+                    <p className="text-xs text-red-400">{pinError}</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-5">
+                  <button
+                    onClick={() => setShowPinModal(false)}
+                    className={`px-4 py-2 text-sm rounded-lg ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-600 hover:bg-gray-100"}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={savingPin}
+                    onClick={async () => {
+                      if (newPin.length < 4) { setPinError("PIN must be at least 4 digits"); return; }
+                      if (newPin !== confirmPin) { setPinError("PINs do not match"); return; }
+                      setSavingPin(true);
+                      try {
+                        await updateScanner({ id: scannerId, pin: newPin, userId: user?._id });
+                        setShowPinModal(false);
+                      } catch (err) {
+                        setPinError(err instanceof Error ? err.message : "Failed to update PIN");
+                      } finally {
+                        setSavingPin(false);
+                      }
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${isDark ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-blue-500 text-white hover:bg-blue-600"}`}
+                  >
+                    {savingPin ? "Saving..." : "Update PIN"}
                   </button>
                 </div>
               </div>
