@@ -122,12 +122,23 @@ export async function GET(request: NextRequest) {
     const targetDate = yesterday.toISOString().split("T")[0];
     const targetMonth = `${yesterday.getFullYear()}${String(yesterday.getMonth() + 1).padStart(2, "0")}`;
 
-    // Find latest OEA07V file for the month
-    const prefix = `${S3_PREFIX}/${targetMonth}/`;
-    const listRes = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix }));
-    const matches = (listRes.Contents || [])
-      .filter(obj => obj.Key?.toLowerCase().includes("iet-oea07v") && obj.Key?.toLowerCase().endsWith(".csv"))
-      .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+    // Find latest OEA07V file — check current month, then previous month
+    // (OEA07V files are cumulative and may contain cross-month data)
+    const prevMonth = new Date(yesterday);
+    prevMonth.setMonth(prevMonth.getMonth() - 1);
+    const prevMonthStr = `${prevMonth.getFullYear()}${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+
+    let matches: { Key?: string; LastModified?: Date }[] = [];
+    for (const month of [targetMonth, prevMonthStr]) {
+      const prefix = `${S3_PREFIX}/${month}/`;
+      const listRes = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix }));
+      const found = (listRes.Contents || [])
+        .filter(obj => obj.Key?.toLowerCase().includes("iet-oea07v") && obj.Key?.toLowerCase().endsWith(".csv"));
+      if (found.length > 0) {
+        matches = found.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+        break;
+      }
+    }
 
     if (matches.length === 0) {
       // No OEA07V file — save "no data" for all customers
