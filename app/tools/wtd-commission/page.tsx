@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
@@ -13,34 +13,6 @@ import Link from "next/link";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
-interface S3Row {
-  itemId: string;
-  description: string;
-  dclass: string;
-  brand: string;
-  mfgItemId: string;
-  trnPur: string;
-  qty: number;
-  unitCost: number;
-  extCost: number;
-  unitSell: number;
-  accountId: string;
-  orderNo: string;
-  activityDate: string;
-  customerName: string;
-}
-
-interface CustomerConfig {
-  _id: string;
-  customerName: string;
-  customerNumber: string;
-  qualifyingDclasses: string[];
-  qualifyingBrands: string[];
-  commissionType: string;
-  commissionValue: number;
-  isActive: boolean;
-}
-
 interface CommissionLineItem {
   orderNo: string;
   brand: string;
@@ -51,16 +23,10 @@ interface CommissionLineItem {
   commissionAmount: number;
 }
 
-interface CustomerReport {
-  customerName: string;
-  customerNumber: string;
-  commissionType: string;
-  commissionValue: number;
-  lineItems: CommissionLineItem[];
-  grandTotal: number;
-}
-
-type RunState = "idle" | "loading" | "success" | "error";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ReportSummary = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ReportDetail = any;
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
@@ -69,286 +35,80 @@ export default function WTDCommissionReportPage() {
   const isDark = theme === "dark";
   const { user } = useAuth();
   const permissions = usePermissions();
-  const printRef = useRef<HTMLDivElement>(null);
 
-  const customers = useQuery(api.wtdCommission.getActiveCustomers);
   const hasOverrideAccess = useQuery(
     api.wtdCommission.checkAccess,
     user?._id ? { userId: user._id } : "skip"
   );
 
-  // Access: T4+ or on override list
   const canAccess = permissions.tier >= 4 || hasOverrideAccess === true;
 
-  const reportHistory = useQuery(api.wtdCommission.listReports);
-  const saveReport = useMutation(api.wtdCommission.saveReport);
+  const reportHistory = useQuery(api.wtdCommission.listReports) as ReportSummary[] | undefined;
   const deleteReport = useMutation(api.wtdCommission.deleteReport);
 
-  const [activeTab, setActiveTab] = useState<"generate" | "history">("generate");
-  // Auto-set to yesterday
-  const yesterday = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
-  }, []);
-  const [startDate] = useState(yesterday);
-  const [endDate] = useState(yesterday);
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [runState, setRunState] = useState<RunState>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [reports, setReports] = useState<CustomerReport[]>([]);
-  const [rawRowCount, setRawRowCount] = useState(0);
-  const [actualDateRange, setActualDateRange] = useState<{ earliest: string; latest: string } | null>(null);
   const [viewingReportId, setViewingReportId] = useState<string | null>(null);
 
-  // Load a historical report for viewing
   const viewingReport = useQuery(
     api.wtdCommission.getReport,
     viewingReportId ? { id: viewingReportId as Id<"wtdCommissionReports"> } : "skip"
-  );
+  ) as ReportDetail | undefined;
 
-  const typedCustomers = customers as CustomerConfig[] | undefined;
+  // Group reports by date for display
+  const reportsByDate = (reportHistory || []).reduce((acc: Record<string, ReportSummary[]>, r: ReportSummary) => {
+    const key = r.startDate;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(r);
+    return acc;
+  }, {} as Record<string, ReportSummary[]>);
 
-  const selectedCustomer = useMemo(() => {
-    if (!selectedCustomerId || !typedCustomers) return null;
-    return typedCustomers.find((c: CustomerConfig) => c._id === selectedCustomerId) ?? null;
-  }, [selectedCustomerId, typedCustomers]);
-
-  // ─── RUN REPORT ─────────────────────────────────────────────────────────
-
-  const handleRun = useCallback(async () => {
-    if (!startDate || !endDate || !typedCustomers || typedCustomers.length === 0) return;
-
-    setRunState("loading");
-    setErrorMsg("");
-    setReports([]);
-    setActualDateRange(null);
-
-    try {
-      // Fetch S3 data
-      const res = await fetch("/api/wtd-commission/s3-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate, endDate }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setRunState("error");
-        setErrorMsg(data.error || "Failed to fetch data from S3");
-        return;
-      }
-
-      const rows: S3Row[] = data.rows;
-      setRawRowCount(rows.length);
-
-      // Compute actual date range from pulled data
-      if (rows.length > 0) {
-        const dates = rows.map((r) => r.activityDate).filter(Boolean).sort();
-        setActualDateRange({ earliest: dates[0], latest: dates[dates.length - 1] });
-      }
-
-      // Filter and calculate for each active customer config (or selected one)
-      const configsToRun = selectedCustomerId
-        ? typedCustomers.filter((c: CustomerConfig) => c._id === selectedCustomerId)
-        : typedCustomers;
-
-      const generatedReports: CustomerReport[] = [];
-
-      for (const config of configsToRun) {
-        const qualifying = rows.filter((row) => {
-          // Must match customer number (account ID)
-          if (row.accountId.toUpperCase() !== config.customerNumber.toUpperCase()) return false;
-
-          // Item ID must end with a qualifying suffix (. or ^ etc)
-          if (config.qualifyingDclasses.length > 0) {
-            if (!config.qualifyingDclasses.some((suffix: string) => row.itemId.endsWith(suffix))) return false;
-          }
-
-          // Brand must match (unless "ALL")
-          if (!config.qualifyingBrands.includes("ALL")) {
-            if (!config.qualifyingBrands.some((b) => b.toUpperCase() === row.brand.toUpperCase())) return false;
-          }
-
-          return true;
-        });
-
-        const lineItems: CommissionLineItem[] = qualifying.map((row) => {
-          let commissionAmount: number;
-          if (config.commissionType === "percentage") {
-            // Commission based on Col M (Ext Cost FET In)
-            commissionAmount = row.extCost * (config.commissionValue / 100);
-          } else {
-            commissionAmount = Math.abs(row.qty) * config.commissionValue;
-          }
-
-          return {
-            orderNo: row.orderNo,
-            brand: row.brand,
-            mfgItemId: row.mfgItemId,
-            description: row.description,
-            qty: Math.abs(row.qty),
-            unitCost: row.unitCost,
-            commissionAmount: Math.round(commissionAmount * 100) / 100,
-          };
-        });
-
-        const grandTotal = lineItems.reduce((sum, li) => sum + li.commissionAmount, 0);
-
-        if (lineItems.length > 0) {
-          generatedReports.push({
-            customerName: config.customerName,
-            customerNumber: config.customerNumber,
-            commissionType: config.commissionType,
-            commissionValue: config.commissionValue,
-            lineItems,
-            grandTotal: Math.round(grandTotal * 100) / 100,
-          });
-        }
-      }
-
-      setReports(generatedReports);
-      setRunState("success");
-
-      // Auto-save each report to Convex history + S3
-      if (user?._id && generatedReports.length > 0) {
-        for (const report of generatedReports) {
-          // Save to Convex
-          await saveReport({
-            customerName: report.customerName,
-            customerNumber: report.customerNumber,
-            startDate,
-            endDate,
-            commissionType: report.commissionType,
-            commissionValue: report.commissionValue,
-            lineItems: report.lineItems,
-            grandTotal: report.grandTotal,
-            generatedBy: user._id,
-            generatedByName: user.name || "Unknown",
-          });
-
-          // Save to S3
-          fetch("/api/wtd-commission/save-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              customerNumber: report.customerNumber,
-              startDate,
-              endDate,
-              report: {
-                ...report,
-                generatedBy: user.name || "Unknown",
-                generatedAt: new Date().toISOString(),
-              },
-            }),
-          }).catch((err) => console.error("S3 report save failed:", err));
-        }
-      }
-    } catch (err) {
-      setRunState("error");
-      setErrorMsg(err instanceof Error ? err.message : "Unknown error");
-    }
-  }, [startDate, endDate, typedCustomers, selectedCustomerId, saveReport, user]);
+  const sortedDates = Object.keys(reportsByDate).sort((a, b) => b.localeCompare(a));
 
   // ─── EXPORTS ──────────────────────────────────────────────────────────────
 
-  const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
-
-  const handleExportPDF = useCallback(async () => {
+  const handleExportPDF = useCallback(async (report: ReportDetail) => {
     const { default: jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
-
     const doc = new jsPDF();
+    let y = 20;
+    doc.setFontSize(16);
+    doc.text("WTD Commission Report", 14, y); y += 8;
+    doc.setFontSize(11);
+    doc.text(`Customer: ${report.customerName} (${report.customerNumber})`, 14, y); y += 6;
+    doc.text(`Date: ${report.startDate}`, 14, y); y += 6;
+    const commLabel = report.commissionType === "percentage"
+      ? `${report.commissionValue}% of product cost` : `$${report.commissionValue.toFixed(2)} per unit`;
+    doc.text(`Commission: ${commLabel}`, 14, y); y += 10;
+    autoTable(doc, {
+      startY: y,
+      head: [["Order #", "Brand", "Mfg Code", "Description", "Qty", "Commission"]],
+      body: report.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, String(li.qty), `$${li.commissionAmount.toFixed(2)}`]),
+      foot: [["", "", "", "", "Grand Total", `$${report.grandTotal.toFixed(2)}`]],
+      theme: "grid",
+      headStyles: { fillColor: [16, 185, 129] },
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+      styles: { fontSize: 9 },
+    });
+    doc.save(`wtd-commission-${report.customerName}-${report.startDate}.pdf`);
+  }, []);
 
-    for (let i = 0; i < reports.length; i++) {
-      const report = reports[i];
-      if (i > 0) doc.addPage();
-
-      let y = 20;
-      doc.setFontSize(16);
-      doc.text(`WTD Commission Report`, 14, y);
-      y += 8;
-
-      doc.setFontSize(11);
-      doc.text(`Customer: ${report.customerName} (${report.customerNumber})`, 14, y);
-      y += 6;
-      doc.text(`Date Range: ${startDate} to ${endDate}`, 14, y);
-      y += 6;
-      const commLabel = report.commissionType === "percentage"
-        ? `${report.commissionValue}% of product cost`
-        : `$${report.commissionValue.toFixed(2)} per unit`;
-      doc.text(`Commission: ${commLabel}`, 14, y);
-      y += 10;
-
-      autoTable(doc, {
-        startY: y,
-        head: [["Order #", "Brand", "Mfg Code", "Description", "Qty", "Commission"]],
-        body: report.lineItems.map((li) => [
-          li.orderNo,
-          li.brand,
-          li.mfgItemId,
-          li.description,
-          String(li.qty),
-          `$${li.commissionAmount.toFixed(2)}`,
-        ]),
-        foot: [["", "", "", "", "Grand Total", `$${report.grandTotal.toFixed(2)}`]],
-        theme: "grid",
-        headStyles: { fillColor: [16, 185, 129] },
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
-        styles: { fontSize: 9 },
-      });
-    }
-
-    doc.save(`wtd-commission-${startDate}-to-${endDate}.pdf`);
-  }, [reports, startDate, endDate]);
-
-  const handleExportExcel = useCallback(async () => {
+  const handleExportExcel = useCallback(async (report: ReportDetail) => {
     const XLSX = await import("xlsx");
-
     const wb = XLSX.utils.book_new();
-
-    for (const report of reports) {
-      const sheetData = [
-        ["WTD Commission Report"],
-        [`Customer: ${report.customerName} (${report.customerNumber})`],
-        [`Date Range: ${startDate} to ${endDate}`],
-        [
-          `Commission: ${
-            report.commissionType === "percentage"
-              ? `${report.commissionValue}% of product cost`
-              : `$${report.commissionValue.toFixed(2)} per unit`
-          }`,
-        ],
-        [],
-        ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
-        ...report.lineItems.map((li) => [
-          li.orderNo,
-          li.brand,
-          li.mfgItemId,
-          li.description,
-          li.qty,
-          li.unitCost,
-          li.commissionAmount,
-        ]),
-        [],
-        ["", "", "", "", "", "Grand Total", report.grandTotal],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      // Set column widths
-      ws["!cols"] = [
-        { wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 },
-      ];
-
-      const safeName = report.customerName.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 28);
-      XLSX.utils.book_append_sheet(wb, ws, safeName);
-    }
-
-    XLSX.writeFile(wb, `wtd-commission-${startDate}-to-${endDate}.xlsx`);
-  }, [reports, startDate, endDate]);
+    const data = [
+      ["WTD Commission Report"],
+      [`Customer: ${report.customerName} (${report.customerNumber})`],
+      [`Date: ${report.startDate}`],
+      [],
+      ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
+      ...report.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, li.qty, li.unitCost, li.commissionAmount]),
+      [],
+      ["", "", "", "", "", "Grand Total", report.grandTotal],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws, report.customerName.slice(0, 28));
+    XLSX.writeFile(wb, `wtd-commission-${report.customerName}-${report.startDate}.xlsx`);
+  }, []);
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
 
@@ -387,366 +147,167 @@ export default function WTDCommissionReportPage() {
                 </div>
                 <div>
                   <h1 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>WTD Commission Report</h1>
-                  <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Generate commission detail reports for WTD</p>
+                  <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Daily automated commission reports — runs at 4 AM EST</p>
                 </div>
               </div>
               {permissions.tier >= 4 && (
                 <Link
                   href="/tools/wtd-commission/setup"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300"}`}
                 >
                   Setup
                 </Link>
               )}
             </div>
-            {/* Tabs */}
-            <div className="flex gap-1 mt-4">
-              {(["generate", "history"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => { setActiveTab(tab); setViewingReportId(null); }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                    activeTab === tab
-                      ? isDark ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                      : isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {tab === "generate" ? "Generate Report" : `History (${reportHistory?.length ?? 0})`}
-                </button>
-              ))}
-            </div>
           </header>
 
           <div className="max-w-6xl mx-auto px-6 py-6">
-            {/* ─── HISTORY TAB ─── */}
-            {activeTab === "history" && (
+            {/* Viewing a specific report */}
+            {viewingReportId && viewingReport ? (
               <div>
-                {viewingReportId && viewingReport ? (
-                  // Viewing a specific historical report
-                  <div>
-                    <button
-                      onClick={() => setViewingReportId(null)}
-                      className={`mb-4 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                    >
-                      &larr; Back to History
-                    </button>
-                    {/* Export buttons for historical report */}
-                    <div className={`flex gap-2 mb-4 ${isDark ? "" : ""}`}>
-                      <button
-                        onClick={() => window.print()}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                      >Print</button>
-                      <button
-                        onClick={async () => {
-                          if (!viewingReport) return;
-                          const { default: jsPDF } = await import("jspdf");
-                          const autoTable = (await import("jspdf-autotable")).default;
-                          const doc = new jsPDF();
-                          let y = 20;
-                          doc.setFontSize(16);
-                          doc.text("WTD Commission Report", 14, y); y += 8;
-                          doc.setFontSize(11);
-                          doc.text(`Customer: ${viewingReport.customerName} (${viewingReport.customerNumber})`, 14, y); y += 6;
-                          doc.text(`Date Range: ${viewingReport.startDate} to ${viewingReport.endDate}`, 14, y); y += 10;
-                          autoTable(doc, {
-                            startY: y,
-                            head: [["Order #", "Brand", "Mfg Code", "Description", "Qty", "Commission"]],
-                            body: viewingReport.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, String(li.qty), `$${li.commissionAmount.toFixed(2)}`]),
-                            foot: [["", "", "", "", "Grand Total", `$${viewingReport.grandTotal.toFixed(2)}`]],
-                            theme: "grid",
-                            headStyles: { fillColor: [16, 185, 129] },
-                            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
-                            styles: { fontSize: 9 },
-                          });
-                          doc.save(`wtd-commission-${viewingReport.startDate}-to-${viewingReport.endDate}.pdf`);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
-                      >Export PDF</button>
-                      <button
-                        onClick={async () => {
-                          if (!viewingReport) return;
-                          const XLSX = await import("xlsx");
-                          const wb = XLSX.utils.book_new();
-                          const data = [
-                            ["WTD Commission Report"],
-                            [`Customer: ${viewingReport.customerName} (${viewingReport.customerNumber})`],
-                            [`Date Range: ${viewingReport.startDate} to ${viewingReport.endDate}`],
-                            [],
-                            ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
-                            ...viewingReport.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, li.qty, li.unitCost, li.commissionAmount]),
-                            [],
-                            ["", "", "", "", "", "Grand Total", viewingReport.grandTotal],
-                          ];
-                          const ws = XLSX.utils.aoa_to_sheet(data);
-                          ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
-                          XLSX.utils.book_append_sheet(wb, ws, viewingReport.customerName.slice(0, 28));
-                          XLSX.writeFile(wb, `wtd-commission-${viewingReport.startDate}-to-${viewingReport.endDate}.xlsx`);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}
-                      >Export Excel</button>
-                    </div>
-                    <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-                      <div className={`px-6 py-4 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
-                        <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{viewingReport.customerName}</h2>
-                        <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                          <span>Account: {viewingReport.customerNumber}</span>
-                          <span>Date Range: {viewingReport.startDate} to {viewingReport.endDate}</span>
-                          <span>Commission: {viewingReport.commissionType === "percentage" ? `${viewingReport.commissionValue}% of product cost` : `$${viewingReport.commissionValue.toFixed(2)} per unit`}</span>
-                          <span>Generated: {new Date(viewingReport.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
-                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Order #</th>
-                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Brand</th>
-                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Mfg Code</th>
-                              <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Description</th>
-                              <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Qty</th>
-                              <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Commission</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {viewingReport.lineItems.map((li: CommissionLineItem, i: number) => (
-                              <tr key={i} className={`border-b ${isDark ? "border-slate-700/50 hover:bg-slate-700/30" : "border-gray-100 hover:bg-gray-50"}`}>
-                                <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.orderNo}</td>
-                                <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.brand}</td>
-                                <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.mfgItemId}</td>
-                                <td className={`px-4 py-2.5 ${isDark ? "text-white" : "text-gray-900"}`}>{li.description}</td>
-                                <td className={`px-4 py-2.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.qty}</td>
-                                <td className={`px-4 py-2.5 text-right font-medium ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${li.commissionAmount.toFixed(2)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className={isDark ? "bg-slate-800" : "bg-gray-50"}>
-                              <td colSpan={5} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Grand Total</td>
-                              <td className={`px-4 py-3 text-right font-bold text-lg ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${viewingReport.grandTotal.toFixed(2)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  // History list
-                  <>
-                    {!reportHistory || reportHistory.length === 0 ? (
-                      <div className={`rounded-xl border p-8 text-center ${isDark ? "bg-slate-800/30 border-slate-700 text-slate-400" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                        No saved reports yet. Generate a report to save it automatically.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {reportHistory.map((r) => (
-                          <div
-                            key={r._id}
-                            className={`rounded-xl border p-4 flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{r.customerName}</span>
-                                <span className={`px-2 py-0.5 rounded text-xs font-mono ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-600"}`}>{r.customerNumber}</span>
-                              </div>
-                              <div className={`text-xs space-x-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                                <span>{r.startDate} to {r.endDate}</span>
-                                <span>{r.lineItemCount} items</span>
-                                <span className={`font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${r.grandTotal.toFixed(2)}</span>
-                                <span>by {r.generatedByName}</span>
-                                <span>{new Date(r.createdAt).toLocaleDateString()}</span>
-                                <span className={`${isDark ? "text-slate-500" : "text-gray-400"}`}>expires {new Date(r.expiresAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setViewingReportId(r._id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
-                              >
-                                View
-                              </button>
-                              <button
-                                onClick={() => { if (confirm("Delete this report?")) deleteReport({ id: r._id }); }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ─── GENERATE TAB ─── */}
-            {activeTab === "generate" && <>
-            {/* Controls */}
-            <div className={`rounded-xl border p-5 mb-6 print:hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-              <div className="flex flex-wrap items-end gap-4">
-                <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Date</label>
-                  <div className={`px-3 py-2 rounded-lg border text-sm font-medium ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
-                    {new Date(yesterday + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Customer (optional)</label>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className={`px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                  >
-                    <option value="">All Customers</option>
-                    {(typedCustomers ?? []).map((c: CustomerConfig) => (
-                      <option key={c._id} value={c._id}>
-                        {c.customerName} ({c.customerNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <button
-                  onClick={handleRun}
-                  disabled={runState === "loading" || !startDate || !endDate}
-                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+                  onClick={() => setViewingReportId(null)}
+                  className={`mb-4 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                 >
-                  {runState === "loading" ? "Loading..." : "Run Report"}
+                  &larr; Back to Reports
                 </button>
-              </div>
 
-              {/* Quick status */}
-              {runState === "loading" && (
-                <p className={`mt-3 text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                  Fetching OEA07V data from S3...
-                </p>
-              )}
-            </div>
-
-            {/* Error */}
-            {runState === "error" && (
-              <div className={`rounded-xl border p-5 mb-6 ${isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
-                <p className={`text-sm font-medium ${isDark ? "text-red-400" : "text-red-700"}`}>{errorMsg}</p>
-              </div>
-            )}
-
-            {/* Results */}
-            {runState === "success" && (
-              <>
-                {/* Export bar */}
-                <div className={`flex items-center justify-between rounded-xl border p-4 mb-6 print:hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-                  <div className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                    {rawRowCount.toLocaleString()} total rows scanned
-                    {reports.length > 0 && ` — ${reports.reduce((s, r) => s + r.lineItems.length, 0)} qualifying line items`}
-                    {actualDateRange && (
-                      <span className={`ml-2 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
-                        Actual data: {actualDateRange.earliest} to {actualDateRange.latest}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handlePrint}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                    >
-                      Print
-                    </button>
-                    <button
-                      onClick={handleExportPDF}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
-                    >
-                      Export PDF
-                    </button>
-                    <button
-                      onClick={handleExportExcel}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}
-                    >
-                      Export Excel
-                    </button>
-                  </div>
+                {/* Export buttons */}
+                <div className="flex gap-2 mb-4">
+                  <button onClick={() => window.print()} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>Print</button>
+                  <button onClick={() => handleExportPDF(viewingReport)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>Export PDF</button>
+                  <button onClick={() => handleExportExcel(viewingReport)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>Export Excel</button>
                 </div>
 
-                {/* Report tables */}
-                {reports.length === 0 ? (
+                {/* Report content */}
+                <div className={`rounded-xl border overflow-hidden print:break-inside-avoid ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                  <div className={`px-6 py-4 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
+                    <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{viewingReport.customerName}</h2>
+                    <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                      <span>Account: {viewingReport.customerNumber}</span>
+                      <span>Date: {viewingReport.startDate}</span>
+                      <span>Commission: {viewingReport.commissionType === "percentage" ? `${viewingReport.commissionValue}% of product cost` : `$${viewingReport.commissionValue.toFixed(2)} per unit`}</span>
+                      <span>Generated: {new Date(viewingReport.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {viewingReport.lineItems.length === 0 ? (
+                    <div className={`p-8 text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                      No qualifying transactions for this date.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
+                            <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Order #</th>
+                            <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Brand</th>
+                            <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Mfg Code</th>
+                            <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Description</th>
+                            <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Qty</th>
+                            <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Commission</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewingReport.lineItems.map((li: CommissionLineItem, i: number) => (
+                            <tr key={i} className={`border-b ${isDark ? "border-slate-700/50 hover:bg-slate-700/30" : "border-gray-100 hover:bg-gray-50"}`}>
+                              <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.orderNo}</td>
+                              <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.brand}</td>
+                              <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.mfgItemId}</td>
+                              <td className={`px-4 py-2.5 ${isDark ? "text-white" : "text-gray-900"}`}>{li.description}</td>
+                              <td className={`px-4 py-2.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.qty}</td>
+                              <td className={`px-4 py-2.5 text-right font-medium ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${li.commissionAmount.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className={isDark ? "bg-slate-800" : "bg-gray-50"}>
+                            <td colSpan={5} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Grand Total</td>
+                            <td className={`px-4 py-3 text-right font-bold text-lg ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${viewingReport.grandTotal.toFixed(2)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Report list grouped by date */
+              <>
+                {!reportHistory || reportHistory.length === 0 ? (
                   <div className={`rounded-xl border p-8 text-center ${isDark ? "bg-slate-800/30 border-slate-700 text-slate-400" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                    No qualifying line items found for the selected date range and customer configurations.
+                    <p className="text-lg font-medium mb-2">No reports yet</p>
+                    <p className="text-sm">Reports are generated automatically at 4 AM EST for the prior day.</p>
                   </div>
                 ) : (
-                  <div ref={printRef} className="space-y-8">
-                    {reports.map((report, idx) => (
-                      <div
-                        key={idx}
-                        className={`rounded-xl border overflow-hidden print:break-inside-avoid ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
-                      >
-                        {/* Report header */}
-                        <div className={`px-6 py-4 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
-                          <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{report.customerName}</h2>
-                          <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                            <span>Account: {report.customerNumber}</span>
-                            <span>Date Range: {actualDateRange ? `${actualDateRange.earliest} to ${actualDateRange.latest}` : `${startDate} to ${endDate}`}</span>
-                            <span>
-                              Commission:{" "}
-                              {report.commissionType === "percentage"
-                                ? `${report.commissionValue}% of product cost`
-                                : `$${report.commissionValue.toFixed(2)} per unit`}
-                            </span>
+                  <div className="space-y-6">
+                    {sortedDates.map(date => {
+                      const dateReports = reportsByDate[date];
+                      const formattedDate = new Date(date + "T12:00:00").toLocaleDateString("en-US", {
+                        weekday: "long", month: "short", day: "numeric", year: "numeric",
+                      });
+
+                      return (
+                        <div key={date}>
+                          <h2 className={`text-sm font-semibold mb-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{formattedDate}</h2>
+                          <div className="space-y-2">
+                            {dateReports.map((r: ReportSummary) => (
+                              <div
+                                key={r._id}
+                                className={`rounded-xl border p-4 flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
+                              >
+                                <div className="flex items-center gap-4">
+                                  {/* Status indicator */}
+                                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.lineItemCount > 0 ? "bg-emerald-500" : "bg-slate-500"}`} />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{r.customerName}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs font-mono ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-600"}`}>{r.customerNumber}</span>
+                                    </div>
+                                    <div className={`text-xs mt-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                                      {r.lineItemCount > 0 ? (
+                                        <>
+                                          <span>{r.lineItemCount} items</span>
+                                          <span className={`ml-2 font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>${r.grandTotal.toFixed(2)}</span>
+                                        </>
+                                      ) : (
+                                        <span className={isDark ? "text-amber-400" : "text-amber-600"}>No qualifying transactions</span>
+                                      )}
+                                      <span className="ml-2">by {r.generatedByName}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setViewingReportId(r._id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                                  >
+                                    View
+                                  </button>
+                                  {permissions.tier >= 5 && (
+                                    <button
+                                      onClick={() => { if (confirm("Delete this report?")) deleteReport({ id: r._id }); }}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-
-                        {/* Table */}
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
-                                <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Order #</th>
-                                <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Brand</th>
-                                <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Mfg Code</th>
-                                <th className={`text-left px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Description</th>
-                                <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Qty</th>
-                                <th className={`text-right px-4 py-3 font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>Commission</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {report.lineItems.map((li, liIdx) => (
-                                <tr
-                                  key={liIdx}
-                                  className={`border-b ${isDark ? "border-slate-700/50 hover:bg-slate-700/30" : "border-gray-100 hover:bg-gray-50"}`}
-                                >
-                                  <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.orderNo}</td>
-                                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.brand}</td>
-                                  <td className={`px-4 py-2.5 font-mono text-xs ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.mfgItemId}</td>
-                                  <td className={`px-4 py-2.5 ${isDark ? "text-white" : "text-gray-900"}`}>{li.description}</td>
-                                  <td className={`px-4 py-2.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{li.qty}</td>
-                                  <td className={`px-4 py-2.5 text-right font-medium ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
-                                    ${li.commissionAmount.toFixed(2)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className={isDark ? "bg-slate-800" : "bg-gray-50"}>
-                                <td colSpan={5} className={`px-4 py-3 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                  Grand Total
-                                </td>
-                                <td className={`px-4 py-3 text-right font-bold text-lg ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
-                                  ${report.grandTotal.toFixed(2)}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
             )}
-            </>}
           </div>
         </main>
       </div>
 
-      {/* Print styles — match PDF export layout */}
+      {/* Print styles */}
       <style jsx global>{`
         @media print {
           body { background: white !important; color: black !important; font-family: Arial, Helvetica, sans-serif !important; font-size: 11px !important; }
@@ -756,34 +317,12 @@ export default function WTDCommissionReportPage() {
           main { overflow: visible !important; padding: 0 !important; }
           .theme-bg-primary, .flex.h-screen { background: white !important; }
           .max-w-6xl { max-width: 100% !important; padding: 0 20px !important; }
-
-          /* Report card styling */
           .rounded-xl { border-radius: 0 !important; border: none !important; box-shadow: none !important; background: white !important; }
-
-          /* Header */
-          .rounded-xl .px-6.py-4.border-b {
-            background: #f3f4f6 !important; border-bottom: 2px solid #10b981 !important;
-            padding: 12px 16px !important; margin-bottom: 0 !important;
-          }
-          .rounded-xl .px-6.py-4.border-b h2 { color: black !important; font-size: 16px !important; }
-          .rounded-xl .px-6.py-4.border-b span, .rounded-xl .px-6.py-4.border-b div { color: #555 !important; }
-
-          /* Table */
           table { border-collapse: collapse !important; width: 100% !important; }
-          th { background: #10b981 !important; color: white !important; padding: 8px 12px !important; font-size: 11px !important; text-align: left !important; border: 1px solid #0d9668 !important; }
-          th:nth-child(n+5) { text-align: right !important; }
+          th { background: #10b981 !important; color: white !important; padding: 8px 12px !important; font-size: 11px !important; border: 1px solid #0d9668 !important; }
           td { padding: 6px 12px !important; border: 1px solid #e5e7eb !important; color: black !important; font-size: 10px !important; }
-          td:nth-child(n+5) { text-align: right !important; }
           tr:nth-child(even) td { background: #f9fafb !important; }
-          tbody tr:hover td { background: inherit !important; }
-
-          /* Footer */
-          tfoot td { background: #f3f4f6 !important; color: black !important; font-weight: bold !important; font-size: 12px !important; border: 1px solid #e5e7eb !important; }
-
-          /* Spacing between reports */
-          .space-y-8 > * + * { margin-top: 30px !important; page-break-before: auto; }
-
-          /* Hide all non-essential colors */
+          tfoot td { background: #f3f4f6 !important; color: black !important; font-weight: bold !important; border: 1px solid #e5e7eb !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
