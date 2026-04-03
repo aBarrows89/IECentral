@@ -229,10 +229,14 @@ export async function GET(request: NextRequest) {
         });
 
         // Calculate commission for each line
+        // Sales (Sld) have negative qty/cost, returns (Adj/RS) have positive
+        // Negate so sales = positive commission, returns = negative commission
         const lineItems = qualifying.map(row => {
-          const qty = Math.abs(parseFloat(row[COL.QTY]?.replace(/"/g, "").trim() || "0") || 0);
-          const extCost = Math.abs(parseFloat(row[COL.EXT_COST]?.replace(/"/g, "").trim() || "0") || 0);
+          const rawQty = parseFloat(row[COL.QTY]?.replace(/"/g, "").trim() || "0") || 0;
+          const rawExtCost = parseFloat(row[COL.EXT_COST]?.replace(/"/g, "").trim() || "0") || 0;
           const unitCost = Math.abs(parseFloat(row[COL.UNIT_COST]?.replace(/"/g, "").trim() || "0") || 0);
+          const qty = -rawQty;           // Negate: sold=-8 → display 8, return=2 → display -2
+          const extCost = -rawExtCost;   // Negate: sold=-1202 → 1202, return=80 → -80
 
           let commissionAmount: number;
           if (config.commissionType === "percentage") {
