@@ -47,7 +47,7 @@ function parseActivityDate(dateStr: string): Date | null {
   const parts = clean.split("/");
   if (parts.length !== 3) return null;
   let [m, d, y] = parts.map(Number);
-  if (!m || !d || isNaN(y)) return null;
+  if (isNaN(m) || isNaN(d) || isNaN(y) || m < 1 || m > 12 || d < 1 || d > 31) return null;
   if (y < 100) y += 2000;
   return new Date(y, m - 1, d);
 }
