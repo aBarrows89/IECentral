@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Zoom OAuth error:", error);
-      return NextResponse.redirect(`${APP_URL}/calendar?error=${encodeURIComponent(error)}`);
+      return NextResponse.redirect(new URL(`/calendar?error=${encodeURIComponent(error)}`, APP_URL));
     }
 
     if (!code || !state) {
-      return NextResponse.redirect(`${APP_URL}/calendar?error=missing_params`);
+      return NextResponse.redirect(new URL("/calendar?error=missing_params", APP_URL));
     }
 
     // Verify state from cookie
@@ -33,13 +33,13 @@ export async function GET(request: NextRequest) {
     const storedState = cookieStore.get("zoom_oauth_state")?.value;
 
     if (!storedState) {
-      return NextResponse.redirect(`${APP_URL}/calendar?error=state_expired`);
+      return NextResponse.redirect(new URL("/calendar?error=state_expired", APP_URL));
     }
 
     const [expectedState, userId] = storedState.split(":");
 
     if (state !== expectedState) {
-      return NextResponse.redirect(`${APP_URL}/calendar?error=state_mismatch`);
+      return NextResponse.redirect(new URL("/calendar?error=state_mismatch", APP_URL));
     }
 
     cookieStore.delete("zoom_oauth_state");
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errText = await tokenResponse.text();
       console.error("Zoom token exchange failed:", errText);
-      return NextResponse.redirect(`${APP_URL}/calendar?error=token_exchange_failed`);
+      return NextResponse.redirect(new URL("/calendar?error=token_exchange_failed", APP_URL));
     }
 
     const tokens = await tokenResponse.json();
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 
     if (!userResponse.ok) {
       console.error("Zoom user profile fetch failed");
-      return NextResponse.redirect(`${APP_URL}/calendar?error=profile_fetch_failed`);
+      return NextResponse.redirect(new URL("/calendar?error=profile_fetch_failed", APP_URL));
     }
 
     const zoomUser = await userResponse.json();
@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
       tokenExpiresAt: Date.now() + expires_in * 1000,
     });
 
-    return NextResponse.redirect(`${APP_URL}/calendar?zoom=connected`);
+    return NextResponse.redirect(new URL("/calendar?zoom=connected", APP_URL));
   } catch (err) {
     console.error("Zoom OAuth callback error:", err);
-    return NextResponse.redirect(`${APP_URL}/calendar?error=callback_failed`);
+    return NextResponse.redirect(new URL("/calendar?error=callback_failed", APP_URL));
   }
 }
