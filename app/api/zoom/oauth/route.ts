@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 
 const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID!;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
 
 export async function GET(request: NextRequest) {
   try {

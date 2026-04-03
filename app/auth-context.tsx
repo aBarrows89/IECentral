@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!localStorage.getItem("ie_central_user_id")) {
         localStorage.setItem("ie_central_user_id", savedUserId);
       }
-      localStorage.removeItem("ie_central_user_id");
+      sessionStorage.removeItem("ie_central_user_id");
 
       if (savedUserId.length > 0) {
         setUserId(savedUserId);
