@@ -12,7 +12,7 @@ const S3_BUCKET = "ietires-dunlop-jmk-uploads";
 const S3_PREFIX = "jmk-uploads";
 const SALES_BUCKET = "ietires-sales-data";
 const CRON_SECRET = process.env.CRON_SECRET;
-const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL!;
+const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud";
 
 const COL = {
   ITEM_ID: 0,
