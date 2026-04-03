@@ -109,22 +109,10 @@ export default function DunlopReportingPage() {
                   </p>
                 </div>
               </div>
-              {/* Env toggle — admin only */}
-              {canToggleEnv && (
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>Environment:</span>
-                  <button
-                    onClick={() => setEnv(env === "dev" ? "prod" : "dev")}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                      env === "prod"
-                        ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                        : isDark ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                    }`}
-                  >
-                    {env.toUpperCase()}
-                  </button>
-                </div>
-              )}
+              {/* Production mode indicator */}
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                PROD
+              </span>
             </div>
             {/* Tabs */}
             <div className="flex gap-1 mt-4">
