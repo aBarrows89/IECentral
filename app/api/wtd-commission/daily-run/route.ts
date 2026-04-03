@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
           commissionValue: config.commissionValue,
           lineItems: [],
           grandTotal: 0,
-          generatedBy: "system" as any,
+          generatedBy: undefined,
           generatedByName: "Automated Daily Run",
         });
       }

@@ -165,7 +165,7 @@ export const saveReport = mutation({
       })
     ),
     grandTotal: v.number(),
-    generatedBy: v.id("users"),
+    generatedBy: v.optional(v.id("users")),
     generatedByName: v.string(),
   },
   handler: async (ctx, args) => {

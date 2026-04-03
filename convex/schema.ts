@@ -3116,7 +3116,7 @@ export default defineSchema({
     ),
     grandTotal: v.number(),
     lineItemCount: v.number(),
-    generatedBy: v.id("users"),
+    generatedBy: v.optional(v.id("users")),
     generatedByName: v.string(),
     createdAt: v.number(),
     expiresAt: v.number(), // 12 months from creation for auto-cleanup
