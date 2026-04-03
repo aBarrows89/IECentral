@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     const encryptedRefresh = encrypt(refresh_token);
 
     // Save to Convex
-    await convex.mutation(api.zoom.accounts.createOrUpdate, {
+    await convex.mutation(api.zoomAccounts.createOrUpdate, {
       userId: userId as Id<"users">,
       zoomUserId: zoomUser.id,
       zoomEmail: zoomUser.email,

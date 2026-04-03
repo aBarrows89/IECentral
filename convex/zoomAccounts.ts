@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "../_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 
 export const getByUser = query({
   args: { userId: v.id("users") },

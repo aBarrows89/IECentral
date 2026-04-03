@@ -116,7 +116,7 @@ function CalendarContent() {
 
   const allUsers = useQuery(api.auth.getAllUsers);
   const zoomAccount = useQuery(
-    api.zoom.accounts.getByUser,
+    api.zoomAccounts.getByUser,
     user?._id ? { userId: user._id } : "skip"
   );
 

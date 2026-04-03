@@ -1,8 +1,8 @@
 "use node";
 
-import { action } from "../_generated/server";
+import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "../_generated/api";
+import { api } from "./_generated/api";
 
 export const createZoomMeeting = action({
   args: {
@@ -13,7 +13,7 @@ export const createZoomMeeting = action({
   },
   handler: async (ctx, args) => {
     // Get Zoom account with encrypted tokens
-    const account = await ctx.runQuery(api.zoom.accounts.getWithCredentials, {
+    const account = await ctx.runQuery(api.zoomAccounts.getWithCredentials, {
       userId: args.userId,
     });
 
@@ -82,7 +82,7 @@ export const createZoomMeeting = action({
       accessToken = tokens.access_token;
 
       // Save refreshed tokens
-      await ctx.runMutation(api.zoom.accounts.createOrUpdate, {
+      await ctx.runMutation(api.zoomAccounts.createOrUpdate, {
         userId: args.userId,
         zoomUserId: account.zoomUserId,
         zoomEmail: account.zoomEmail,

@@ -106,8 +106,8 @@ import type * as timesheetApprovals from "../timesheetApprovals.js";
 import type * as webPush from "../webPush.js";
 import type * as writeUps from "../writeUps.js";
 import type * as wtdCommission from "../wtdCommission.js";
-import type * as zoom_accounts from "../zoom/accounts.js";
-import type * as zoom_meetings from "../zoom/meetings.js";
+import type * as zoomAccounts from "../zoomAccounts.js";
+import type * as zoomMeetings from "../zoomMeetings.js";
 
 import type {
   ApiFromModules,
@@ -214,8 +214,8 @@ declare const fullApi: ApiFromModules<{
   webPush: typeof webPush;
   writeUps: typeof writeUps;
   wtdCommission: typeof wtdCommission;
-  "zoom/accounts": typeof zoom_accounts;
-  "zoom/meetings": typeof zoom_meetings;
+  zoomAccounts: typeof zoomAccounts;
+  zoomMeetings: typeof zoomMeetings;
 }>;
 
 /**
