@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
           commissionValue: config.commissionValue,
           lineItems: [],
           grandTotal: 0,
-          generatedBy: undefined,
+          // generatedBy omitted for automated runs
           generatedByName: "Automated Daily Run",
         });
       }
@@ -250,7 +250,7 @@ export async function GET(request: NextRequest) {
         commissionValue: config.commissionValue,
         lineItems,
         grandTotal,
-        generatedBy: "system" as any,
+        // generatedBy omitted for automated runs
         generatedByName: "Automated Daily Run",
       });
 
