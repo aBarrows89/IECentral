@@ -22,6 +22,7 @@ interface S3Row {
   trnPur: string;
   qty: number;
   unitCost: number;
+  extCost: number;
   unitSell: number;
   accountId: string;
   orderNo: string;
@@ -91,6 +92,7 @@ export default function WTDCommissionReportPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [reports, setReports] = useState<CustomerReport[]>([]);
   const [rawRowCount, setRawRowCount] = useState(0);
+  const [actualDateRange, setActualDateRange] = useState<{ earliest: string; latest: string } | null>(null);
   const [viewingReportId, setViewingReportId] = useState<string | null>(null);
 
   // Load a historical report for viewing
@@ -114,6 +116,7 @@ export default function WTDCommissionReportPage() {
     setRunState("loading");
     setErrorMsg("");
     setReports([]);
+    setActualDateRange(null);
 
     try {
       // Fetch S3 data
@@ -133,6 +136,12 @@ export default function WTDCommissionReportPage() {
 
       const rows: S3Row[] = data.rows;
       setRawRowCount(rows.length);
+
+      // Compute actual date range from pulled data
+      if (rows.length > 0) {
+        const dates = rows.map((r) => r.activityDate).filter(Boolean).sort();
+        setActualDateRange({ earliest: dates[0], latest: dates[dates.length - 1] });
+      }
 
       // Filter and calculate for each active customer config (or selected one)
       const configsToRun = selectedCustomerId
@@ -162,7 +171,8 @@ export default function WTDCommissionReportPage() {
         const lineItems: CommissionLineItem[] = qualifying.map((row) => {
           let commissionAmount: number;
           if (config.commissionType === "percentage") {
-            commissionAmount = Math.abs(row.qty) * row.unitCost * (config.commissionValue / 100);
+            // Commission based on Col M (Ext Cost FET In)
+            commissionAmount = row.extCost * (config.commissionValue / 100);
           } else {
             commissionAmount = Math.abs(row.qty) * config.commissionValue;
           }
@@ -579,6 +589,11 @@ export default function WTDCommissionReportPage() {
                   <div className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     {rawRowCount.toLocaleString()} total rows scanned
                     {reports.length > 0 && ` — ${reports.reduce((s, r) => s + r.lineItems.length, 0)} qualifying line items`}
+                    {actualDateRange && (
+                      <span className={`ml-2 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
+                        Actual data: {actualDateRange.earliest} to {actualDateRange.latest}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -619,7 +634,7 @@ export default function WTDCommissionReportPage() {
                           <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{report.customerName}</h2>
                           <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                             <span>Account: {report.customerNumber}</span>
-                            <span>Date Range: {startDate} to {endDate}</span>
+                            <span>Date Range: {actualDateRange ? `${actualDateRange.earliest} to ${actualDateRange.latest}` : `${startDate} to ${endDate}`}</span>
                             <span>
                               Commission:{" "}
                               {report.commissionType === "percentage"

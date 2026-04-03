@@ -22,6 +22,7 @@ const COL = {
   TRN_PUR: 9,
   QTY: 10,
   UNIT_COST: 11,     // U/Cost FET/In
+  EXT_COST: 12,      // Ext Cost FET In (Col M — commission basis)
   UNIT_SELL: 13,     // U/Sell FET/In
   ACCOUNT_ID: 15,
   INV_ID: 16,        // Invoice Id
@@ -237,20 +238,22 @@ export async function POST(request: NextRequest) {
       const itemId = row[COL.ITEM_ID]?.trim() || "";
       const qty = parseFloat(row[COL.QTY]?.trim() || "0");
       const unitCost = parseFloat(row[COL.UNIT_COST]?.trim() || "0");
+      const extCost = parseFloat(row[COL.EXT_COST]?.trim() || "0");
       const unitSell = parseFloat(row[COL.UNIT_SELL]?.trim() || "0");
 
       parsedRows.push({
         itemId,
         description: row[COL.DESCRIPTION]?.trim() || "",
-        dclass: row[COL.PRODUCT_TYPE]?.trim() || "",  // "Dclass" maps to Product Type column
+        dclass: row[COL.PRODUCT_TYPE]?.trim() || "",
         brand: row[COL.BRAND]?.trim() || "",
         mfgItemId: row[COL.MFG_ITEM_ID]?.trim() || "",
         trnPur: row[COL.TRN_PUR]?.trim() || "",
         qty: isNaN(qty) ? 0 : qty,
         unitCost: isNaN(unitCost) ? 0 : Math.abs(unitCost),
+        extCost: isNaN(extCost) ? 0 : Math.abs(extCost),
         unitSell: isNaN(unitSell) ? 0 : Math.abs(unitSell),
         accountId: row[COL.ACCOUNT_ID]?.trim() || "",
-        orderNo: row[COL.INV_ID]?.trim() || "",  // Invoice ID used as order reference
+        orderNo: row[COL.INV_ID]?.trim() || "",
         activityDate: dateStr,
         customerName: row[COL.CUSTOMER_NAME]?.trim() || "",
       });
