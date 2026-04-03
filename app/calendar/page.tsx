@@ -115,10 +115,8 @@ function CalendarContent() {
   );
 
   const allUsers = useQuery(api.auth.getAllUsers);
-  const zoomAccount = useQuery(
-    api.zoomAccounts.getByUser,
-    user?._id ? { userId: user._id } : "skip"
-  );
+  // Zoom account query
+  const zoomAccount = useQuery(api.zoomAccounts.getByUser, user?._id ? { userId: user._id } : "skip");
 
   // Mutations
   const createEvent = useMutation(api.events.create);
