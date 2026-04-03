@@ -113,10 +113,10 @@ export default function WTDCommissionSetupPage() {
   const [accessSearch, setAccessSearch] = useState("");
   const [showAccessDropdown, setShowAccessDropdown] = useState(false);
 
-  // Access: T4+ or on override list
-  const canAccess = permissions.tier >= 4 || hasOverrideAccess === true;
-  // Only T4+ can edit setup
-  const canEdit = permissions.tier >= 4;
+  // Access: T5 or on override list
+  const canAccess = permissions.tier >= 5 || hasOverrideAccess === true;
+  // Only T5 can edit setup and see access overrides
+  const canEdit = permissions.tier >= 5;
 
   const handleAddDclass = useCallback(() => {
     const val = form.dclassInput.trim().toUpperCase();

@@ -268,7 +268,7 @@ export function getMenuPermissions(user: PermissionUser): MenuPermissions {
     // Tools - T2+
     dealerRebates: tier >= 2,
     dunlopReporting: tier >= 4, // T4+ (Admin: full access, Manager: via override)
-    wtdCommission: tier >= 4, // T4+ default (lower tiers via access override list)
+    wtdCommission: tier >= 5, // T5 only (lower tiers via access override list)
     tireTrackAdmin: tier >= 2,
     iePriceSystem: tier >= 2,
   };

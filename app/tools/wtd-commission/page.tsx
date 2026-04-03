@@ -41,7 +41,7 @@ export default function WTDCommissionReportPage() {
     user?._id ? { userId: user._id } : "skip"
   );
 
-  const canAccess = permissions.tier >= 4 || hasOverrideAccess === true;
+  const canAccess = permissions.tier >= 5 || hasOverrideAccess === true;
 
   const reportHistory = useQuery(api.wtdCommission.listReports) as ReportSummary[] | undefined;
   const deleteReport = useMutation(api.wtdCommission.deleteReport);
@@ -150,7 +150,7 @@ export default function WTDCommissionReportPage() {
                   <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Daily automated commission reports — runs at 4 AM EST</p>
                 </div>
               </div>
-              {permissions.tier >= 4 && (
+              {permissions.tier >= 5 && (
                 <Link
                   href="/tools/wtd-commission/setup"
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300"}`}
