@@ -177,115 +177,130 @@ export async function GET(request: NextRequest) {
     const allRows = parseCSV(body.replace(/^\uFEFF/, "").replace(/\0/g, ""));
     const dataRows = allRows.slice(1); // Skip header
 
-    // Filter to yesterday's rows only
-    const targetStart = new Date(targetDate);
-    const targetEnd = new Date(targetDate);
-    targetEnd.setHours(23, 59, 59, 999);
-
-    const yesterdayRows = dataRows.filter(row => {
-      if (row.length <= COL.ACTIVITY_DATE) return false;
+    // Find ALL unique dates in the file — handles weekends (Fri+Sat+Sun uploaded Monday)
+    // and holidays where multiple days are uploaded at once
+    const rowsByDate = new Map<string, string[][]>();
+    for (const row of dataRows) {
+      if (row.length <= COL.ACTIVITY_DATE) continue;
       const d = parseActivityDate(row[COL.ACTIVITY_DATE]?.trim() || "");
-      return d && d >= targetStart && d <= targetEnd;
-    });
+      if (!d) continue;
+      const dateKey = d.toISOString().split("T")[0];
+      if (!rowsByDate.has(dateKey)) rowsByDate.set(dateKey, []);
+      rowsByDate.get(dateKey)!.push(row);
+    }
+
+    const uniqueDates = [...rowsByDate.keys()].sort();
 
     // Get active customer configs from Convex
     const convex = new ConvexHttpClient(CONVEX_URL);
     const customers = await convex.query(api.wtdCommission.getActiveCustomers) as CustomerConfig[];
 
+    // Check existing reports to avoid duplicates
+    const existingReports = await convex.query(api.wtdCommission.listReports) as { startDate: string; customerNumber: string }[];
+    const existingKeys = new Set(existingReports.map(r => `${r.startDate}:${r.customerNumber}`));
+
     const results = [];
 
-    for (const config of customers) {
-      // Filter qualifying rows for this customer
-      const qualifying = yesterdayRows.filter(row => {
-        const itemId = row[COL.ITEM_ID]?.replace(/"/g, "").trim() || "";
-        const accountId = row[COL.ACCOUNT_ID]?.replace(/"/g, "").trim() || "";
-        const brand = row[COL.BRAND]?.replace(/"/g, "").trim() || "";
+    // Generate a separate report for each date × each customer
+    for (const dateKey of uniqueDates) {
+      const dateRows = rowsByDate.get(dateKey)!;
 
-        if (accountId.toUpperCase() !== config.customerNumber.toUpperCase()) return false;
+      for (const config of customers) {
+        // Skip if report already exists for this date+customer
+        if (existingKeys.has(`${dateKey}:${config.customerNumber}`)) continue;
 
-        if (config.qualifyingDclasses.length > 0) {
-          if (!config.qualifyingDclasses.some(suffix => itemId.endsWith(suffix))) return false;
-        }
+        // Filter qualifying rows for this customer
+        const qualifying = dateRows.filter(row => {
+          const itemId = row[COL.ITEM_ID]?.replace(/"/g, "").trim() || "";
+          const accountId = row[COL.ACCOUNT_ID]?.replace(/"/g, "").trim() || "";
+          const brand = row[COL.BRAND]?.replace(/"/g, "").trim() || "";
 
-        if (!config.qualifyingBrands.includes("ALL")) {
-          if (!config.qualifyingBrands.some(b => b.toUpperCase() === brand.toUpperCase())) return false;
-        }
+          if (accountId.toUpperCase() !== config.customerNumber.toUpperCase()) return false;
 
-        return true;
-      });
+          if (config.qualifyingDclasses.length > 0) {
+            if (!config.qualifyingDclasses.some(suffix => itemId.endsWith(suffix))) return false;
+          }
 
-      // Calculate commission for each line
-      const lineItems = qualifying.map(row => {
-        const qty = Math.abs(parseFloat(row[COL.QTY]?.replace(/"/g, "").trim() || "0") || 0);
-        const extCost = Math.abs(parseFloat(row[COL.EXT_COST]?.replace(/"/g, "").trim() || "0") || 0);
-        const unitCost = Math.abs(parseFloat(row[COL.UNIT_COST]?.replace(/"/g, "").trim() || "0") || 0);
+          if (!config.qualifyingBrands.includes("ALL")) {
+            if (!config.qualifyingBrands.some(b => b.toUpperCase() === brand.toUpperCase())) return false;
+          }
 
-        let commissionAmount: number;
-        if (config.commissionType === "percentage") {
-          commissionAmount = extCost * (config.commissionValue / 100);
-        } else {
-          commissionAmount = qty * config.commissionValue;
-        }
+          return true;
+        });
 
-        return {
-          orderNo: row[COL.INV_ID]?.replace(/"/g, "").trim() || "",
-          brand: row[COL.BRAND]?.replace(/"/g, "").trim() || "",
-          mfgItemId: row[COL.MFG_ITEM_ID]?.replace(/"/g, "").trim() || "",
-          description: row[COL.DESCRIPTION]?.replace(/"/g, "").trim() || "",
-          qty,
-          unitCost,
-          commissionAmount: Math.round(commissionAmount * 100) / 100,
-        };
-      });
+        // Calculate commission for each line
+        const lineItems = qualifying.map(row => {
+          const qty = Math.abs(parseFloat(row[COL.QTY]?.replace(/"/g, "").trim() || "0") || 0);
+          const extCost = Math.abs(parseFloat(row[COL.EXT_COST]?.replace(/"/g, "").trim() || "0") || 0);
+          const unitCost = Math.abs(parseFloat(row[COL.UNIT_COST]?.replace(/"/g, "").trim() || "0") || 0);
 
-      const grandTotal = Math.round(lineItems.reduce((sum, li) => sum + li.commissionAmount, 0) * 100) / 100;
+          let commissionAmount: number;
+          if (config.commissionType === "percentage") {
+            commissionAmount = extCost * (config.commissionValue / 100);
+          } else {
+            commissionAmount = qty * config.commissionValue;
+          }
 
-      // Save to Convex
-      await convex.mutation(api.wtdCommission.saveReport, {
-        customerName: config.customerName,
-        customerNumber: config.customerNumber,
-        startDate: targetDate,
-        endDate: targetDate,
-        commissionType: config.commissionType,
-        commissionValue: config.commissionValue,
-        lineItems,
-        grandTotal,
-        // generatedBy omitted for automated runs
-        generatedByName: "Automated Daily Run",
-      });
+          return {
+            orderNo: row[COL.INV_ID]?.replace(/"/g, "").trim() || "",
+            brand: row[COL.BRAND]?.replace(/"/g, "").trim() || "",
+            mfgItemId: row[COL.MFG_ITEM_ID]?.replace(/"/g, "").trim() || "",
+            description: row[COL.DESCRIPTION]?.replace(/"/g, "").trim() || "",
+            qty,
+            unitCost,
+            commissionAmount: Math.round(commissionAmount * 100) / 100,
+          };
+        });
 
-      // Save to S3
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const s3Key = `wtd-commission-reports/${config.customerNumber}/${targetDate}_${timestamp}.json`;
-      await s3.send(new PutObjectCommand({
-        Bucket: SALES_BUCKET,
-        Key: s3Key,
-        Body: JSON.stringify({
+        const grandTotal = Math.round(lineItems.reduce((sum, li) => sum + li.commissionAmount, 0) * 100) / 100;
+
+        // Save to Convex
+        await convex.mutation(api.wtdCommission.saveReport, {
           customerName: config.customerName,
           customerNumber: config.customerNumber,
-          date: targetDate,
+          startDate: dateKey,
+          endDate: dateKey,
+          commissionType: config.commissionType,
+          commissionValue: config.commissionValue,
           lineItems,
           grandTotal,
-          generatedAt: new Date().toISOString(),
-        }, null, 2),
-        ContentType: "application/json",
-      }));
+          generatedByName: "Automated Daily Run",
+        });
 
-      results.push({
-        customer: config.customerName,
-        lineItemCount: lineItems.length,
-        grandTotal,
-        hasData: lineItems.length > 0,
-      });
+        // Save to S3
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const s3Key = `wtd-commission-reports/${config.customerNumber}/${dateKey}_${timestamp}.json`;
+        await s3.send(new PutObjectCommand({
+          Bucket: SALES_BUCKET,
+          Key: s3Key,
+          Body: JSON.stringify({
+            customerName: config.customerName,
+            customerNumber: config.customerNumber,
+            date: dateKey,
+            lineItems,
+            grandTotal,
+            generatedAt: new Date().toISOString(),
+          }, null, 2),
+          ContentType: "application/json",
+        }));
+
+        results.push({
+          date: dateKey,
+          customer: config.customerName,
+          lineItemCount: lineItems.length,
+          grandTotal,
+          hasData: lineItems.length > 0,
+        });
+      }
     }
 
     return NextResponse.json({
       status: "success",
-      date: targetDate,
+      dates: uniqueDates,
       sourceFile: fileKey,
       totalRowsInFile: dataRows.length,
-      yesterdayRows: yesterdayRows.length,
-      customers: results,
+      reportsGenerated: results.length,
+      reports: results,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
