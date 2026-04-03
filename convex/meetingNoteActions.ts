@@ -9,53 +9,32 @@ export const transcribeAndGenerateNotes = action({
   args: {
     notesId: v.id("meetingNotes"),
     meetingId: v.id("meetings"),
+    audioDownloadUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { notesId, meetingId } = args;
 
     try {
-      // 1. Get the meeting notes record to find the audio file
+      // 1. Get the meeting notes record
       const notes = await ctx.runQuery(api.meetingNotes.get, { notesId });
-      if (!notes || (!notes.audioFileId && !notes.audioS3Key)) {
-        throw new Error("Meeting notes or audio file not found");
+      if (!notes) {
+        throw new Error("Meeting notes not found");
       }
 
-      // Get meeting details for context
       const meeting = await ctx.runQuery(api.meetings.get, { meetingId });
       if (!meeting) {
         throw new Error("Meeting not found");
       }
 
-      // 2. Fetch audio — prefer S3, fall back to Convex storage
-      let audioUrl: string | null = null;
+      // 2. Get audio URL — prefer client-provided presigned URL, fall back to Convex storage
+      let audioUrl: string | null = args.audioDownloadUrl || null;
 
-      if (notes.audioS3Key) {
-        // Fetch from S3 via presigned URL
-        const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
-        const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-        const s3 = new S3Client({
-          region: process.env.S3_REGION || "us-east-1",
-          ...(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
-            ? {
-                credentials: {
-                  accessKeyId: process.env.S3_ACCESS_KEY_ID,
-                  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-                },
-              }
-            : {}),
-        });
-        const command = new GetObjectCommand({
-          Bucket: "iecentral-meeting-recordings",
-          Key: notes.audioS3Key,
-        });
-        audioUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
-      } else if (notes.audioFileId) {
-        // Legacy: fetch from Convex storage
+      if (!audioUrl && notes.audioFileId) {
         audioUrl = await ctx.storage.getUrl(notes.audioFileId);
       }
 
       if (!audioUrl) {
-        throw new Error("Could not get audio file URL");
+        throw new Error("No audio URL available. Please try again.");
       }
 
       const audioResponse = await fetch(audioUrl);

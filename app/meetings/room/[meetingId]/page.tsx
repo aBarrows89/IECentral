@@ -180,10 +180,19 @@ export default function MeetingRoomPage() {
           duration: recordingDuration,
         });
 
+        // Get a presigned download URL for the audio (so Convex action doesn't need S3 SDK)
+        const downloadRes = await fetch("/api/meetings/upload-audio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "download", meetingId: typedMeetingId, filename: "audio.webm" }),
+        });
+        const { url: audioDownloadUrl } = await downloadRes.json();
+
         // Trigger transcription + AI pipeline
         await transcribeAndGenerateNotes({
           notesId: meetingNotesId!,
           meetingId: typedMeetingId,
+          audioDownloadUrl,
         });
       } catch (err) {
         console.error("Failed to upload audio or trigger processing:", err);
