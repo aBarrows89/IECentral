@@ -85,8 +85,14 @@ export default function WTDCommissionReportPage() {
   const deleteReport = useMutation(api.wtdCommission.deleteReport);
 
   const [activeTab, setActiveTab] = useState<"generate" | "history">("generate");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Auto-set to yesterday
+  const yesterday = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+  const [startDate] = useState(yesterday);
+  const [endDate] = useState(yesterday);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [runState, setRunState] = useState<RunState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -424,6 +430,61 @@ export default function WTDCommissionReportPage() {
                     >
                       &larr; Back to History
                     </button>
+                    {/* Export buttons for historical report */}
+                    <div className={`flex gap-2 mb-4 ${isDark ? "" : ""}`}>
+                      <button
+                        onClick={() => window.print()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                      >Print</button>
+                      <button
+                        onClick={async () => {
+                          if (!viewingReport) return;
+                          const { default: jsPDF } = await import("jspdf");
+                          const autoTable = (await import("jspdf-autotable")).default;
+                          const doc = new jsPDF();
+                          let y = 20;
+                          doc.setFontSize(16);
+                          doc.text("WTD Commission Report", 14, y); y += 8;
+                          doc.setFontSize(11);
+                          doc.text(`Customer: ${viewingReport.customerName} (${viewingReport.customerNumber})`, 14, y); y += 6;
+                          doc.text(`Date Range: ${viewingReport.startDate} to ${viewingReport.endDate}`, 14, y); y += 10;
+                          autoTable(doc, {
+                            startY: y,
+                            head: [["Order #", "Brand", "Mfg Code", "Description", "Qty", "Commission"]],
+                            body: viewingReport.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, String(li.qty), `$${li.commissionAmount.toFixed(2)}`]),
+                            foot: [["", "", "", "", "Grand Total", `$${viewingReport.grandTotal.toFixed(2)}`]],
+                            theme: "grid",
+                            headStyles: { fillColor: [16, 185, 129] },
+                            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+                            styles: { fontSize: 9 },
+                          });
+                          doc.save(`wtd-commission-${viewingReport.startDate}-to-${viewingReport.endDate}.pdf`);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                      >Export PDF</button>
+                      <button
+                        onClick={async () => {
+                          if (!viewingReport) return;
+                          const XLSX = await import("xlsx");
+                          const wb = XLSX.utils.book_new();
+                          const data = [
+                            ["WTD Commission Report"],
+                            [`Customer: ${viewingReport.customerName} (${viewingReport.customerNumber})`],
+                            [`Date Range: ${viewingReport.startDate} to ${viewingReport.endDate}`],
+                            [],
+                            ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
+                            ...viewingReport.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, li.qty, li.unitCost, li.commissionAmount]),
+                            [],
+                            ["", "", "", "", "", "Grand Total", viewingReport.grandTotal],
+                          ];
+                          const ws = XLSX.utils.aoa_to_sheet(data);
+                          ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
+                          XLSX.utils.book_append_sheet(wb, ws, viewingReport.customerName.slice(0, 28));
+                          XLSX.writeFile(wb, `wtd-commission-${viewingReport.startDate}-to-${viewingReport.endDate}.xlsx`);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}
+                      >Export Excel</button>
+                    </div>
                     <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
                       <div className={`px-6 py-4 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
                         <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{viewingReport.customerName}</h2>
@@ -525,22 +586,10 @@ export default function WTDCommissionReportPage() {
             <div className={`rounded-xl border p-5 mb-6 print:hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className={`px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className={`px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                  />
+                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Date</label>
+                  <div className={`px-3 py-2 rounded-lg border text-sm font-medium ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
+                    {new Date(yesterday + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                  </div>
                 </div>
                 <div>
                   <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Customer (optional)</label>

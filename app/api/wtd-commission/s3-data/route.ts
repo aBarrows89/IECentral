@@ -88,11 +88,11 @@ async function findOEA07VFile(month: string): Promise<string | null> {
   const response = await s3.send(command);
   if (!response.Contents || response.Contents.length === 0) return null;
 
-  // Find file matching IET-oea07v pattern
-  const match = response.Contents.find((obj) =>
-    obj.Key?.toLowerCase().includes("iet-oea07v") && obj.Key?.toLowerCase().endsWith(".csv")
-  );
-  return match?.Key ?? null;
+  // Find latest OEA07V file (pick most recently modified when multiple exist)
+  const matches = response.Contents
+    .filter((obj) => obj.Key?.toLowerCase().includes("iet-oea07v") && obj.Key?.toLowerCase().endsWith(".csv"))
+    .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+  return matches[0]?.Key ?? null;
 }
 
 /**
