@@ -80,10 +80,10 @@ export default function DunlopReportingPage() {
   const permissions = usePermissions();
 
   const [activeTab, setActiveTab] = useState<AllTabType>("Upload & Run");
-  const [env, setEnv] = useState<"dev" | "prod">("dev");
+  const env = "prod" as const; // Always prod — dev mode removed
 
-  const canToggleEnv = permissions.hasPermission("dunlopReporting.envToggle");
-  const visibleTabs = canToggleEnv ? ALL_TABS : ALL_TABS.filter(t => t !== "Settings");
+  const canToggleEnv = false; // Dev toggle removed
+  const visibleTabs = ALL_TABS.filter(t => t !== "Settings");
 
   return (
     <Protected>
