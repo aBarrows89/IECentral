@@ -374,15 +374,15 @@ export const restore = mutation({
 export const getFileDownloadUrl = action({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args): Promise<string | null> => {
-    // Get the document to find the fileId
     const doc = await ctx.runQuery(api.documents.getById, { documentId: args.documentId });
-    if (!doc) {
-      throw new Error("Document not found");
-    }
+    if (!doc || !doc.fileId) return null;
 
-    // Get the download URL from storage
-    const url = await ctx.storage.getUrl(doc.fileId);
-    return url;
+    try {
+      const url = await ctx.storage.getUrl(doc.fileId);
+      return url;
+    } catch {
+      return null;
+    }
   },
 });
 
