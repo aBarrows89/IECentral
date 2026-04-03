@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "/Users/andybarrows/.gradle/daemon/8.5/com.ietires.scanneragent.app-merged_res-20:/xml_device_admin_policies.xml.flat",
+        "source": "/Users/andybarrows/.gradle/daemon/8.5/com.ietires.scanneragent.app-main-21:/xml/device_admin_policies.xml"
+    },
+    {
+        "merged": "com.ietires.scanneragent.app-merged_res-20:/xml_file_paths.xml.flat",
+        "source": "com.ietires.scanneragent.app-main-21:/xml/file_paths.xml"
+    }
+]

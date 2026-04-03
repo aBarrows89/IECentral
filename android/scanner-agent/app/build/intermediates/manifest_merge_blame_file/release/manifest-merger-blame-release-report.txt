@@ -1,0 +1,217 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.ietires.scanneragent"
+4    android:versionCode="2"
+5    android:versionName="1.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- Permissions -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:5:5-67
+12-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:5:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:6:5-79
+13-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:6:22-76
+14    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+14-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:7:5-76
+14-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:7:22-73
+15    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+15-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:8:5-79
+15-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:8:22-76
+16    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+16-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:9:5-81
+16-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:9:22-78
+17    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+17-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:10:5-81
+17-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:10:22-78
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+18-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:11:5-77
+18-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:11:22-74
+19    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+19-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:12:5-83
+19-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:12:22-80
+20    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+20-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:13:5-81
+20-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:13:22-78
+21    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+21-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:14:5-80
+21-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:14:22-77
+22    <uses-permission android:name="android.permission.WAKE_LOCK" />
+22-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:15:5-68
+22-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:15:22-65
+23
+24    <permission
+24-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+25        android:name="com.ietires.scanneragent.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+25-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+26        android:protectionLevel="signature" />
+26-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+27
+28    <uses-permission android:name="com.ietires.scanneragent.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+28-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+28-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+29
+30    <application
+30-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:17:5-91:19
+31        android:name="com.ietires.scanneragent.ScannerAgentApp"
+31-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:18:9-40
+32        android:allowBackup="false"
+32-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:19:9-36
+33        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+33-->[androidx.core:core:1.12.0] /Users/andybarrows/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+34        android:extractNativeLibs="false"
+35        android:icon="@android:drawable/ic_menu_manage"
+35-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:20:9-56
+36        android:label="IE Scanner Agent"
+36-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:21:9-41
+37        android:supportsRtl="true"
+37-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:22:9-35
+38        android:theme="@style/AppTheme" >
+38-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:23:9-40
+39
+40        <!-- Device Admin Receiver (for lock/wipe) -->
+41        <receiver
+41-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:26:9-36:20
+42            android:name="com.ietires.scanneragent.DeviceAdminReceiver"
+42-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:27:13-48
+43            android:exported="true"
+43-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:28:13-36
+44            android:permission="android.permission.BIND_DEVICE_ADMIN" >
+44-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:29:13-70
+45            <meta-data
+45-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:30:13-32:65
+46                android:name="android.app.device_admin"
+46-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:31:17-56
+47                android:resource="@xml/device_admin_policies" />
+47-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:32:17-62
+48
+49            <intent-filter>
+49-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:33:13-35:29
+50                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+50-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:34:17-82
+50-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:34:25-79
+51            </intent-filter>
+52        </receiver>
+53
+54        <!-- FileProvider for APK installs -->
+55        <provider
+56            android:name="androidx.core.content.FileProvider"
+56-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:40:13-62
+57            android:authorities="com.ietires.scanneragent.fileprovider"
+57-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:41:13-64
+58            android:exported="false"
+58-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:42:13-37
+59            android:grantUriPermissions="true" >
+59-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:43:13-47
+60            <meta-data
+60-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:44:13-46:54
+61                android:name="android.support.FILE_PROVIDER_PATHS"
+61-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:45:17-67
+62                android:resource="@xml/file_paths" />
+62-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:46:17-51
+63        </provider>
+64
+65        <!-- MQTT Foreground Service -->
+66        <service
+66-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:50:9-54:63
+67            android:name="com.ietires.scanneragent.MqttService"
+67-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:51:13-40
+68            android:enabled="true"
+68-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:52:13-35
+69            android:exported="false"
+69-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:53:13-37
+70            android:foregroundServiceType="connectedDevice" />
+70-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:54:13-60
+71
+72        <!-- Boot Receiver -->
+73        <receiver
+73-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:57:9-65:20
+74            android:name="com.ietires.scanneragent.BootReceiver"
+74-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:58:13-41
+75            android:enabled="true"
+75-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:59:13-35
+76            android:exported="true" >
+76-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:60:13-36
+77            <intent-filter>
+77-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:61:13-64:29
+78                <action android:name="android.intent.action.BOOT_COMPLETED" />
+78-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:62:17-79
+78-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:62:25-76
+79                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+79-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:63:17-84
+79-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:63:25-81
+80            </intent-filter>
+81        </receiver>
+82
+83        <!-- Main Activity (minimal, just for status) -->
+84        <activity
+84-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:68:9-75:20
+85            android:name="com.ietires.scanneragent.MainActivity"
+85-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:69:13-41
+86            android:exported="true" >
+86-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:70:13-36
+87            <intent-filter>
+87-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:71:13-74:29
+88                <action android:name="android.intent.action.MAIN" />
+88-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:72:17-69
+88-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:72:25-66
+89
+90                <category android:name="android.intent.category.LAUNCHER" />
+90-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:73:17-77
+90-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:73:27-74
+91            </intent-filter>
+92        </activity>
+93
+94        <!-- Setup Activity (claim code entry for provisioning) -->
+95        <activity
+95-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:78:9-81:52
+96            android:name="com.ietires.scanneragent.SetupActivity"
+96-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:79:13-42
+97            android:exported="false"
+97-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:80:13-37
+98            android:screenOrientation="portrait" />
+98-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:81:13-49
+99
+100        <!-- Unlock Activity (transparent, dismisses keyguard) -->
+101        <activity
+101-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:84:9-90:43
+102            android:name="com.ietires.scanneragent.UnlockActivity"
+102-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:85:13-43
+103            android:exported="false"
+103-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:86:13-37
+104            android:showOnLockScreen="true"
+104-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:88:13-44
+105            android:showWhenLocked="true"
+105-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:89:13-42
+106            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+106-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:87:13-72
+107            android:turnScreenOn="true" />
+107-->/Users/andybarrows/IECentral/android/scanner-agent/app/src/main/AndroidManifest.xml:90:13-40
+108
+109        <provider
+109-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+110            android:name="androidx.startup.InitializationProvider"
+110-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+111            android:authorities="com.ietires.scanneragent.androidx-startup"
+111-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+112            android:exported="false" >
+112-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+113            <meta-data
+113-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+114                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+114-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+115                android:value="androidx.startup" />
+115-->[androidx.emoji2:emoji2:1.2.0] /Users/andybarrows/.gradle/caches/transforms-3/ebd7e8b0739ea5852a86f1ec4bdee03d/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+116            <meta-data
+116-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/andybarrows/.gradle/caches/transforms-3/e31b4c49acd42e650810370e70a68f68/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
+117                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+117-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/andybarrows/.gradle/caches/transforms-3/e31b4c49acd42e650810370e70a68f68/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
+118                android:value="androidx.startup" />
+118-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/andybarrows/.gradle/caches/transforms-3/e31b4c49acd42e650810370e70a68f68/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
+119        </provider>
+120    </application>
+121
+122</manifest>

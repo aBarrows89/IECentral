@@ -22,18 +22,42 @@ export const createZoomMeeting = action({
     }
 
     // Decrypt access token
-    const { decrypt } = await import("../lib/encryption");
+    const crypto = await import("crypto");
+    function decryptToken(ciphertext: string): string {
+      const keyHex = process.env.EMAIL_ENCRYPTION_KEY!;
+      const parts = ciphertext.split(":");
+      if (parts.length !== 3) throw new Error("Invalid ciphertext");
+      const [ivHex, authTagHex, encrypted] = parts;
+      const key = Buffer.from(keyHex, "hex");
+      const iv = Buffer.from(ivHex, "hex");
+      const authTag = Buffer.from(authTagHex, "hex");
+      const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(authTag);
+      let decrypted = decipher.update(encrypted, "hex", "utf8");
+      decrypted += decipher.final("utf8");
+      return decrypted;
+    }
+    function encryptToken(plaintext: string): string {
+      const keyHex = process.env.EMAIL_ENCRYPTION_KEY!;
+      const key = Buffer.from(keyHex, "hex");
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+      let encrypted = cipher.update(plaintext, "utf8", "hex");
+      encrypted += cipher.final("hex");
+      const authTag = cipher.getAuthTag();
+      return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
+    }
+
     let accessToken: string;
     try {
-      accessToken = decrypt(account.accessToken);
+      accessToken = decryptToken(account.accessToken);
     } catch {
       throw new Error("Failed to decrypt Zoom access token. Try reconnecting Zoom.");
     }
 
     // Check if token is expired and needs refresh
     if (account.tokenExpiresAt < Date.now() + 60000) {
-      // Token expires within 1 minute — refresh it
-      const refreshToken = decrypt(account.refreshToken);
+      const refreshToken = decryptToken(account.refreshToken);
       const clientId = process.env.ZOOM_CLIENT_ID!;
       const clientSecret = process.env.ZOOM_CLIENT_SECRET!;
       const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
@@ -55,7 +79,6 @@ export const createZoomMeeting = action({
       }
 
       const tokens = await refreshRes.json();
-      const { encrypt } = await import("../lib/encryption");
       accessToken = tokens.access_token;
 
       // Save refreshed tokens
@@ -64,8 +87,8 @@ export const createZoomMeeting = action({
         zoomUserId: account.zoomUserId,
         zoomEmail: account.zoomEmail,
         displayName: account.displayName,
-        accessToken: encrypt(tokens.access_token),
-        refreshToken: encrypt(tokens.refresh_token),
+        accessToken: encryptToken(tokens.access_token),
+        refreshToken: encryptToken(tokens.refresh_token),
         tokenExpiresAt: Date.now() + tokens.expires_in * 1000,
       });
     }
