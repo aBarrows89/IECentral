@@ -115,6 +115,10 @@ function CalendarContent() {
   );
 
   const allUsers = useQuery(api.auth.getAllUsers);
+  const zoomAccount = useQuery(
+    api.zoom.accounts.getByUser,
+    user?._id ? { userId: user._id } : "skip"
+  );
 
   // Mutations
   const createEvent = useMutation(api.events.create);
@@ -690,7 +694,7 @@ function CalendarContent() {
                   </select>
                 </div>
 
-                {/* Meeting Link / IECentral Meeting Info */}
+                {/* Meeting Link / IECentral Meeting Info / Zoom Auto-Create */}
                 {formData.meetingType === "iecentral" ? (
                   <div className={`p-3 rounded-lg border ${isDark ? "bg-cyan-500/10 border-cyan-500/20" : "bg-blue-50 border-blue-100"}`}>
                     <div className="flex items-center gap-2 mb-1">
@@ -704,6 +708,40 @@ function CalendarContent() {
                     <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                       A meeting room with a unique join code will be automatically created when you save this event. Invitees can join directly from the event.
                     </p>
+                  </div>
+                ) : formData.meetingType === "zoom" && zoomAccount ? (
+                  <div className={`p-3 rounded-lg border ${isDark ? "bg-blue-500/10 border-blue-500/20" : "bg-blue-50 border-blue-100"}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">📹</span>
+                      <p className={`text-sm font-medium ${isDark ? "text-blue-400" : "text-blue-700"}`}>
+                        Zoom Meeting
+                      </p>
+                    </div>
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                      A Zoom meeting link will be automatically created. Connected as {zoomAccount.zoomEmail}.
+                    </p>
+                  </div>
+                ) : formData.meetingType === "zoom" && !zoomAccount ? (
+                  <div className={`p-3 rounded-lg border ${isDark ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-100"}`}>
+                    <p className={`text-xs mb-2 ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                      Connect your Zoom account to auto-generate meeting links.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => window.location.assign(`/api/zoom/oauth?userId=${user?._id}`)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                    >
+                      Connect Zoom
+                    </button>
+                    <div className="mt-2">
+                      <input
+                        type="url"
+                        value={formData.meetingLink}
+                        onChange={(e) => setFormData({ ...formData, meetingLink: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                        placeholder="Or paste a Zoom link manually"
+                      />
+                    </div>
                   </div>
                 ) : formData.meetingType !== "in_person" && formData.meetingType !== "phone" ? (
                   <div>

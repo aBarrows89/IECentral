@@ -1777,6 +1777,10 @@ export default defineSchema({
     location: v.optional(v.string()), // Physical location or virtual
     meetingLink: v.optional(v.string()), // Zoom, Teams, Meet, etc.
     meetingType: v.optional(v.string()), // "zoom" | "teams" | "meet" | "other" | "in_person"
+    zoomMeetingId: v.optional(v.number()),
+    zoomJoinUrl: v.optional(v.string()),
+    zoomAccountId: v.optional(v.id("zoomAccounts")),
+    isZoomSynced: v.optional(v.boolean()),
     createdBy: v.id("users"),
     createdByName: v.string(),
     // Link to application (for interview events)
@@ -3124,6 +3128,24 @@ export default defineSchema({
     .index("by_customer", ["customerNumber"])
     .index("by_created", ["createdAt"])
     .index("by_expires", ["expiresAt"]),
+
+  // ============ ZOOM INTEGRATION ============
+  zoomAccounts: defineTable({
+    userId: v.id("users"),
+    zoomUserId: v.string(),
+    zoomEmail: v.string(),
+    displayName: v.optional(v.string()),
+    accessToken: v.string(),   // AES-256-GCM encrypted
+    refreshToken: v.string(),  // AES-256-GCM encrypted
+    tokenExpiresAt: v.number(),
+    isActive: v.boolean(),
+    lastSyncAt: v.optional(v.number()),
+    syncError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_zoom_user", ["zoomUserId"]),
 
   // ============ WEB PUSH SUBSCRIPTIONS ============
   webPushSubscriptions: defineTable({
