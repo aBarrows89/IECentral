@@ -108,9 +108,25 @@ export default function InventoryReportPage() {
                   </p>
                 </div>
               </div>
-              <button onClick={handleExportCSV} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                Export CSV
-              </button>
+              <div className="flex gap-2">
+                <button onClick={handleExportCSV} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                  CSV
+                </button>
+                <button disabled={sorted.length === 0} onClick={async () => {
+                  if (sorted.length === 0) return;
+                  const XLSX = await import("xlsx");
+                  const wb = XLSX.utils.book_new();
+                  const data = [
+                    ["Location", "Description", "Product Type", "D-Class", "Brand", "Model", "Item ID", "Qty On Hand", "Qty Committed", "Qty Available", "Last Cost", "Avg Cost", "Extended Value"],
+                    ...sorted.map((r) => [r.location, r.computedDescription, r.productType, r.dclass, r.manufacturerName, r.model || "", r.itemId, r.qtyOnHand, r.qtyCommitted, r.qtyAvailable, r.lastCost, r.avgCost, r.extendedValue]),
+                  ];
+                  const ws = XLSX.utils.aoa_to_sheet(data);
+                  XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+                  XLSX.writeFile(wb, `inventory-${new Date().toISOString().split("T")[0]}.xlsx`);
+                }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+                  Excel
+                </button>
+              </div>
             </div>
           </header>
 

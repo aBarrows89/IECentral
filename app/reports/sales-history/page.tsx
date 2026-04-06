@@ -104,9 +104,26 @@ export default function SalesHistoryReportPage() {
                   </p>
                 </div>
               </div>
-              <button onClick={handleExportCSV} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                Export CSV
-              </button>
+              <div className="flex gap-2">
+                <button onClick={handleExportCSV} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                  CSV
+                </button>
+                <button disabled={sorted.length === 0} onClick={async () => {
+                  if (sorted.length === 0 || !monthCols) return;
+                  const XLSX = await import("xlsx");
+                  const wb = XLSX.utils.book_new();
+                  const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...monthCols.map(formatMonthHeader), "Total", "Available"];
+                  const data = [headers, ...sorted.map((r) => {
+                    const sales = JSON.parse(r.monthlySales);
+                    return [r.computedDescription, r.manufacturerName, r.model || "", r.itemId, r.productType, r.dclass, ...monthCols.map((m) => sales[m] || 0), r.total, r.availableStock ?? ""];
+                  })];
+                  const ws = XLSX.utils.aoa_to_sheet(data);
+                  XLSX.utils.book_append_sheet(wb, ws, "Sales History");
+                  XLSX.writeFile(wb, `sales-history-${new Date().toISOString().split("T")[0]}.xlsx`);
+                }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+                  Excel
+                </button>
+              </div>
             </div>
           </header>
 

@@ -50,6 +50,15 @@ export default function ReportUploadPage() {
   const recordUpload = useMutation(api.jmkUploads.recordUpload);
 
   const dataUploads = useQuery(api.reportData.listUploads, {});
+  const ftpConnections = useQuery(api.ftpConnections.list);
+  const createFtp = useMutation(api.ftpConnections.create);
+  const removeFtp = useMutation(api.ftpConnections.remove);
+
+  const [activeTab, setActiveTab] = useState<"upload" | "ftp">("upload");
+  const [ftpForm, setFtpForm] = useState({ name: "", host: "", port: "21", username: "", password: "", remotePath: "/", filePattern: "tires-*.csv", sourceType: "tires", frequency: "hourly" });
+  const [ftpTesting, setFtpTesting] = useState(false);
+  const [ftpTestResult, setFtpTestResult] = useState<{ connected: boolean; message: string; files?: string[] } | null>(null);
+  const [savingFtp, setSavingFtp] = useState(false);
 
   const [reportType, setReportType] = useState("OEA07V");
   const [selectedWarehouse, setSelectedWarehouse] = useState("");
@@ -193,6 +202,56 @@ export default function ReportUploadPage() {
     }
   }, [file, user, reportType, month, validation, recordUpload, isDataSource, selectedWarehouse]);
 
+  const handleTestFtp = useCallback(async () => {
+    setFtpTesting(true);
+    setFtpTestResult(null);
+    try {
+      const res = await fetch("/api/reports/ftp-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: ftpForm.host, port: parseInt(ftpForm.port) || 21, username: ftpForm.username, password: ftpForm.password, remotePath: ftpForm.remotePath }),
+      });
+      setFtpTestResult(await res.json());
+    } catch (err) {
+      setFtpTestResult({ connected: false, message: err instanceof Error ? err.message : "Test failed" });
+    } finally {
+      setFtpTesting(false);
+    }
+  }, [ftpForm]);
+
+  const handleSaveFtp = useCallback(async () => {
+    if (!user || !ftpForm.name || !ftpForm.host || !ftpForm.username || !ftpForm.password) return;
+    setSavingFtp(true);
+    try {
+      // Encrypt password before storing
+      const encRes = await fetch("/api/reports/encrypt-value", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: ftpForm.password }),
+      });
+      const { encrypted } = await encRes.json();
+
+      await createFtp({
+        name: ftpForm.name,
+        host: ftpForm.host,
+        port: parseInt(ftpForm.port) || 21,
+        username: ftpForm.username,
+        password: encrypted,
+        remotePath: ftpForm.remotePath,
+        filePattern: ftpForm.filePattern,
+        sourceType: ftpForm.sourceType,
+        frequency: ftpForm.frequency,
+        createdBy: user._id,
+      });
+      setFtpForm({ name: "", host: "", port: "21", username: "", password: "", remotePath: "/", filePattern: "tires-*.csv", sourceType: "tires", frequency: "hourly" });
+      setFtpTestResult(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingFtp(false);
+    }
+  }, [ftpForm, user, createFtp]);
+
   if (!canAccess) {
     return (
       <Protected>
@@ -230,9 +289,155 @@ export default function ReportUploadPage() {
                 </div>
               </div>
             </div>
+            {/* Tabs */}
+            <div className="flex gap-1 mt-4">
+              {(["upload", "ftp"] as const).map((tab) => (
+                <button key={tab} onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                    activeTab === tab
+                      ? isDark ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                      : isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}>
+                  {tab === "upload" ? "Manual Upload" : `FTP Connections (${ftpConnections?.length ?? 0})`}
+                </button>
+              ))}
+            </div>
           </header>
 
           <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+            {/* FTP Tab */}
+            {activeTab === "ftp" && (
+              <div className="space-y-6">
+                {/* New FTP Connection Form */}
+                <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                  <h2 className={`text-sm font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>New FTP Connection</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Connection Name</label>
+                      <input type="text" value={ftpForm.name} onChange={(e) => setFtpForm({ ...ftpForm, name: e.target.value })}
+                        placeholder="e.g. JMK Tires Catalog" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Source Type</label>
+                      <select value={ftpForm.sourceType} onChange={(e) => setFtpForm({ ...ftpForm, sourceType: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                        <option value="tires">Tires Catalog</option>
+                        <option value="oeival">Inventory (OEIVAL)</option>
+                        <option value="oea07v">Sales History (OEA07V)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>FTP Host</label>
+                      <input type="text" value={ftpForm.host} onChange={(e) => setFtpForm({ ...ftpForm, host: e.target.value })}
+                        placeholder="ftp.example.com" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Port</label>
+                      <input type="number" value={ftpForm.port} onChange={(e) => setFtpForm({ ...ftpForm, port: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Username</label>
+                      <input type="text" value={ftpForm.username} onChange={(e) => setFtpForm({ ...ftpForm, username: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Password</label>
+                      <input type="password" value={ftpForm.password} onChange={(e) => setFtpForm({ ...ftpForm, password: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Remote Path</label>
+                      <input type="text" value={ftpForm.remotePath} onChange={(e) => setFtpForm({ ...ftpForm, remotePath: e.target.value })}
+                        placeholder="/" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>File Pattern</label>
+                      <input type="text" value={ftpForm.filePattern} onChange={(e) => setFtpForm({ ...ftpForm, filePattern: e.target.value })}
+                        placeholder="tires-*.csv" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Sync Frequency</label>
+                      <select value={ftpForm.frequency} onChange={(e) => setFtpForm({ ...ftpForm, frequency: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                        <option value="hourly">Hourly</option>
+                        <option value="daily">Daily</option>
+                        <option value="manual">Manual Only</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Test result */}
+                  {ftpTestResult && (
+                    <div className={`mt-4 p-3 rounded-lg text-sm ${ftpTestResult.connected ? isDark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-700" : isDark ? "bg-red-500/10 text-red-400" : "bg-red-50 text-red-700"}`}>
+                      <p className="font-medium">{ftpTestResult.connected ? "Connected!" : "Connection Failed"}</p>
+                      <p className="text-xs mt-1">{ftpTestResult.message}</p>
+                      {ftpTestResult.files && ftpTestResult.files.length > 0 && (
+                        <p className="text-xs mt-1 opacity-75">Files: {ftpTestResult.files.join(", ")}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 mt-5">
+                    <button onClick={handleTestFtp} disabled={ftpTesting || !ftpForm.host || !ftpForm.username}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                      {ftpTesting ? "Testing..." : "Test Connection"}
+                    </button>
+                    <button onClick={handleSaveFtp} disabled={savingFtp || !ftpForm.name || !ftpForm.host || !ftpForm.username || !ftpForm.password}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
+                      {savingFtp ? "Saving..." : "Save Connection"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Existing FTP Connections */}
+                <div className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                  <div className={`px-6 py-4 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                    <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Active Connections</h2>
+                  </div>
+                  {!ftpConnections || ftpConnections.length === 0 ? (
+                    <p className={`p-6 text-sm text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>No FTP connections configured</p>
+                  ) : (
+                    <div className="divide-y divide-slate-700/50">
+                      {ftpConnections.map((conn) => (
+                        <div key={conn._id} className="px-6 py-4 flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${conn.isActive ? conn.lastSyncStatus === "failed" ? "bg-red-500" : "bg-emerald-500" : "bg-slate-500"}`} />
+                              <span className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>{conn.name}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${isDark ? "bg-slate-700 text-slate-400" : "bg-gray-100 text-gray-500"}`}>{conn.sourceType}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] ${isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-50 text-blue-600"}`}>{conn.frequency}</span>
+                            </div>
+                            <div className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                              {conn.host} — {conn.remotePath} — {conn.filePattern}
+                              {conn.lastSyncAt && <span className="ml-2">Last sync: {new Date(conn.lastSyncAt).toLocaleString()}</span>}
+                              {conn.lastSyncRowCount && <span className="ml-1">({conn.lastSyncRowCount} rows)</span>}
+                              {conn.lastSyncError && <span className={`ml-2 ${isDark ? "text-red-400" : "text-red-600"}`}>{conn.lastSyncError}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={async () => {
+                              const res = await fetch("/api/reports/ftp-sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connectionId: conn._id }) });
+                              const data = await res.json();
+                              alert(JSON.stringify(data.results || data, null, 2));
+                            }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+                              Sync Now
+                            </button>
+                            <button onClick={() => { if (confirm("Delete this connection?")) removeFtp({ id: conn._id }); }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Upload Tab */}
+            {activeTab === "upload" && <>
             {/* Upload Form */}
             <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
@@ -423,6 +628,7 @@ export default function ReportUploadPage() {
                 )}
               </div>
             </div>
+            </>}
           </div>
         </main>
       </div>

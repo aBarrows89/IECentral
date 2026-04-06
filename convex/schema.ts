@@ -3176,6 +3176,31 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // ============ FTP CONNECTIONS ============
+  ftpConnections: defineTable({
+    name: v.string(),              // "JMK Tires Catalog"
+    host: v.string(),
+    port: v.number(),
+    username: v.string(),
+    password: v.string(),          // AES-256-GCM encrypted
+    remotePath: v.string(),        // "/exports/tires/"
+    filePattern: v.string(),       // "tires-*.csv"
+    sourceType: v.string(),        // "tires" | "oeival" | "oea07v"
+    warehouse: v.optional(v.string()),
+    frequency: v.string(),         // "hourly" | "daily" | "manual"
+    isActive: v.boolean(),
+    lastSyncAt: v.optional(v.number()),
+    lastSyncStatus: v.optional(v.string()), // "success" | "failed" | "syncing"
+    lastSyncError: v.optional(v.string()),
+    lastSyncFileName: v.optional(v.string()),
+    lastSyncRowCount: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_sourceType", ["sourceType"]),
+
   // ============ REPORT DATA TABLES ============
 
   // Upload tracking for report data ingestion
