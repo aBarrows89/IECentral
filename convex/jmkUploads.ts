@@ -64,6 +64,8 @@ export const recordUpload = mutation({
     s3Key: v.string(),
     reportingMonth: v.string(),
     rowCount: v.optional(v.number()),
+    dateRangeStart: v.optional(v.string()),
+    dateRangeEnd: v.optional(v.string()),
     validationStatus: v.string(),
     validationErrors: v.optional(v.array(v.string())),
     uploadedBy: v.optional(v.id("users")),

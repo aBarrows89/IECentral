@@ -133,6 +133,96 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Run saved configs marked as autoRun
+    const autoRunResults: { name: string; status: string; rows?: number; message?: string }[] = [];
+    try {
+      const autoConfigs = await convex.query(api.savedReports.getAutoRunConfigs, {});
+      for (const config of autoConfigs) {
+        try {
+          // Calculate date range from relative config
+          const today = new Date();
+          let rangeStart: Date;
+          let rangeEnd: Date = new Date(today);
+          rangeEnd.setDate(rangeEnd.getDate() - 1); // yesterday
+
+          switch (config.dateRangeType) {
+            case "yesterday":
+              rangeStart = new Date(rangeEnd);
+              break;
+            case "last7":
+              rangeStart = new Date(today);
+              rangeStart.setDate(rangeStart.getDate() - 7);
+              break;
+            case "last30":
+              rangeStart = new Date(today);
+              rangeStart.setDate(rangeStart.getDate() - 30);
+              break;
+            case "thisMonth":
+              rangeStart = new Date(today.getFullYear(), today.getMonth(), 1);
+              rangeEnd = new Date(today);
+              break;
+            case "lastMonth":
+              rangeStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              rangeEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+              break;
+            case "last90":
+              rangeStart = new Date(today);
+              rangeStart.setDate(rangeStart.getDate() - 90);
+              break;
+            case "custom":
+              rangeStart = config.customStartDate ? new Date(config.customStartDate) : new Date(today);
+              rangeEnd = config.customEndDate ? new Date(config.customEndDate) : new Date(today);
+              break;
+            default:
+              rangeStart = new Date(rangeEnd);
+          }
+
+          // Build months array
+          const months: string[] = [];
+          const cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+          while (cursor <= rangeEnd) {
+            months.push(`${cursor.getFullYear()}${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+            cursor.setMonth(cursor.getMonth() + 1);
+          }
+
+          const primarySource = config.sources[0];
+          const secondSource = config.sources.length > 1 ? config.sources[1] : undefined;
+
+          const dataRes = await fetch(`${APP_URL}/api/reports/custom-data`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reportType: primarySource,
+              months,
+              selectedColumns: config.selectedColumns,
+              secondSource,
+              fusionJoinKey: secondSource ? (config.fusionJoinKey || "itemId") : undefined,
+            }),
+          });
+          const data = await dataRes.json();
+
+          if (dataRes.ok) {
+            await convex.mutation(api.savedReports.update, {
+              id: config._id,
+              lastRunAt: Date.now(),
+              lastRunRowCount: data.totalRows || data.rows?.length || 0,
+            });
+            autoRunResults.push({ name: config.name, status: "success", rows: data.totalRows });
+          } else {
+            autoRunResults.push({ name: config.name, status: "failed", message: data.error });
+          }
+        } catch (err) {
+          autoRunResults.push({
+            name: config.name,
+            status: "failed",
+            message: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+    } catch (err) {
+      autoRunResults.push({ name: "_fetch", status: "failed", message: "Failed to load auto-run configs" });
+    }
+
     return NextResponse.json({
       status: "success",
       processedAt: now.toISOString(),
@@ -140,6 +230,7 @@ export async function GET(request: NextRequest) {
       isMonday: dayOfWeek === 1,
       monthsChecked: [currentMonth, prevMonthStr],
       results,
+      autoRunResults,
     });
   } catch (err) {
     console.error("Auto-process error:", err);

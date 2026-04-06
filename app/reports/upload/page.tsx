@@ -72,7 +72,7 @@ export default function ReportUploadPage() {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0); // For multi-file: current index
-  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number } | null>(null);
+  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number; dateRangeStart?: string; dateRangeEnd?: string } | null>(null);
   const [processingResults, setProcessingResults] = useState<{ trigger: string; status: string; message?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -110,7 +110,8 @@ export default function ReportUploadPage() {
     setErrorMsg("");
 
     try {
-      const text = await file.slice(0, 5000).text();
+      // Read enough of the file for validation + date scanning
+      const text = await file.text();
       const lines = text.split("\n");
       const headerRow = lines[0]?.split(",").map((h) => h.trim());
       const rowCount = lines.length - 1;
@@ -121,7 +122,32 @@ export default function ReportUploadPage() {
         body: JSON.stringify({ reportType, headerRow, rowCount }),
       });
       const data = await res.json();
-      setValidation(data);
+
+      // Scan for date range in OEA07V files (Activity Date is col 18, format MM/DD/YY)
+      let dateRangeStart: string | undefined;
+      let dateRangeEnd: string | undefined;
+      if (reportType === "OEA07V" && data.valid) {
+        const dateCol = 18; // Activity Date column index
+        const dates: Date[] = [];
+        for (let i = 1; i < Math.min(lines.length, 50000); i++) {
+          const cols = lines[i]?.split(",");
+          if (!cols || !cols[dateCol]) continue;
+          const raw = cols[dateCol].replace(/"/g, "").trim();
+          const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+          if (!match) continue;
+          let y = parseInt(match[3]);
+          if (y < 100) y += 2000;
+          const d = new Date(y, parseInt(match[1]) - 1, parseInt(match[2]));
+          if (!isNaN(d.getTime())) dates.push(d);
+        }
+        if (dates.length > 0) {
+          dates.sort((a, b) => a.getTime() - b.getTime());
+          dateRangeStart = dates[0].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          dateRangeEnd = dates[dates.length - 1].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+      }
+
+      setValidation({ ...data, dateRangeStart, dateRangeEnd });
       setUploadState(data.valid ? "idle" : "error");
       if (!data.valid) setErrorMsg("Validation failed — check column errors below");
     } catch (err) {
@@ -134,93 +160,114 @@ export default function ReportUploadPage() {
   const currentType = REPORT_TYPES.find((t) => t.code === reportType);
 
   const handleUpload = useCallback(async () => {
-    if (!file || !user) return;
+    if (files.length === 0 || !user) return;
 
     setUploadState("uploading");
     setStatusMsg("Uploading...");
     setErrorMsg("");
     setProcessingResults([]);
 
+    const allResults: { trigger: string; status: string; message?: string }[] = [];
+
     try {
-      if (isDataSource) {
-        // Data source uploads go directly to S3 — reports read from S3 at query time
-        const sourceType = reportType === "oea07v-sales" ? "oea07v-sales" : reportType;
-        const urlRes = await fetch("/api/reports/upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reportType: sourceType, month, filename: file.name }),
-        });
-        const { url, key } = await urlRes.json();
-        if (!url) throw new Error("Failed to get upload URL");
+      for (let i = 0; i < files.length; i++) {
+        const currentFile = files[i];
+        const fileLabel = files.length > 1 ? `(${i + 1}/${files.length}) ` : "";
+        setUploadProgress(i);
 
-        setStatusMsg("Uploading to S3...");
-        const contentType = file.name.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
-        const uploadRes = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
-        if (!uploadRes.ok) throw new Error("S3 upload failed");
+        if (isDataSource) {
+          const sourceType = reportType === "oea07v-sales" ? "oea07v-sales" : reportType;
+          setStatusMsg(`${fileLabel}Getting upload URL for ${currentFile.name}...`);
+          const urlRes = await fetch("/api/reports/upload-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportType: sourceType, month, filename: currentFile.name }),
+          });
+          const { url, key } = await urlRes.json();
+          if (!url) throw new Error(`Failed to get upload URL for ${currentFile.name}`);
 
-        // Record in upload history
-        await recordUpload({
-          reportType: sourceType,
-          fileName: file.name,
-          fileSize: file.size,
-          s3Key: key,
-          reportingMonth: month,
-          validationStatus: "valid",
-          uploadedBy: user._id,
-          uploadedByName: user.name || "Unknown",
-        });
+          setStatusMsg(`${fileLabel}Uploading ${currentFile.name} to S3...`);
+          const contentType = currentFile.name.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+          const uploadRes = await fetch(url, { method: "PUT", body: currentFile, headers: { "Content-Type": contentType } });
+          if (!uploadRes.ok) throw new Error(`S3 upload failed for ${currentFile.name}`);
 
-        setProcessingResults([{
-          trigger: "s3-upload",
-          status: "success",
-          message: `Uploaded ${file.name} to S3 — available in reports immediately`,
-        }]);
-      } else {
-        // JMK report uploads go to S3 + processing pipeline
-        const urlRes = await fetch("/api/reports/upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reportType, month, filename: file.name }),
-        });
-        const { url, key } = await urlRes.json();
-        if (!url) throw new Error("Failed to get upload URL");
+          await recordUpload({
+            reportType: sourceType,
+            fileName: currentFile.name,
+            fileSize: currentFile.size,
+            s3Key: key,
+            reportingMonth: month,
+            validationStatus: "valid",
+            uploadedBy: user._id,
+            uploadedByName: user.name || "Unknown",
+          });
 
-        setStatusMsg("Uploading to S3...");
-        const uploadRes = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": "text/csv" } });
-        if (!uploadRes.ok) throw new Error("S3 upload failed");
+          allResults.push({
+            trigger: "s3-upload",
+            status: "success",
+            message: `Uploaded ${currentFile.name} to S3 — available in reports immediately`,
+          });
+        } else {
+          setStatusMsg(`${fileLabel}Getting upload URL for ${currentFile.name}...`);
+          const urlRes = await fetch("/api/reports/upload-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportType, month, filename: currentFile.name }),
+          });
+          const { url, key } = await urlRes.json();
+          if (!url) throw new Error(`Failed to get upload URL for ${currentFile.name}`);
 
-        setStatusMsg("Recording upload...");
-        const uploadId = await recordUpload({
-          reportType,
-          fileName: file.name,
-          fileSize: file.size,
-          s3Key: key,
-          reportingMonth: month,
-          rowCount: validation?.rowCount,
-          validationStatus: validation?.valid ? "valid" : "warning",
-          uploadedBy: user._id,
-          uploadedByName: user.name || "Unknown",
-        });
+          setStatusMsg(`${fileLabel}Uploading ${currentFile.name} to S3...`);
+          const contentType = currentFile.name.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+          const uploadRes = await fetch(url, { method: "PUT", body: currentFile, headers: { "Content-Type": contentType } });
+          if (!uploadRes.ok) throw new Error(`S3 upload failed for ${currentFile.name}`);
 
-        setUploadState("processing");
-        setStatusMsg("Processing...");
+          setStatusMsg(`${fileLabel}Recording ${currentFile.name}...`);
+          const uploadId = await recordUpload({
+            reportType,
+            fileName: currentFile.name,
+            fileSize: currentFile.size,
+            s3Key: key,
+            reportingMonth: month,
+            rowCount: validation?.rowCount,
+            dateRangeStart: validation?.dateRangeStart,
+            dateRangeEnd: validation?.dateRangeEnd,
+            validationStatus: validation?.valid ? "valid" : "warning",
+            uploadedBy: user._id,
+            uploadedByName: user.name || "Unknown",
+          });
 
-        const processRes = await fetch("/api/reports/process", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uploadId, reportType, s3Key: key, month }),
-        });
-        const processData = await processRes.json();
-        setProcessingResults(processData.results || []);
+          // Only trigger processing on the last file to avoid duplicate runs
+          if (i === files.length - 1) {
+            setUploadState("processing");
+            setStatusMsg(`${fileLabel}Processing...`);
+
+            const processRes = await fetch("/api/reports/process", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uploadId, reportType, s3Key: key, month }),
+            });
+            const processData = await processRes.json();
+            allResults.push(...(processData.results || []));
+          } else {
+            allResults.push({
+              trigger: "s3-upload",
+              status: "success",
+              message: `Uploaded ${currentFile.name} to S3`,
+            });
+          }
+        }
+
+        setProcessingResults([...allResults]);
       }
 
       setUploadState("complete");
-      setStatusMsg("Upload and processing complete!");
+      setStatusMsg(files.length > 1 ? `All ${files.length} files uploaded successfully!` : "Upload and processing complete!");
     } catch (err) {
       setUploadState("error");
       setErrorMsg(err instanceof Error ? err.message : "Upload failed");
     }
-  }, [file, user, reportType, month, validation, recordUpload, isDataSource, selectedWarehouse]);
+  }, [files, user, reportType, month, validation, recordUpload, isDataSource]);
 
   const handleTestFtp = useCallback(async () => {
     setFtpTesting(true);
@@ -559,23 +606,36 @@ export default function ReportUploadPage() {
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
                   dragOver
                     ? isDark ? "border-cyan-500 bg-cyan-500/10" : "border-blue-400 bg-blue-50"
-                    : file
+                    : files.length > 0
                       ? isDark ? "border-emerald-500/50 bg-emerald-500/5" : "border-emerald-300 bg-emerald-50"
                       : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-300 hover:border-gray-400"
                 }`}
               >
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} />
-                {file ? (
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" multiple onChange={handleFileSelect}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                {files.length > 0 ? (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{file.name}</p>
-                    <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{(file.size / 1024).toFixed(0)} KB</p>
+                    {files.length === 1 ? (
+                      <>
+                        <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{files[0].name}</p>
+                        <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{(files[0].size / 1024).toFixed(0)} KB</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{files.length} files selected</p>
+                        <div className={`text-xs mt-1 space-y-0.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                          {files.map((f, i) => (
+                            <p key={i}>{f.name} — {(f.size / 1024).toFixed(0)} KB</p>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div>
@@ -595,7 +655,14 @@ export default function ReportUploadPage() {
                     : isDark ? "bg-red-500/10 text-red-400" : "bg-red-50 text-red-700"
                 }`}>
                   {validation.valid ? (
-                    <p>Valid {reportType} format — {validation.detectedColumns} columns, ~{validation.rowCount} rows</p>
+                    <p>
+                      Valid {reportType} format — {validation.detectedColumns} columns, ~{validation.rowCount} rows
+                      {validation.dateRangeStart && validation.dateRangeEnd && (
+                        <span className={`ml-2 font-medium ${isDark ? "text-cyan-400" : "text-blue-700"}`}>
+                          — Dates: {validation.dateRangeStart} to {validation.dateRangeEnd}
+                        </span>
+                      )}
+                    </p>
                   ) : (
                     <div>
                       <p className="font-medium mb-1">Validation errors:</p>
@@ -633,22 +700,30 @@ export default function ReportUploadPage() {
 
               {/* Actions */}
               <div className="flex gap-3 mt-5">
-                {file && !validation && (
+                {files.length === 1 && !validation && uploadState !== "complete" && (
                   <button
                     onClick={handleValidate}
                     disabled={uploadState === "validating"}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-                  >
-                    {uploadState === "validating" ? "Validating..." : "Validate"}
-                  </button>
-                )}
-                {file && (
-                  <button
-                    onClick={handleUpload}
-                    disabled={uploadState === "uploading" || uploadState === "processing" || uploadState === "complete"}
                     className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
                   >
-                    {uploadState === "uploading" ? "Uploading..." : uploadState === "processing" ? "Processing..." : uploadState === "complete" ? "Done!" : "Upload & Process"}
+                    {uploadState === "validating" ? "Validating..." : "Validate & Preview"}
+                  </button>
+                )}
+                {((files.length === 1 && validation?.valid) || files.length > 1) && uploadState !== "complete" && (
+                  <button
+                    onClick={handleUpload}
+                    disabled={uploadState === "uploading" || uploadState === "processing"}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+                  >
+                    {uploadState === "uploading" ? `Uploading${files.length > 1 ? ` (${uploadProgress + 1}/${files.length})` : ""}...` : uploadState === "processing" ? "Processing..." : files.length > 1 ? `Upload ${files.length} Files` : "Upload & Process"}
+                  </button>
+                )}
+                {uploadState === "complete" && (
+                  <button
+                    onClick={() => { setFiles([]); setValidation(null); setUploadState("idle"); setStatusMsg(""); setProcessingResults([]); setErrorMsg(""); }}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                  >
+                    Upload Another
                   </button>
                 )}
               </div>
@@ -671,7 +746,7 @@ export default function ReportUploadPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
-                        {["File", "Type", "Month", "Rows", "Status", "Uploaded", "By"].map((h) => (
+                        {["File", "Type", "Date Range", "Rows", "Status", "Uploaded", "By"].map((h) => (
                           <th key={h} className={`text-left px-4 py-3 text-xs font-semibold ${isDark ? "text-slate-400" : "text-gray-500"}`}>{h}</th>
                         ))}
                       </tr>
@@ -681,7 +756,11 @@ export default function ReportUploadPage() {
                         <tr key={u._id} className={`border-b ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
                           <td className={`px-4 py-2.5 font-mono text-xs truncate max-w-[200px] ${isDark ? "text-white" : "text-gray-900"}`}>{u.fileName}</td>
                           <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.reportType}</td>
-                          <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{formatMonth(u.reportingMonth)}</td>
+                          <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                            {u.dateRangeStart && u.dateRangeEnd
+                              ? <span className="text-xs">{u.dateRangeStart} — {u.dateRangeEnd}</span>
+                              : formatMonth(u.reportingMonth)}
+                          </td>
                           <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.rowCount ?? "—"}</td>
                           <td className="px-4 py-2.5">
                             <div>

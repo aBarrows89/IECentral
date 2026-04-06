@@ -38,6 +38,7 @@ public/sw.js
 public/sw.js.map
 public/workbox-*.js
 public/workbox-*.js.map
+public/worker-*.js
 companion-app/dist/
 companion-app/node_modules/
 

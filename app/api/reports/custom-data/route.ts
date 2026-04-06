@@ -244,7 +244,7 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { reportType, months, selectedColumns, secondSource, fusionJoinKey } = await request.json();
+    const { reportType, months, selectedColumns, secondSource, fusionJoinKey, fusionColumns } = await request.json();
 
     if (!reportType || !months?.length) {
       return NextResponse.json({ error: "reportType and months required" }, { status: 400 });
@@ -282,7 +282,10 @@ export async function POST(request: NextRequest) {
 
       // Merge columns (add second source columns that don't overlap)
       const primaryKeys = new Set(finalColumns.map((c) => c.key));
-      const newCols = secondData.columns.filter((c) => !primaryKeys.has(c.key) && c.key !== fusionJoinKey);
+      const fusionColSet = fusionColumns ? new Set(fusionColumns as string[]) : null;
+      const newCols = secondData.columns.filter((c) =>
+        !primaryKeys.has(c.key) && c.key !== fusionJoinKey && (!fusionColSet || fusionColSet.has(c.key))
+      );
       finalColumns = [...finalColumns, ...newCols.map((c) => ({ key: `fusion_${c.key}`, name: `${c.name} (${secondSource})` }))];
 
       // Join rows

@@ -106,6 +106,7 @@ export default function CustomReportPage() {
   const [sourceType, setSourceType] = useState("OEA07V");
   const [secondSource, setSecondSource] = useState("");
   const [fusionJoinKey, setFusionJoinKey] = useState("itemId");
+  const [selectedFusionColumns, setSelectedFusionColumns] = useState<string[]>([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
@@ -147,9 +148,15 @@ export default function CustomReportPage() {
   const handleSourceChange = useCallback((code: string) => {
     setSourceType(code);
     setSelectedColumns((COLUMN_OPTIONS[code] || []).filter((c) => c.defaultOn).map((c) => c.key));
+    setSecondSource("");
+    setSelectedFusionColumns([]);
     setRows([]);
     setRunState("idle");
   }, []);
+
+  const fusionColumnOptions = secondSource ? (COLUMN_OPTIONS[secondSource] || []).filter(
+    (c) => c.key !== fusionJoinKey && !selectedColumns.includes(c.key)
+  ) : [];
 
   const toggleColumn = useCallback((key: string) => {
     setSelectedColumns((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
@@ -187,6 +194,7 @@ export default function CustomReportPage() {
           selectedColumns,
           secondSource: secondSource || undefined,
           fusionJoinKey: secondSource ? fusionJoinKey : undefined,
+          fusionColumns: secondSource && selectedFusionColumns.length > 0 ? selectedFusionColumns : undefined,
         }),
       });
       const data = await res.json();
@@ -362,7 +370,12 @@ export default function CustomReportPage() {
                         </ul>
                       </div>
                     </div>
-                    <select value={secondSource} onChange={(e) => setSecondSource(e.target.value)}
+                    <select value={secondSource} onChange={(e) => {
+                      setSecondSource(e.target.value);
+                      // Auto-select all fusion columns from second source (excluding overlapping + join key)
+                      const opts = (COLUMN_OPTIONS[e.target.value] || []).filter((c) => c.key !== fusionJoinKey && !selectedColumns.includes(c.key));
+                      setSelectedFusionColumns(opts.filter((c) => c.defaultOn).map((c) => c.key));
+                    }}
                       className={`px-2 py-1 rounded-lg border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
                       <option value="">None (single source)</option>
                       {SOURCE_TYPES.filter((t) => t.code !== sourceType).map((t) => (
@@ -375,6 +388,34 @@ export default function CustomReportPage() {
                       </span>
                     )}
                   </label>
+                  {secondSource && fusionColumnOptions.length > 0 && (
+                    <div className="mt-2 ml-12">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[10px] font-medium ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                          {secondSource} columns ({selectedFusionColumns.length}/{fusionColumnOptions.length})
+                        </label>
+                        <div className="flex gap-2">
+                          <button onClick={() => setSelectedFusionColumns(fusionColumnOptions.map((c) => c.key))} className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "text-cyan-400 hover:bg-slate-800" : "text-blue-600 hover:bg-gray-100"}`}>All</button>
+                          <button onClick={() => setSelectedFusionColumns([])} className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "text-slate-500 hover:bg-slate-800" : "text-gray-400 hover:bg-gray-100"}`}>None</button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {fusionColumnOptions.map((col) => (
+                          <button
+                            key={col.key}
+                            onClick={() => setSelectedFusionColumns((prev) => prev.includes(col.key) ? prev.filter((x) => x !== col.key) : [...prev, col.key])}
+                            className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                              selectedFusionColumns.includes(col.key)
+                                ? isDark ? "bg-purple-500/15 text-purple-400 border-purple-500/30" : "bg-purple-50 text-purple-700 border-purple-200"
+                                : isDark ? "bg-slate-900/50 text-slate-600 border-slate-700" : "bg-gray-50 text-gray-400 border-gray-200"
+                            }`}
+                          >
+                            {col.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -489,6 +530,15 @@ export default function CustomReportPage() {
               </div>
             </div>
 
+            {/* Idle hint */}
+            {runState === "idle" && rows.length === 0 && (
+              <div className={`rounded-xl border border-dashed p-6 text-center ${isDark ? "border-slate-700" : "border-gray-300"}`}>
+                <p className={`text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                  Select a source, date range, and columns, then click <strong>Generate Report</strong> to pull data.
+                </p>
+              </div>
+            )}
+
             {/* Error */}
             {runState === "error" && (
               <div className={`rounded-xl border p-4 ${isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
@@ -496,8 +546,23 @@ export default function CustomReportPage() {
               </div>
             )}
 
+            {/* Empty result */}
+            {runState === "success" && rows.length === 0 && (
+              <div className={`rounded-xl border p-8 text-center ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                <svg className={`w-12 h-12 mx-auto mb-3 ${isDark ? "text-slate-600" : "text-gray-300"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>No data found</p>
+                <p className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                  No {sourceType} records match the selected date range ({startDate} to {endDate}).
+                  {secondSource && ` Fusion with ${secondSource} returned no matching rows by Item ID.`}
+                  <br />Make sure files have been uploaded for this period.
+                </p>
+              </div>
+            )}
+
             {/* Results */}
-            {runState === "success" && (() => {
+            {runState === "success" && rows.length > 0 && (() => {
               // Apply column filters
               const filteredRows = rows.filter((row) => {
                 for (const [colKey, allowedValues] of Object.entries(columnFilters)) {

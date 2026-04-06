@@ -72,11 +72,23 @@ export function useWebPush(userId: Id<"users"> | undefined) {
         return false;
       }
 
-      // Get service worker registration (with timeout)
-      const registration = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Service worker not ready — try refreshing the page")), 10000)),
-      ]);
+      // Ensure service worker is registered (next-pwa may not have finished yet)
+      let registration: ServiceWorkerRegistration;
+      const existing = await navigator.serviceWorker.getRegistration("/");
+      if (existing?.active) {
+        registration = existing;
+      } else {
+        // Register explicitly if next-pwa hasn't yet
+        if (!existing) {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        }
+        registration = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Service worker took too long to activate. Please refresh and try again.")), 15000)
+          ),
+        ]);
+      }
 
       // Subscribe to push
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
