@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-
-const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -28,15 +24,41 @@ interface FileInfo {
   hour?: number;
 }
 
+/** Get all business days (Mon-Sat) in a month up to today */
+function getBusinessDaysInMonth(yyyymm: string): string[] {
+  const y = parseInt(yyyymm.slice(0, 4));
+  const m = parseInt(yyyymm.slice(4, 6)) - 1;
+  const today = new Date();
+  const days: string[] = [];
+  const cursor = new Date(y, m, 1);
+  while (cursor.getMonth() === m) {
+    if (cursor <= today && cursor.getDay() !== 0) { // exclude Sunday
+      days.push(cursor.toISOString().split("T")[0]);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+/** Extract YYYYMM from S3 key like "jmk-uploads/202604/file.csv" */
+function extractMonth(key: string): string | null {
+  const match = key.match(/jmk-uploads\/(?:\w+\/)?(\d{6})\//);
+  return match ? match[1] : null;
+}
+
 /**
  * GET /api/reports/upload-status
  *
- * Scans S3 for all uploaded report files and returns a date-indexed map
- * showing which report types have data for each date.
+ * Scans S3 for uploaded report files. For daily reports (OEA07V, OEIVAL),
+ * marks all business days in the file's month as covered. For hourly reports
+ * (tires), groups by upload date/hour.
  */
 export async function GET() {
   try {
     const statusByDate: Record<string, Record<string, { files: FileInfo[]; complete: boolean; partial: boolean }>> = {};
+
+    // Track which months have files per source (for daily spreading)
+    const monthFiles: Record<string, { source: string; file: FileInfo }[]> = {};
 
     for (const source of REPORT_SOURCES) {
       for (const prefix of source.prefixes) {
@@ -55,66 +77,63 @@ export async function GET() {
             if (!keyLower.includes(source.pattern)) continue;
             if (!keyLower.endsWith(".csv") && !keyLower.endsWith(".xlsx")) continue;
 
-            const dateStr = obj.LastModified.toISOString().split("T")[0];
-            const hour = obj.LastModified.getHours();
-
-            if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
-            if (!statusByDate[dateStr][source.type]) {
-              statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
-            }
-
-            statusByDate[dateStr][source.type].files.push({
+            const fileInfo: FileInfo = {
               key: obj.Key,
               size: obj.Size || 0,
               lastModified: obj.LastModified.toISOString(),
-              hour,
-            });
+              hour: obj.LastModified.getHours(),
+            };
+
+            if (source.frequency === "hourly") {
+              // Hourly sources: group by actual upload date
+              const dateStr = obj.LastModified.toISOString().split("T")[0];
+              if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
+              if (!statusByDate[dateStr][source.type]) {
+                statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
+              }
+              statusByDate[dateStr][source.type].files.push(fileInfo);
+            } else {
+              // Daily sources: spread across the month folder's business days
+              const month = extractMonth(obj.Key);
+              if (month) {
+                if (!monthFiles[month]) monthFiles[month] = [];
+                monthFiles[month].push({ source: source.type, file: fileInfo });
+              } else {
+                // Fallback: use upload date if no month folder
+                const dateStr = obj.LastModified.toISOString().split("T")[0];
+                if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
+                if (!statusByDate[dateStr][source.type]) {
+                  statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
+                }
+                statusByDate[dateStr][source.type].files.push(fileInfo);
+              }
+            }
           }
 
           token = res.IsTruncated ? res.NextContinuationToken : undefined;
         } while (token);
 
-        // If we found files for this source in this prefix, don't check fallback
-        const hasFiles = Object.values(statusByDate).some((d) => d[source.type]?.files.length > 0);
+        const hasFiles = Object.values(statusByDate).some((d) => d[source.type]?.files.length > 0) ||
+          Object.values(monthFiles).some((files) => files.some((f) => f.source === source.type));
         if (hasFiles) break;
       }
     }
 
-    // Check Convex upload history for date ranges (spreads OEA07V across actual data dates)
-    try {
-      const convex = new ConvexHttpClient(CONVEX_URL);
-      const history = await convex.query(api.jmkUploads.listUploadHistory, { limit: 100 });
-      for (const upload of history as any[]) {
-        if (!upload.dateRangeStart || !upload.dateRangeEnd) continue;
-        // Parse "Apr 1, 2026" format dates
-        const start = new Date(upload.dateRangeStart);
-        const end = new Date(upload.dateRangeEnd);
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
-
-        const sourceType = upload.reportType;
-        const cursor = new Date(start);
-        while (cursor <= end) {
-          const dateStr = cursor.toISOString().split("T")[0];
+    // Spread daily files across business days in their month
+    for (const [month, files] of Object.entries(monthFiles)) {
+      const businessDays = getBusinessDaysInMonth(month);
+      for (const dateStr of businessDays) {
+        for (const { source, file } of files) {
           if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
-          if (!statusByDate[dateStr][sourceType]) {
-            statusByDate[dateStr][sourceType] = { files: [], complete: false, partial: false };
+          if (!statusByDate[dateStr][source]) {
+            statusByDate[dateStr][source] = { files: [], complete: false, partial: false };
           }
-          // Add a synthetic file entry for this date if not already covered by S3 scan
-          const alreadyHas = statusByDate[dateStr][sourceType].files.some(
-            (f) => f.key === upload.s3Key
-          );
+          const alreadyHas = statusByDate[dateStr][source].files.some((f) => f.key === file.key);
           if (!alreadyHas) {
-            statusByDate[dateStr][sourceType].files.push({
-              key: upload.s3Key,
-              size: upload.fileSize || 0,
-              lastModified: new Date(upload.createdAt).toISOString(),
-            });
+            statusByDate[dateStr][source].files.push(file);
           }
-          cursor.setDate(cursor.getDate() + 1);
         }
       }
-    } catch {
-      // Convex lookup is supplemental — don't fail the whole response
     }
 
     // Determine complete/partial status
