@@ -181,7 +181,13 @@ export default function CustomReportPage() {
       const res = await fetch("/api/reports/custom-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportType: sourceType, months, selectedColumns }),
+        body: JSON.stringify({
+          reportType: sourceType,
+          months,
+          selectedColumns,
+          secondSource: secondSource || undefined,
+          fusionJoinKey: secondSource ? fusionJoinKey : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setRunState("error"); setErrorMsg(data.error); return; }
