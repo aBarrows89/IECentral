@@ -82,7 +82,7 @@ export const listUploads = query({
     if (args.sourceType) {
       return await ctx.db
         .query("reportDataUploads")
-        .withIndex("by_sourceType", (q) => q.eq("sourceType", args.sourceType))
+        .withIndex("by_sourceType", (q) => q.eq("sourceType", args.sourceType!))
         .order("desc")
         .take(20);
     }

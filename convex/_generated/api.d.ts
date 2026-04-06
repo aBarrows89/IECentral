@@ -91,6 +91,7 @@ import type * as projectSuggestions from "../projectSuggestions.js";
 import type * as projects from "../projects.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as quickbooks from "../quickbooks.js";
+import type * as reportData from "../reportData.js";
 import type * as reports from "../reports.js";
 import type * as safetyChecklist from "../safetyChecklist.js";
 import type * as scannerMdm from "../scannerMdm.js";
@@ -200,6 +201,7 @@ declare const fullApi: ApiFromModules<{
   projects: typeof projects;
   pushNotifications: typeof pushNotifications;
   quickbooks: typeof quickbooks;
+  reportData: typeof reportData;
   reports: typeof reports;
   safetyChecklist: typeof safetyChecklist;
   scannerMdm: typeof scannerMdm;
