@@ -100,6 +100,8 @@ export default function CustomReportPage() {
   const [truncated, setTruncated] = useState(false);
   const [availableTransactions, setAvailableTransactions] = useState<string[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
 
   const columnOptions = COLUMN_OPTIONS[sourceType] || [];
 
@@ -446,30 +448,102 @@ export default function CustomReportPage() {
             )}
 
             {/* Results */}
-            {runState === "success" && (
+            {runState === "success" && (() => {
+              // Apply column filters
+              const filteredRows = rows.filter((row) => {
+                for (const [colKey, allowedValues] of Object.entries(columnFilters)) {
+                  if (allowedValues.size === 0) continue;
+                  if (!allowedValues.has(row[colKey] || "")) return false;
+                }
+                return true;
+              });
+              const activeFilterCount = Object.values(columnFilters).filter((s) => s.size > 0).length;
+
+              return (
               <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
                 <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? "bg-slate-800 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
                   <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                    {totalRows.toLocaleString()} rows
-                    {truncated && <span className={`ml-1 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}>(showing first 10,000)</span>}
+                    {filteredRows.length.toLocaleString()} rows
+                    {filteredRows.length !== rows.length && <span className={`ml-1 text-xs ${isDark ? "text-cyan-400" : "text-blue-600"}`}>(filtered from {rows.length.toLocaleString()})</span>}
+                    {truncated && <span className={`ml-1 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}>(capped at 10,000)</span>}
                   </span>
-                  <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                    {startDate} to {endDate} — {sourceType}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {activeFilterCount > 0 && (
+                      <button onClick={() => setColumnFilters({})} className={`text-xs px-2 py-1 rounded ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>
+                        Clear {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""}
+                      </button>
+                    )}
+                    <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                      {startDate} to {endDate} — {sourceType}
+                    </span>
+                  </div>
                 </div>
                 <div className="overflow-x-auto max-h-[60vh]">
                   <table className="w-full text-xs">
-                    <thead className={`sticky top-0 ${isDark ? "bg-slate-800" : "bg-gray-50"}`}>
+                    <thead className={`sticky top-0 z-10 ${isDark ? "bg-slate-800" : "bg-gray-50"}`}>
                       <tr>
-                        {columns.map((col) => (
-                          <th key={col.key} className={`text-left px-3 py-2 font-semibold whitespace-nowrap ${isDark ? "text-slate-300 border-b border-slate-700" : "text-gray-600 border-b border-gray-200"}`}>
-                            {col.name}
-                          </th>
-                        ))}
+                        {columns.map((col) => {
+                          const uniqueVals = [...new Set(rows.map((r) => r[col.key] || ""))].sort();
+                          const hasFilter = columnFilters[col.key]?.size > 0;
+                          const isOpen = openFilterCol === col.key;
+
+                          return (
+                            <th key={col.key} className={`relative text-left px-3 py-2 font-semibold whitespace-nowrap ${isDark ? "text-slate-300 border-b border-slate-700" : "text-gray-600 border-b border-gray-200"}`}>
+                              <div className="flex items-center gap-1">
+                                <span>{col.name}</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setOpenFilterCol(isOpen ? null : col.key); }}
+                                  className={`p-0.5 rounded transition-colors ${hasFilter ? (isDark ? "text-cyan-400" : "text-blue-600") : isDark ? "text-slate-600 hover:text-slate-400" : "text-gray-300 hover:text-gray-500"}`}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Filter dropdown */}
+                              {isOpen && (
+                                <div className={`absolute left-0 top-full mt-1 w-48 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                                  onClick={(e) => e.stopPropagation()}>
+                                  <div className={`px-3 py-2 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+                                    <span className={`text-[10px] font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>{uniqueVals.length} values</span>
+                                    <div className="flex gap-1">
+                                      <button onClick={() => setColumnFilters((f) => { const n = { ...f }; n[col.key] = new Set(uniqueVals); return n; })}
+                                        className={`text-[10px] px-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>All</button>
+                                      <button onClick={() => setColumnFilters((f) => { const n = { ...f }; delete n[col.key]; return n; })}
+                                        className={`text-[10px] px-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Clear</button>
+                                    </div>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto p-1">
+                                    {uniqueVals.slice(0, 100).map((val) => {
+                                      const checked = !columnFilters[col.key] || columnFilters[col.key].size === 0 || columnFilters[col.key].has(val);
+                                      return (
+                                        <label key={val} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${isDark ? "hover:bg-slate-700 text-slate-300" : "hover:bg-gray-50 text-gray-700"}`}>
+                                          <input type="checkbox" checked={checked} onChange={() => {
+                                            setColumnFilters((prev) => {
+                                              const current = prev[col.key] ? new Set(prev[col.key]) : new Set(uniqueVals);
+                                              if (current.has(val)) current.delete(val);
+                                              else current.add(val);
+                                              return { ...prev, [col.key]: current };
+                                            });
+                                          }} className="rounded w-3 h-3" />
+                                          <span className="truncate">{val || "(blank)"}</span>
+                                        </label>
+                                      );
+                                    })}
+                                    {uniqueVals.length > 100 && (
+                                      <p className={`text-center text-[10px] py-1 ${isDark ? "text-slate-600" : "text-gray-400"}`}>+{uniqueVals.length - 100} more</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.slice(0, 500).map((row, i) => (
+                      {filteredRows.slice(0, 500).map((row, i) => (
                         <tr key={i} className={`border-b ${isDark ? "border-slate-700/30 hover:bg-slate-700/20" : "border-gray-50 hover:bg-gray-50"}`}>
                           {columns.map((col) => (
                             <td key={col.key} className={`px-3 py-1.5 whitespace-nowrap ${isDark ? "text-slate-300" : "text-gray-700"}`}>
@@ -487,7 +561,8 @@ export default function CustomReportPage() {
                   )}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </main>
       </div>
