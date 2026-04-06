@@ -137,12 +137,15 @@ export async function GET(request: NextRequest) {
 
         let entry = itemMap.get(itemId);
         if (!entry) {
+          // D-class is the trailing suffix character on Item ID
+          const lastChar = itemId.slice(-1);
+          const dclass = /[.\^\[:\-]/.test(lastChar) ? lastChar : "";
           entry = {
             itemId,
             description: (row[1] || "").replace(/"/g, "").trim(),
             brand: (row[4] || "").replace(/"/g, "").trim(),
             productType: (row[3] || "").replace(/"/g, "").trim(),
-            dclass: "",
+            dclass,
             model: "",
             mfgItemId: (row[5] || "").replace(/"/g, "").trim(),
             monthlySales: {},
