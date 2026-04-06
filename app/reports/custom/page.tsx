@@ -75,12 +75,19 @@ export default function CustomReportPage() {
   const [selectedColumns, setSelectedColumns] = useState<string[]>(
     COLUMN_OPTIONS.OEA07V.filter((c) => c.defaultOn).map((c) => c.key)
   );
+  const [excludeTransactions, setExcludeTransactions] = useState<string[]>([]);
+  const [negateQty, setNegateQty] = useState(true);
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterAccount, setFilterAccount] = useState("");
   const [runState, setRunState] = useState<RunState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [columns, setColumns] = useState<{ key: string; name: string }[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [allRows, setAllRows] = useState<Record<string, string>[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [truncated, setTruncated] = useState(false);
+  const [availableTransactions, setAvailableTransactions] = useState<string[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
 
   const columnOptions = COLUMN_OPTIONS[sourceType] || [];
 
@@ -135,10 +142,43 @@ export default function CustomReportPage() {
       if (!res.ok) { setRunState("error"); setErrorMsg(data.error); return; }
 
       setColumns(data.columns);
-      setRows(data.rows);
+      setAllRows(data.rows);
       setTotalRows(data.totalRows);
       setTruncated(data.truncated);
       setAvailableMonths(months);
+
+      // Extract unique transaction codes and brands for filter dropdowns
+      const txns = new Set<string>();
+      const brands = new Set<string>();
+      for (const row of data.rows) {
+        if (row.transaction) txns.add(row.transaction);
+        if (row.brand) brands.add(row.brand);
+      }
+      setAvailableTransactions([...txns].sort());
+      setAvailableBrands([...brands].sort());
+
+      // Apply filters
+      let filtered = data.rows;
+      if (excludeTransactions.length > 0) {
+        filtered = filtered.filter((r: Record<string, string>) => !excludeTransactions.includes(r.transaction || ""));
+      }
+      if (filterBrand) {
+        filtered = filtered.filter((r: Record<string, string>) => r.brand === filterBrand);
+      }
+      if (filterAccount) {
+        filtered = filtered.filter((r: Record<string, string>) => (r.accountId || "").includes(filterAccount));
+      }
+      // Negate quantities for display (sales are negative in OEA07V)
+      if (negateQty && sourceType === "OEA07V") {
+        filtered = filtered.map((r: Record<string, string>) => {
+          const copy = { ...r };
+          if (copy.qty) copy.qty = String(-parseFloat(copy.qty) || 0);
+          if (copy.extCost) copy.extCost = String(-parseFloat(copy.extCost) || 0);
+          if (copy.extSell) copy.extSell = String(-parseFloat(copy.extSell) || 0);
+          return copy;
+        });
+      }
+      setRows(filtered);
       setRunState("success");
     } catch (err) {
       setRunState("error");
@@ -268,6 +308,44 @@ export default function CustomReportPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Filters */}
+              {sourceType === "OEA07V" && (
+                <div className="mb-5">
+                  <label className={`block text-xs font-medium mb-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Filters</label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Exclude Transactions</label>
+                      <div className="flex flex-wrap gap-1">
+                        {(availableTransactions.length > 0 ? availableTransactions : ["Sld", "Adj/RS", "Rcv", "Trn"]).map((t) => (
+                          <button key={t} onClick={() => setExcludeTransactions((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])}
+                            className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+                              excludeTransactions.includes(t)
+                                ? isDark ? "bg-red-500/20 text-red-400 border-red-500/30 line-through" : "bg-red-50 text-red-600 border-red-200 line-through"
+                                : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-white text-gray-500 border-gray-200"
+                            }`}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Brand</label>
+                      <input type="text" value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} placeholder="Filter brand..."
+                        className={`px-2 py-1 rounded-lg border text-xs w-28 ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Account ID</label>
+                      <input type="text" value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)} placeholder="Filter account..."
+                        className={`px-2 py-1 rounded-lg border text-xs w-28 ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    </div>
+                    <label className={`flex items-center gap-1.5 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                      <input type="checkbox" checked={negateQty} onChange={(e) => setNegateQty(e.target.checked)} className="rounded" />
+                      Show sales as positive
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center gap-3">
