@@ -610,11 +610,12 @@ export default function ReportUploadPage() {
               </div>
 
               {/* Drop zone */}
-              <div
+              <label
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                htmlFor="file-upload-input"
+                className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
                   dragOver
                     ? isDark ? "border-cyan-500 bg-cyan-500/10" : "border-blue-400 bg-blue-50"
                     : files.length > 0
@@ -622,8 +623,8 @@ export default function ReportUploadPage() {
                       : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-300 hover:border-gray-400"
                 }`}
               >
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" multiple onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <input id="file-upload-input" ref={fileInputRef} type="file" accept=".csv,.xlsx" multiple onChange={handleFileSelect}
+                  className="sr-only" />
                 {files.length > 0 ? (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -653,7 +654,7 @@ export default function ReportUploadPage() {
                     <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Drop a file here or click to browse (.csv, .xlsx)</p>
                   </div>
                 )}
-              </div>
+              </label>
 
               {/* Validation result */}
               {validation && (
