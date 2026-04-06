@@ -10,7 +10,9 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 
 const SOURCE_TYPES = [
-  { code: "OEA07V", label: "OEA07V — Sales Activity Detail" },
+  { code: "OEA07V", label: "OEA07V — Sales Activity" },
+  { code: "oeival", label: "OEIVAL — Inventory" },
+  { code: "tires", label: "Tires Catalog" },
   { code: "ART24T", label: "ART24T — Transaction Analysis" },
   { code: "ART30S", label: "ART30S — Sales Summary" },
 ];
@@ -62,6 +64,34 @@ const COLUMN_OPTIONS: Record<string, { key: string; name: string; defaultOn: boo
     { key: "description", name: "Description", defaultOn: true },
     { key: "qty", name: "Qty", defaultOn: true },
     { key: "amount", name: "Amount", defaultOn: true },
+  ],
+  oeival: [
+    { key: "location", name: "Location", defaultOn: true },
+    { key: "productType", name: "Product Type", defaultOn: true },
+    { key: "dclass", name: "D-Class", defaultOn: true },
+    { key: "manufacturerName", name: "Brand", defaultOn: true },
+    { key: "model", name: "Model", defaultOn: true },
+    { key: "itemId", name: "Item ID", defaultOn: true },
+    { key: "description", name: "Description", defaultOn: true },
+    { key: "qtyOnHand", name: "Qty On Hand", defaultOn: true },
+    { key: "qtyAvailable", name: "Qty Available", defaultOn: true },
+    { key: "lastCost", name: "Last Cost", defaultOn: true },
+    { key: "avgCost", name: "Avg Cost", defaultOn: false },
+    { key: "extendedValue", name: "Extended Value", defaultOn: true },
+  ],
+  tires: [
+    { key: "itemId", name: "Item ID", defaultOn: true },
+    { key: "mfgName", name: "Brand", defaultOn: true },
+    { key: "model", name: "Model", defaultOn: true },
+    { key: "size", name: "Size", defaultOn: true },
+    { key: "xlrf", name: "XL/RF", defaultOn: true },
+    { key: "loadIndex", name: "Load Index", defaultOn: true },
+    { key: "speedRating", name: "Speed Rating", defaultOn: true },
+    { key: "sidewall", name: "Sidewall", defaultOn: true },
+    { key: "productType", name: "Product Type", defaultOn: true },
+    { key: "plyRating", name: "Ply Rating", defaultOn: false },
+    { key: "weight", name: "Weight", defaultOn: false },
+    { key: "treadDepth", name: "Tread Depth", defaultOn: false },
   ],
 };
 

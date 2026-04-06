@@ -502,7 +502,7 @@ export default function ReportUploadPage() {
                       : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-300 hover:border-gray-400"
                 }`}
               >
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} className="hidden" />
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} className="sr-only" />
                 {file ? (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
