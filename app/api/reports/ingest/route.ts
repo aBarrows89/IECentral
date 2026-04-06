@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const headers = (rawData[0] as (string | number)[]).map(String);
 
       if (sourceType === "oeival") {
-        const batch: Parameters<typeof api.reportData.batchInsertInventory>[0]["rows"] = [];
+        const batch: any[] = [];
 
         for (let i = 1; i < rawData.length; i++) {
           const row = rawData[i] as (string | number | undefined)[];
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const batch: Parameters<typeof api.reportData.batchInsertSalesHistory>[0]["rows"] = [];
+        const batch: any[] = [];
 
         for (let i = 1; i < rawData.length; i++) {
           const row = rawData[i] as (string | number | undefined)[];
