@@ -103,7 +103,7 @@ export default function CustomReportPage() {
 
   const [sourceType, setSourceType] = useState("OEA07V");
   const [secondSource, setSecondSource] = useState("");
-  const [fusionJoinKey, setFusionJoinKey] = useState("itemId");
+  const [fusionJoinKey, setFusionJoinKey] = useState("mfgItemId");
   const [selectedFusionColumns, setSelectedFusionColumns] = useState<string[]>([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState("");
@@ -383,7 +383,7 @@ export default function CustomReportPage() {
                     </select>
                     {secondSource && (
                       <span className={`text-[10px] ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
-                        Joined by Item ID
+                        Joined by MFG Item ID
                       </span>
                     )}
                   </label>
