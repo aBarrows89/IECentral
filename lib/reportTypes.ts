@@ -85,13 +85,14 @@ export const REPORT_TYPES: ReportType[] = [
     group: "sales",
     external: true,
   },
-  // Admin
+  // Operations — Website Messages
   {
-    id: "upload",
-    title: "Upload JMK Reports",
-    description: "Upload OEA07V and other JMK reports for processing",
-    icon: "M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12",
-    href: "/reports/upload",
-    group: "admin",
+    id: "website-messages",
+    title: "Website Messages",
+    description: "Contact forms and dealer inquiries from ietires.com",
+    icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    href: "/website-messages",
+    group: "operations",
+    external: true,
   },
 ];
