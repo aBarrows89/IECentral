@@ -591,10 +591,16 @@ export default function CustomReportPage() {
                   {filterBrand && <><br />Brand: {filterBrand}</>}
                 </p>
               </div>
-              <label className={`flex items-center gap-2 text-sm ${isDark ? "text-slate-300" : "text-gray-700"}`}>
-                <input type="checkbox" checked={saveAutoRun} onChange={(e) => setSaveAutoRun(e.target.checked)} className="rounded" />
-                Auto-run when new data is uploaded
-              </label>
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Auto-Run Schedule</label>
+                <select value={saveAutoRun ? "daily" : "manual"} onChange={(e) => setSaveAutoRun(e.target.value !== "manual")}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="manual">Manual only</option>
+                  <option value="daily">Daily (when new data is uploaded)</option>
+                  <option value="weekly">Weekly (every Monday)</option>
+                  <option value="monthly">Monthly (1st of each month)</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setShowSaveModal(false)} className={`px-4 py-2 rounded-lg text-sm ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-600 hover:bg-gray-100"}`}>Cancel</button>

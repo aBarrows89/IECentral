@@ -611,21 +611,33 @@ export default function ReportUploadPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {uploadHistory.map((u) => (
+                      {uploadHistory.map((u: any) => (
                         <tr key={u._id} className={`border-b ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
                           <td className={`px-4 py-2.5 font-mono text-xs truncate max-w-[200px] ${isDark ? "text-white" : "text-gray-900"}`}>{u.fileName}</td>
                           <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.reportType}</td>
                           <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{formatMonth(u.reportingMonth)}</td>
                           <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.rowCount ?? "—"}</td>
                           <td className="px-4 py-2.5">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              u.processingStatus === "complete" ? "bg-emerald-500/20 text-emerald-400" :
-                              u.processingStatus === "processing" ? "bg-blue-500/20 text-blue-400" :
-                              u.processingStatus === "failed" ? "bg-red-500/20 text-red-400" :
-                              "bg-slate-500/20 text-slate-400"
-                            }`}>
-                              {u.processingStatus}
-                            </span>
+                            <div>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                u.processingStatus === "complete" ? "bg-emerald-500/20 text-emerald-400" :
+                                u.processingStatus === "processing" ? "bg-blue-500/20 text-blue-400" :
+                                u.processingStatus === "failed" ? "bg-red-500/20 text-red-400" :
+                                "bg-slate-500/20 text-slate-400"
+                              }`}>
+                                {u.processingStatus}
+                              </span>
+                              {/* Show processing details */}
+                              {u.processingResults && u.processingResults.length > 0 && (
+                                <div className="mt-1 space-y-0.5">
+                                  {u.processingResults.map((r: any, i: number) => (
+                                    <div key={i} className={`text-[10px] ${r.status === "success" ? isDark ? "text-emerald-500" : "text-emerald-600" : isDark ? "text-red-400" : "text-red-600"}`}>
+                                      {r.trigger}: {r.message || r.status}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
                             {new Date(u.createdAt).toLocaleDateString()}

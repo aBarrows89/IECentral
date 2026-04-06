@@ -290,7 +290,7 @@ function ReportsContent() {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {filteredConfigs.map((config: { _id: string; name: string; description?: string; sources: string[]; autoRun: boolean }) => (
-                          <Link key={config._id} href={`/reports/custom?config=${config._id}`}>
+                          <Link key={config._id} href={`/reports/saved/${config._id}`}>
                             <div className={`group rounded-xl border p-5 transition-all cursor-pointer ${isDark ? "bg-slate-800/50 border-slate-700 hover:border-amber-500/40 hover:bg-slate-800" : "bg-white border-gray-200 hover:border-amber-300 hover:shadow-md"}`}>
                               <div className="flex items-start gap-4">
                                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-amber-500/10 group-hover:bg-amber-500/20" : "bg-amber-50 group-hover:bg-amber-100"}`}>
