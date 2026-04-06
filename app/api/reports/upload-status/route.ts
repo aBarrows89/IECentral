@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "@/convex/_generated/api";
+
+const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -76,6 +80,43 @@ export async function GET() {
       }
     }
 
+    // Check Convex upload history for date ranges (spreads OEA07V across actual data dates)
+    try {
+      const convex = new ConvexHttpClient(CONVEX_URL);
+      const history = await convex.query(api.jmkUploads.listUploadHistory, { limit: 100 });
+      for (const upload of history as any[]) {
+        if (!upload.dateRangeStart || !upload.dateRangeEnd) continue;
+        // Parse "Apr 1, 2026" format dates
+        const start = new Date(upload.dateRangeStart);
+        const end = new Date(upload.dateRangeEnd);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
+
+        const sourceType = upload.reportType;
+        const cursor = new Date(start);
+        while (cursor <= end) {
+          const dateStr = cursor.toISOString().split("T")[0];
+          if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
+          if (!statusByDate[dateStr][sourceType]) {
+            statusByDate[dateStr][sourceType] = { files: [], complete: false, partial: false };
+          }
+          // Add a synthetic file entry for this date if not already covered by S3 scan
+          const alreadyHas = statusByDate[dateStr][sourceType].files.some(
+            (f) => f.key === upload.s3Key
+          );
+          if (!alreadyHas) {
+            statusByDate[dateStr][sourceType].files.push({
+              key: upload.s3Key,
+              size: upload.fileSize || 0,
+              lastModified: new Date(upload.createdAt).toISOString(),
+            });
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+    } catch {
+      // Convex lookup is supplemental — don't fail the whole response
+    }
+
     // Determine complete/partial status
     for (const date of Object.keys(statusByDate)) {
       for (const source of REPORT_SOURCES) {
@@ -83,12 +124,10 @@ export async function GET() {
         if (!entry) continue;
 
         if (source.frequency === "hourly") {
-          // For hourly: complete = 24 uploads, partial = 1-23
           const uniqueHours = new Set(entry.files.map((f) => f.hour));
-          entry.complete = uniqueHours.size >= 20; // ~20 business hours
+          entry.complete = uniqueHours.size >= 20;
           entry.partial = uniqueHours.size > 0 && uniqueHours.size < 20;
         } else {
-          // For daily: any file = complete
           entry.complete = entry.files.length > 0;
           entry.partial = false;
         }

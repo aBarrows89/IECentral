@@ -72,22 +72,25 @@ export function useWebPush(userId: Id<"users"> | undefined) {
         return false;
       }
 
-      // Ensure service worker is registered (next-pwa may not have finished yet)
+      // Get or register a service worker for push
       let registration: ServiceWorkerRegistration;
       const existing = await navigator.serviceWorker.getRegistration("/");
       if (existing?.active) {
         registration = existing;
       } else {
-        // Register explicitly if next-pwa hasn't yet
-        if (!existing) {
-          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-        }
-        registration = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Service worker took too long to activate. Please refresh and try again.")), 15000)
-          ),
-        ]);
+        // Register a minimal push-only SW (no precache, instant activation)
+        registration = await navigator.serviceWorker.register("/push-sw.js", { scope: "/" });
+        // Wait for it to activate
+        await new Promise<void>((resolve, reject) => {
+          const sw = registration.installing || registration.waiting;
+          if (registration.active) { resolve(); return; }
+          if (!sw) { reject(new Error("Service worker failed to install")); return; }
+          sw.addEventListener("statechange", () => {
+            if (sw.state === "activated") resolve();
+            if (sw.state === "redundant") reject(new Error("Service worker was replaced"));
+          });
+          setTimeout(() => reject(new Error("Service worker took too long to activate")), 10000);
+        });
       }
 
       // Subscribe to push

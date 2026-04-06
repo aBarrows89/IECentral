@@ -176,6 +176,18 @@ export default function SalesHistoryReportPage() {
             <div className={`rounded-xl border overflow-hidden ${isDark ? "border-slate-700" : "border-gray-200"}`}>
               {loading ? (
                 <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
+              ) : !fileDate && items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-4">
+                  <svg className={`w-14 h-14 mb-4 ${isDark ? "text-slate-700" : "text-gray-300"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>No sales history data available</p>
+                  <p className={`text-xs text-center max-w-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    Upload a Sales History (.xlsx) file through{" "}
+                    <Link href="/reports/upload" className={`underline ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Upload Reports</Link>{" "}
+                    to populate this report.
+                  </p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
