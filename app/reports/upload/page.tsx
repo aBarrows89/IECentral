@@ -61,7 +61,6 @@ export default function ReportUploadPage() {
   const [savingFtp, setSavingFtp] = useState(false);
 
   const [reportType, setReportType] = useState("OEA07V");
-  const [selectedWarehouse, setSelectedWarehouse] = useState("");
   const month = getDefaultMonth(); // Auto-detected from current date
   const [files, setFiles] = useState<File[]>([]);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -580,21 +579,6 @@ export default function ReportUploadPage() {
                     ))}
                   </select>
                 </div>
-                {currentType?.needsWarehouse && (
-                  <div>
-                    <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Warehouse</label>
-                    <select
-                      value={selectedWarehouse}
-                      onChange={(e) => setSelectedWarehouse(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                    >
-                      <option value="">Select warehouse...</option>
-                      <option value="R10">R10 — Latrobe</option>
-                      <option value="EXP">EXP — Export / Everson</option>
-                      <option value="R30">R30 — Chestnut Ridge</option>
-                    </select>
-                  </div>
-                )}
                 {!isDataSource && (
                   <div>
                     <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Filing Period</label>
