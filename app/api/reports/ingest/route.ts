@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       const headers = lines[0].split(",").map((h) => h.trim());
 
       const colIdx = (name: string) => headers.indexOf(name);
-      const batch: Parameters<typeof api.reportData.batchInsertTireCatalog>[0]["rows"] = [];
+      const batch: any[] = [];
 
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(",").map((c) => c.trim());
