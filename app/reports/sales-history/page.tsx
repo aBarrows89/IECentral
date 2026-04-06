@@ -11,10 +11,10 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 function fmtMonth(m: string): string { const [y, mo] = m.split("-"); return `${MONTH_NAMES[parseInt(mo) - 1]} ${y?.slice(2)}`; }
 
 interface SalesItem {
-  itemId: string; dclass: string; mfgItemId: string; manufacturerName: string;
-  model: string; description: string; productType: string;
+  itemId: string; dclass: string; mfgItemId: string; brand: string;
+  manufacturerName?: string; model: string; description: string; productType: string;
   monthlySales: Record<string, number>; total: number; availableStock?: number;
-  isColonRow: boolean; [key: string]: unknown;
+  isColonRow?: boolean; [key: string]: unknown;
 }
 
 interface Filters { brands: string[]; productTypes: string[]; dclasses: string[] }
@@ -183,9 +183,9 @@ export default function SalesHistoryReportPage() {
                   </svg>
                   <p className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>No sales history data available</p>
                   <p className={`text-xs text-center max-w-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                    Upload a Sales History (.xlsx) file through{" "}
+                    Upload OEA07V daily sales reports through{" "}
                     <Link href="/reports/upload" className={`underline ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Upload Reports</Link>{" "}
-                    to populate this report.
+                    to see monthly sales totals here.
                   </p>
                 </div>
               ) : (
@@ -213,7 +213,7 @@ export default function SalesHistoryReportPage() {
                       ) : paged.map((item, i) => (
                         <tr key={i} className={`border-b ${i % 2 ? isDark ? "bg-slate-800/30" : "bg-gray-50/50" : ""} ${isDark ? "border-slate-700/30 hover:bg-slate-700/20" : "border-gray-100 hover:bg-gray-50"}`}>
                           <td className={`px-3 py-1.5 font-medium min-w-[220px] ${isDark ? "text-white" : "text-gray-900"}`}>{item.description}</td>
-                          <td className={`px-3 py-1.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{item.manufacturerName}</td>
+                          <td className={`px-3 py-1.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{item.brand || item.manufacturerName}</td>
                           <td className={`px-3 py-1.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.model}</td>
                           <td className={`px-3 py-1.5 font-mono text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{item.itemId}</td>
                           <td className={`px-3 py-1.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.productType}</td>

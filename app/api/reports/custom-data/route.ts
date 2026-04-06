@@ -308,11 +308,17 @@ export async function POST(request: NextRequest) {
         secondData = await fetchSourceData(secondSource, months, secondCols.map((c) => c.key));
       }
 
-      // Build lookup map from second source keyed by join field
+      // Strip D-class suffix from item IDs for matching (e.g., "KN217028[" -> "KN217028")
+      const stripDclass = (id: string) => id.replace(/[.\^\[:\-]$/, "");
+
+      // Build lookup map from second source keyed by join field (both raw and stripped)
       const secondMap = new Map<string, Record<string, string>>();
       for (const row of secondData.rows) {
         const key = row[fusionJoinKey];
-        if (key) secondMap.set(key, row);
+        if (key) {
+          secondMap.set(key, row);
+          secondMap.set(stripDclass(key), row);
+        }
       }
 
       // Merge columns (add second source columns that don't overlap)
@@ -323,10 +329,10 @@ export async function POST(request: NextRequest) {
       );
       finalColumns = [...finalColumns, ...newCols.map((c) => ({ key: `fusion_${c.key}`, name: `${c.name} (${secondSource})` }))];
 
-      // Join rows
+      // Join rows — try exact match first, then stripped D-class suffix
       finalRows = finalRows.map((row) => {
         const joinKey = row[fusionJoinKey];
-        const secondRow = joinKey ? secondMap.get(joinKey) : undefined;
+        const secondRow = joinKey ? (secondMap.get(joinKey) || secondMap.get(stripDclass(joinKey))) : undefined;
         if (!secondRow) return row;
         const merged = { ...row };
         for (const col of newCols) {

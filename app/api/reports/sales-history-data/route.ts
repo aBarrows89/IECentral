@@ -10,21 +10,46 @@ const s3 = new S3Client({
     : {}),
 });
 
-function decodeDclass(raw: string): string {
-  const map: Record<string, string> = { Blank: "", Dash: "-", colon: ":", "Open Bracket": "[" };
-  return map[raw] ?? raw;
-}
-
-function excelDateToMonth(serial: number): string {
-  const d = new Date((serial - 25569) * 86400000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let current: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < text.length && text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ",") { current.push(field.trim()); field = ""; }
+      else if (ch === "\n" || (ch === "\r" && text[i + 1] === "\n")) {
+        current.push(field.trim()); field = "";
+        if (current.some(f => f)) rows.push(current);
+        current = [];
+        if (ch === "\r") i++;
+      } else if (ch === "\r") {
+        current.push(field.trim()); field = "";
+        if (current.some(f => f)) rows.push(current);
+        current = [];
+      } else field += ch;
+    }
+  }
+  if (field || current.length > 0) {
+    current.push(field.trim());
+    if (current.some(f => f)) rows.push(current);
+  }
+  return rows;
 }
 
 /**
  * GET /api/reports/sales-history-data
  *
- * Reads the latest OEA07V sales history XLSX from S3.
- * Query params: brand, productType, dclass, startMonth (YYYY-MM), endMonth (YYYY-MM), showAllRows
+ * Aggregates OEA07V daily CSVs from S3 into monthly sales totals per item.
+ * Falls back to XLSX sales history format if available.
+ * Query params: brand, productType, dclass, startMonth, endMonth
  */
 export async function GET(request: NextRequest) {
   try {
@@ -32,127 +57,130 @@ export async function GET(request: NextRequest) {
     const filterBrand = searchParams.get("brand");
     const filterProductType = searchParams.get("productType");
     const filterDclass = searchParams.get("dclass");
-    const startMonth = searchParams.get("startMonth"); // YYYY-MM
-    const endMonth = searchParams.get("endMonth");     // YYYY-MM
-    const showAllRows = searchParams.get("showAllRows") === "true";
+    const startMonth = searchParams.get("startMonth");
+    const endMonth = searchParams.get("endMonth");
 
-    // Find latest sales history file — check organized folder first, then legacy
-    let salesFiles: { Key?: string; LastModified?: Date }[] = [];
-    for (const prefix of ["jmk-uploads/oea07v-sales/", "jmk-uploads/"]) {
-      const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
-      const found = (listRes.Contents || [])
-        .filter((o) => {
-          const key = o.Key?.toLowerCase() || "";
-          return (key.includes("sales") || key.includes("oea07v") || key.includes("oeival")) && key.endsWith(".xlsx");
-        });
-      if (found.length > 0) { salesFiles = found; break; }
+    // Find all OEA07V CSV files across month folders
+    const allFiles: { key: string; month: string; lastModified: Date }[] = [];
+    const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: "jmk-uploads/", MaxKeys: 1000 }));
+    for (const obj of listRes.Contents || []) {
+      if (!obj.Key || !obj.LastModified) continue;
+      const keyLower = obj.Key.toLowerCase();
+      if (!keyLower.includes("iet-oea07v") || !keyLower.endsWith(".csv")) continue;
+      // Extract month from folder path: jmk-uploads/202604/file.csv
+      const monthMatch = obj.Key.match(/jmk-uploads\/(\d{6})\//);
+      if (!monthMatch) continue;
+      const yyyymm = monthMatch[1];
+      const month = `${yyyymm.slice(0, 4)}-${yyyymm.slice(4, 6)}`;
+      allFiles.push({ key: obj.Key, month, lastModified: obj.LastModified });
     }
-    salesFiles.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
 
-    if (salesFiles.length === 0) {
+    if (allFiles.length === 0) {
       return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [] }, fileDate: null });
     }
 
-    const fileKey = salesFiles[0].Key!;
-    const fileDate = salesFiles[0].LastModified?.toISOString();
-
-    const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fileKey }));
-    const buffer = await getRes.Body?.transformToByteArray();
-    if (!buffer) return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [] }, fileDate });
-
-    const XLSX = await import("xlsx");
-    const wb = XLSX.read(buffer, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
-
-    if (rawData.length < 2) {
-      return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [] }, fileDate });
-    }
-
-    const headers = (rawData[0] as (string | number)[]);
-
-    // Find column boundaries
-    const totalIdx = headers.findIndex((h) => String(h) === "Total");
-    const strippedSizeIdx = headers.findIndex((h) => String(h) === "Stripped Size");
-    const availStockIdx = headers.findIndex((h) => String(h) === "Available Stock");
-
-    // Parse monthly column headers (Excel serial dates)
-    const allMonthHeaders: { idx: number; month: string }[] = [];
-    for (let c = (strippedSizeIdx >= 0 ? strippedSizeIdx + 1 : 8); c < (totalIdx >= 0 ? totalIdx : headers.length); c++) {
-      const h = headers[c];
-      if (typeof h === "number" && h > 40000) { // Excel date serial
-        allMonthHeaders.push({ idx: c, month: excelDateToMonth(h) });
+    // Group by month — use latest file per month
+    const filesByMonth = new Map<string, { key: string; lastModified: Date }>();
+    for (const f of allFiles) {
+      const existing = filesByMonth.get(f.month);
+      if (!existing || f.lastModified > existing.lastModified) {
+        filesByMonth.set(f.month, { key: f.key, lastModified: f.lastModified });
       }
     }
 
-    // Filter month columns by date range
-    let monthHeaders = allMonthHeaders;
-    if (startMonth) {
-      monthHeaders = monthHeaders.filter((m) => m.month >= startMonth);
-    }
-    if (endMonth) {
-      monthHeaders = monthHeaders.filter((m) => m.month <= endMonth);
-    }
+    // Apply month filters
+    let months = [...filesByMonth.keys()].sort();
+    if (startMonth) months = months.filter((m) => m >= startMonth);
+    if (endMonth) months = months.filter((m) => m <= endMonth);
 
-    const monthColumns = monthHeaders.map((m) => m.month);
+    // Aggregate: itemId -> { info, monthlySales: { month -> totalQty } }
+    const itemMap = new Map<string, {
+      itemId: string; description: string; brand: string; productType: string;
+      dclass: string; model: string; mfgItemId: string;
+      monthlySales: Record<string, number>;
+    }>();
 
-    // Parse rows
-    let items = [];
-    for (let i = 1; i < rawData.length; i++) {
-      const row = rawData[i] as (string | number | undefined)[];
-      if (!row[0]) continue;
+    let latestFileDate: string | null = null;
 
-      const rawItemId = String(row[0] || "");
-      const rawDclass = String(row[1] || "Blank");
-      const isColonRow = rawDclass === "colon";
-      const itemId = isColonRow ? rawItemId.replace(/:$/, "") : rawItemId;
+    for (const month of months) {
+      const file = filesByMonth.get(month);
+      if (!file) continue;
+      if (!latestFileDate || file.lastModified.toISOString() > latestFileDate) {
+        latestFileDate = file.lastModified.toISOString();
+      }
 
-      if (!showAllRows && !isColonRow) continue;
+      const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: file.key }));
+      const body = await getRes.Body?.transformToString("utf-8");
+      if (!body) continue;
 
-      const monthlySales: Record<string, number> = {};
-      let total = 0;
-      for (const mh of monthHeaders) {
-        const val = parseFloat(String(row[mh.idx] ?? "0")) || 0;
-        if (val !== 0) {
-          monthlySales[mh.month] = val;
-          total += val;
+      const rows = parseCSV(body.replace(/^\uFEFF/, "").replace(/\0/g, ""));
+      // OEA07V columns: 0=ItemId, 1=Description, 2=Sidewall, 3=ProductType, 4=Brand, 5=MfgItemId, 8=Location, 9=Transaction, 10=Qty, 18=ActivityDate
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 11) continue;
+
+        const itemId = (row[0] || "").replace(/"/g, "").trim();
+        if (!itemId) continue;
+
+        const qty = parseFloat(row[10] || "0") || 0;
+        // Parse activity date to get the month (MM/DD/YY)
+        const dateRaw = (row[18] || "").replace(/"/g, "").trim();
+        const dateMatch = dateRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+        let rowMonth = month;
+        if (dateMatch) {
+          let y = parseInt(dateMatch[3]);
+          if (y < 100) y += 2000;
+          rowMonth = `${y}-${String(parseInt(dateMatch[1])).padStart(2, "0")}`;
         }
-      }
 
-      items.push({
-        itemId,
-        dclass: decodeDclass(rawDclass),
-        mfgItemId: String(row[2] || ""),
-        manufacturerName: String(row[3] || ""),
-        model: String(row[4] || ""),
-        description: String(row[5] || ""),
-        productType: String(row[6] || ""),
-        strippedSize: parseFloat(String(row[strippedSizeIdx] ?? "0")) || undefined,
-        monthlySales,
-        total,
-        availableStock: availStockIdx >= 0 ? (parseFloat(String(row[availStockIdx] ?? "0")) || undefined) : undefined,
-        isColonRow,
-      });
+        let entry = itemMap.get(itemId);
+        if (!entry) {
+          entry = {
+            itemId,
+            description: (row[1] || "").replace(/"/g, "").trim(),
+            brand: (row[4] || "").replace(/"/g, "").trim(),
+            productType: (row[3] || "").replace(/"/g, "").trim(),
+            dclass: "",
+            model: "",
+            mfgItemId: (row[5] || "").replace(/"/g, "").trim(),
+            monthlySales: {},
+          };
+          itemMap.set(itemId, entry);
+        }
+        // Negate qty (sales are negative in OEA07V)
+        entry.monthlySales[rowMonth] = (entry.monthlySales[rowMonth] || 0) + (-qty);
+      }
     }
+
+    // Build result
+    const allMonths = [...new Set([...months, ...Array.from(itemMap.values()).flatMap((e) => Object.keys(e.monthlySales))])].sort();
+
+    let items = Array.from(itemMap.values()).map((entry) => {
+      const total = Object.values(entry.monthlySales).reduce((sum, v) => sum + v, 0);
+      return { ...entry, total };
+    });
 
     // Collect filter options
-    const brands = [...new Set(items.map((i) => i.manufacturerName))].sort();
-    const productTypes = [...new Set(items.map((i) => i.productType))].sort();
-    const dclasses = [...new Set(items.map((i) => i.dclass))].sort();
+    const brands = [...new Set(items.map((i) => i.brand).filter(Boolean))].sort();
+    const productTypes = [...new Set(items.map((i) => i.productType).filter(Boolean))].sort();
+    const dclasses = [...new Set(items.map((i) => i.dclass).filter(Boolean))].sort();
 
     // Apply filters
-    if (filterBrand) items = items.filter((i) => i.manufacturerName === filterBrand);
+    if (filterBrand) items = items.filter((i) => i.brand === filterBrand);
     if (filterProductType) items = items.filter((i) => i.productType === filterProductType);
     if (filterDclass) items = items.filter((i) => i.dclass === filterDclass);
 
+    // Sort by total descending
+    items.sort((a, b) => b.total - a.total);
+
     return NextResponse.json({
-      items,
-      monthColumns,
-      allAvailableMonths: allMonthHeaders.map((m) => m.month),
+      items: items.slice(0, 10000),
+      monthColumns: allMonths,
+      allAvailableMonths: allMonths,
       filters: { brands, productTypes, dclasses },
-      fileDate,
-      fileName: fileKey.split("/").pop(),
+      fileDate: latestFileDate,
       totalRows: items.length,
+      truncated: items.length > 10000,
     });
   } catch (err) {
     console.error("Sales history data error:", err);
