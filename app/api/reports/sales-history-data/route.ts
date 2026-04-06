@@ -88,10 +88,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply month filters
-    let months = [...filesByMonth.keys()].sort();
-    if (startMonth) months = months.filter((m) => m >= startMonth);
-    if (endMonth) months = months.filter((m) => m <= endMonth);
+    // Read ALL files — we filter by row-level activity date, not folder
+    const months = [...filesByMonth.keys()].sort();
 
     // Aggregate: itemId -> { info, monthlySales: { month -> totalQty } }
     const itemMap = new Map<string, {
@@ -132,6 +130,10 @@ export async function GET(request: NextRequest) {
           if (y < 100) y += 2000;
           rowMonth = `${y}-${String(parseInt(dateMatch[1])).padStart(2, "0")}`;
         }
+
+        // Filter by requested date range
+        if (startMonth && rowMonth < startMonth) continue;
+        if (endMonth && rowMonth > endMonth) continue;
 
         let entry = itemMap.get(itemId);
         if (!entry) {

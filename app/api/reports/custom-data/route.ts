@@ -344,9 +344,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       columns: finalColumns,
-      rows: finalRows.slice(0, 10000),
+      rows: finalRows.slice(0, 50000),
       totalRows: finalRows.length,
-      truncated: finalRows.length > 10000,
+      truncated: finalRows.length > 50000,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });

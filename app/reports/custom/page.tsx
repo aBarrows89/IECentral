@@ -132,6 +132,7 @@ export default function CustomReportPage() {
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
   const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const [filterSearch, setFilterSearch] = useState("");
 
   const columnOptions = COLUMN_OPTIONS[sourceType] || [];
 
@@ -604,7 +605,7 @@ export default function CustomReportPage() {
                               <div className="flex items-center gap-1">
                                 <span>{col.name}</span>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setOpenFilterCol(isOpen ? null : col.key); }}
+                                  onClick={(e) => { e.stopPropagation(); setOpenFilterCol(isOpen ? null : col.key); setFilterSearch(""); }}
                                   className={`p-0.5 rounded transition-colors ${hasFilter ? (isDark ? "text-cyan-400" : "text-blue-600") : isDark ? "text-slate-600 hover:text-slate-400" : "text-gray-300 hover:text-gray-500"}`}
                                 >
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -614,20 +615,29 @@ export default function CustomReportPage() {
                               </div>
 
                               {/* Filter dropdown */}
-                              {isOpen && (
-                                <div className={`absolute left-0 top-full mt-1 w-48 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                              {isOpen && (() => {
+                                const searchedVals = filterSearch
+                                  ? uniqueVals.filter((v) => v.toLowerCase().includes(filterSearch.toLowerCase()))
+                                  : uniqueVals;
+                                return (
+                                <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
                                   onClick={(e) => e.stopPropagation()}>
-                                  <div className={`px-3 py-2 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-100"}`}>
-                                    <span className={`text-[10px] font-medium ${isDark ? "text-slate-400" : "text-gray-500"}`}>{uniqueVals.length} values</span>
-                                    <div className="flex gap-1">
-                                      <button onClick={() => setColumnFilters((f) => { const n = { ...f }; n[col.key] = new Set(uniqueVals); return n; })}
-                                        className={`text-[10px] px-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>All</button>
-                                      <button onClick={() => setColumnFilters((f) => { const n = { ...f }; delete n[col.key]; return n; })}
-                                        className={`text-[10px] px-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Clear</button>
+                                  <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+                                    <input type="text" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)}
+                                      placeholder="Search..." autoFocus
+                                      className={`w-full px-2 py-1 rounded border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
+                                    <div className="flex items-center justify-between mt-1">
+                                      <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{searchedVals.length} values</span>
+                                      <div className="flex gap-1">
+                                        <button onClick={() => setColumnFilters((f) => { const n = { ...f }; n[col.key] = new Set(searchedVals); return n; })}
+                                          className={`text-[10px] px-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Select shown</button>
+                                        <button onClick={() => setColumnFilters((f) => { const n = { ...f }; delete n[col.key]; return n; })}
+                                          className={`text-[10px] px-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Clear</button>
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="max-h-48 overflow-y-auto p-1">
-                                    {uniqueVals.slice(0, 100).map((val) => {
+                                  <div className="max-h-52 overflow-y-auto p-1">
+                                    {searchedVals.slice(0, 200).map((val) => {
                                       const checked = !columnFilters[col.key] || columnFilters[col.key].size === 0 || columnFilters[col.key].has(val);
                                       return (
                                         <label key={val} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${isDark ? "hover:bg-slate-700 text-slate-300" : "hover:bg-gray-50 text-gray-700"}`}>
@@ -643,12 +653,13 @@ export default function CustomReportPage() {
                                         </label>
                                       );
                                     })}
-                                    {uniqueVals.length > 100 && (
-                                      <p className={`text-center text-[10px] py-1 ${isDark ? "text-slate-600" : "text-gray-400"}`}>+{uniqueVals.length - 100} more</p>
+                                    {searchedVals.length > 200 && (
+                                      <p className={`text-center text-[10px] py-1 ${isDark ? "text-slate-600" : "text-gray-400"}`}>+{searchedVals.length - 200} more — refine search</p>
                                     )}
                                   </div>
                                 </div>
-                              )}
+                                );
+                              })()}
                             </th>
                           );
                         })}
