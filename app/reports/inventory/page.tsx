@@ -11,10 +11,10 @@ const PAGE_SIZES = [25, 50, 100];
 interface InventoryItem {
   location: string; productType: string; dclass: string; manufacturerCode: string;
   manufacturerName: string; model: string; itemId: string; mfgItemId: string;
-  description: string; qtyOnHand: number; qtyCommitted: number; qtyAvailable: number;
-  lastCost: number; avgCost: number; extendedValue: number;
+  description: string; reorderPoint: number; qtyOnHand: number; qtyCommitted: number;
+  qtyAvailable: number; lastCost: number; avgCost: number; extendedValue: number;
   priceRetail: number; priceCommercial: number; priceWholesale: number;
-  [key: string]: unknown;
+  [key: string]: string | number;
 }
 
 interface Filters { locations: string[]; brands: string[]; productTypes: string[]; dclasses: string[] }
@@ -99,7 +99,8 @@ export default function InventoryReportPage() {
     { key: "location", label: "Location" }, { key: "description", label: "Description" },
     { key: "productType", label: "Type" }, { key: "dclass", label: "D-Class" },
     { key: "manufacturerName", label: "Brand" }, { key: "model", label: "Model" },
-    { key: "itemId", label: "Item ID" }, { key: "qtyOnHand", label: "On Hand", align: "right" },
+    { key: "itemId", label: "Item ID" }, { key: "reorderPoint", label: "Min", align: "right" },
+    { key: "qtyOnHand", label: "On Hand", align: "right" },
     { key: "qtyCommitted", label: "Committed", align: "right" }, { key: "qtyAvailable", label: "Available", align: "right" },
     { key: "lastCost", label: "Last Cost", align: "right" }, { key: "avgCost", label: "Avg Cost", align: "right" },
     { key: "extendedValue", label: "Ext Value", align: "right" },
@@ -194,9 +195,10 @@ export default function InventoryReportPage() {
                           <td className={`px-3 py-1.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{item.manufacturerName}</td>
                           <td className={`px-3 py-1.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.model}</td>
                           <td className={`px-3 py-1.5 font-mono text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{item.itemId}</td>
+                          <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-500" : "text-gray-400"}`}>{Number(item.reorderPoint) > 0 ? String(item.reorderPoint) : "—"}</td>
                           <td className={`px-3 py-1.5 text-right font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{item.qtyOnHand}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.qtyCommitted}</td>
-                          <td className={`px-3 py-1.5 text-right ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.qtyAvailable}</td>
+                          <td className={`px-3 py-1.5 text-right font-medium ${item.reorderPoint > 0 && item.qtyAvailable <= item.reorderPoint ? "text-red-400" : isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.qtyAvailable}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{fmtCurrency(item.lastCost)}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{fmtCurrency(item.avgCost)}</td>
                           <td className={`px-3 py-1.5 text-right font-medium ${isDark ? "text-cyan-400" : "text-blue-600"}`}>{fmtCurrency(item.extendedValue)}</td>

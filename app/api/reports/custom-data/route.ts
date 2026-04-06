@@ -205,19 +205,28 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
       // Auto-detect columns from header
       const headerRow = (rawData[0] as string[]).map((h) => String(h || "").replace(/"/g, "").trim().toLowerCase());
       const headerAliases: Record<string, string[]> = {
-        location: ["loc id", "location"], productType: ["product type", "prod type"],
-        dclass: ["d class", "d-class", "dclass"], manufacturerCode: ["mfg code", "mfg id"],
-        manufacturerName: ["mfg name", "mfg's name", "brand"],
-        model: ["model"], itemId: ["item id", "itemid"], mfgItemId: ["mfg's item id", "mfg item id"],
-        description: ["item description", "description"], qtyOnHand: ["qty on hand", "on hand"],
-        qtyAvailable: ["qty available", "available"], lastCost: ["last cost"],
-        avgCost: ["avg cost", "average cost"], extendedValue: ["extended value", "ext value"],
+        location: ["location", "loc id"], productType: ["product type"],
+        dclass: ["d class", "d-class", "dclass"],
+        manufacturerCode: ["manufacturer code", "mfg code"],
+        manufacturerName: ["manufacturer name", "mfg name", "mfg's name"],
+        model: ["model"], itemId: ["item id"],
+        mfgItemId: ["manufacturer's item id", "mfg's item id", "mfg item id"],
+        description: ["description", "item description"],
+        qtyOnHand: ["qty on hand"], qtyAvailable: ["qty available"],
+        lastCost: ["last cost"], avgCost: ["avg cost"],
+        extendedValue: ["extended value"],
       };
       const colMap: Record<string, number> = {};
       for (const [field, aliases] of Object.entries(headerAliases)) {
-        const idx = headerRow.findIndex((h) => aliases.some((a) => h.includes(a)));
+        let idx = headerRow.findIndex((h) => aliases.some((a) => h === a));
+        if (idx < 0) idx = headerRow.findIndex((h) => aliases.some((a) => h.includes(a)));
         if (idx >= 0) colMap[field] = idx;
       }
+      // Fix exact matches for ambiguous headers
+      const qohExact = headerRow.findIndex((h) => h === "qty on hand");
+      if (qohExact >= 0) colMap.qtyOnHand = qohExact;
+      const avgExact = headerRow.findIndex((h) => h === "avg cost");
+      if (avgExact >= 0) colMap.avgCost = avgExact;
       // Fallback to positional if no headers detected
       if (Object.keys(colMap).length < 5) {
         Object.assign(colMap, {

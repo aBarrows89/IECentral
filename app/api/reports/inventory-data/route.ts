@@ -89,41 +89,49 @@ export async function GET(request: NextRequest) {
     // Auto-detect columns from header row
     const headerRow = (rawData[0] as string[]).map((h) => String(h || "").replace(/"/g, "").trim().toLowerCase());
 
-    // Map known header names to field keys
+    // Map header names to field keys — use exact matches to avoid ambiguity
     const headerMap: Record<string, string[]> = {
-      location: ["loc id", "location", "loc"],
-      productType: ["product type", "prod type", "type"],
+      location: ["location", "loc id"],
+      productType: ["product type"],
       stockType: ["stock type"],
       dclass: ["d class", "d-class", "dclass"],
-      manufacturerCode: ["mfg code", "mfg id", "manufacturer code"],
-      manufacturerName: ["mfg name", "mfg's name", "brand", "manufacturer"],
-      model: ["model", "model description"],
-      itemId: ["item id", "item_id", "itemid"],
-      mfgItemId: ["mfg's item id", "mfg item id", "mfg_item_id"],
-      description: ["item description", "description", "desc"],
-      reorderPoint: ["reorder point", "reorder pt"],
-      qtyOnHand: ["qty on hand", "on hand", "qoh"],
-      qtyCommitted: ["qty committed", "committed"],
-      qtyAvailable: ["qty available", "available"],
-      priceRetail: ["retail price", "price retail", "retail"],
-      priceCommercial: ["commercial price", "price commercial", "commercial"],
-      priceWholesale: ["wholesale price", "price wholesale", "wholesale"],
-      priceBase: ["base price", "price base", "base"],
-      priceList: ["list price", "price list", "list"],
-      priceAdj: ["price adj", "adj price"],
-      lastCost: ["last cost", "last"],
-      avgCost: ["avg cost", "average cost"],
-      stdCost: ["std cost", "standard cost"],
+      manufacturerCode: ["manufacturer code", "mfg code"],
+      manufacturerName: ["manufacturer name", "mfg name", "mfg's name"],
+      model: ["model"],
+      itemId: ["item id"],
+      mfgItemId: ["manufacturer's item id", "mfg's item id", "mfg item id"],
+      description: ["description", "item description"],
+      sidewall: ["sidewall or bolt circle", "sidewall"],
+      reorderPoint: ["reorder point"],
+      qtyOnHand: ["qty on hand"],
+      qtyCommitted: ["qty committed"],
+      qtyAvailable: ["qty available"],
+      priceRetail: ["o/e 'retail'", "retail"],
+      priceCommercial: ["o/e 'commercial'", "commercial"],
+      priceWholesale: ["o/e 'wholesale'", "wholesale"],
+      priceBase: ["o/e 'base'", "base"],
+      priceList: ["o/e 'list'", "list"],
+      priceAdj: ["o/e 'adj'", "adj"],
+      lastCost: ["last cost"],
+      avgCost: ["avg cost"],
+      stdCost: ["std cost"],
       fet: ["fet"],
-      extendedValue: ["extended value", "ext value", "extended"],
+      extendedValue: ["extended value"],
     };
 
-    // Find column index for each field
+    // Find column index for each field — use exact equality first, then includes
     const col: Record<string, number> = {};
     for (const [field, aliases] of Object.entries(headerMap)) {
-      const idx = headerRow.findIndex((h) => aliases.some((a) => h.includes(a)));
+      let idx = headerRow.findIndex((h) => aliases.some((a) => h === a));
+      if (idx < 0) idx = headerRow.findIndex((h) => aliases.some((a) => h.includes(a)));
       if (idx >= 0) col[field] = idx;
     }
+    // Fix: "qty on hand" must NOT match "qty on hand indicator"
+    const qohExact = headerRow.findIndex((h) => h === "qty on hand");
+    if (qohExact >= 0) col.qtyOnHand = qohExact;
+    // Fix: "avg cost" must NOT match "avg cost indicator"
+    const avgExact = headerRow.findIndex((h) => h === "avg cost");
+    if (avgExact >= 0) col.avgCost = avgExact;
 
     // Fallback to positional mapping if no header matches (XLSX format)
     const hasHeaders = Object.keys(col).length > 5;
@@ -137,14 +145,12 @@ export async function GET(request: NextRequest) {
         lastCost: 20, avgCost: 21, stdCost: 22, fet: 23, extendedValue: 24,
       });
     }
-
-    const startRow = hasHeaders ? 1 : 1;
     const g = (row: unknown[], field: string) => col[field] !== undefined ? String((row as any)[col[field]] ?? "") : "";
     const gn = (row: unknown[], field: string) => col[field] !== undefined ? num((row as any)[col[field]]) : 0;
 
     // Parse all rows
     let items = [];
-    for (let i = startRow; i < rawData.length; i++) {
+    for (let i = 1; i < rawData.length; i++) {
       const row = rawData[i] as (string | number | undefined)[];
       if (!row[0] && !row[1]) continue;
 
