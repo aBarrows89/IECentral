@@ -72,9 +72,10 @@ export const recordUpload = mutation({
     uploadedByName: v.string(),
   },
   handler: async (ctx, args) => {
+    const dataSources = ["oeival", "oea07v-sales", "tires"];
     return await ctx.db.insert("jmkUploadHistory", {
       ...args,
-      processingStatus: "pending",
+      processingStatus: dataSources.includes(args.reportType) ? "complete" : "pending",
       createdAt: Date.now(),
     });
   },

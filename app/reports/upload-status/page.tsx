@@ -164,10 +164,10 @@ export default function UploadStatusPage() {
                             <div className="flex gap-0.5">
                               {sources.map((source) => {
                                 const s = dayStatus?.[source.type];
-                                const color = s?.complete ? "bg-emerald-500" : s?.partial ? "bg-amber-500" : isDark ? "bg-slate-600" : "bg-gray-300";
+                                const color = s?.complete ? "bg-emerald-500" : s?.partial ? "bg-amber-500" : "bg-red-500";
                                 return (
-                                  <div key={source.type} className={`w-1.5 h-1.5 rounded-full ${color}`}
-                                    title={`${source.label}: ${s?.complete ? "Complete" : s?.partial ? "Partial" : "No data"}`} />
+                                  <div key={source.type} className={`w-1.5 h-1.5 rounded-full ${hasAny ? color : isDark ? "bg-slate-600" : "bg-gray-300"}`}
+                                    title={`${source.label}: ${s?.complete ? "Complete" : s?.partial ? "Partial" : "Missing"}`} />
                                 );
                               })}
                             </div>

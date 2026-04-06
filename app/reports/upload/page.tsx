@@ -42,7 +42,9 @@ export default function ReportUploadPage() {
   );
   const canAccess = permissions.tier >= 5 || hasOverrideAccess === true;
 
-  const uploadHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 20 });
+  const uploadHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 5 });
+  const fullHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 500 });
+  const [showFullHistory, setShowFullHistory] = useState(false);
   const recordUpload = useMutation(api.jmkUploads.recordUpload);
 
   const dataUploads = useQuery(api.reportData.listUploads, {});
@@ -732,63 +734,92 @@ export default function ReportUploadPage() {
 
             {/* Upload History */}
             <div className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-              <div className={`px-6 py-4 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
-                <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Upload History</h2>
+              <div className={`px-6 py-4 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
+                  {showFullHistory ? "Full Upload History" : "Recent Uploads"}
+                </h2>
+                <div className="flex gap-2">
+                  {showFullHistory && (
+                    <button onClick={() => {
+                      if (!fullHistory?.length) return;
+                      const headers = ["File", "Type", "Month", "Date Range", "Rows", "Status", "Triggers", "Uploaded", "By"];
+                      const csv = [headers.join(","), ...fullHistory.map((u: any) => [
+                        `"${u.fileName}"`, u.reportType, u.reportingMonth,
+                        u.dateRangeStart ? `"${u.dateRangeStart} - ${u.dateRangeEnd}"` : "",
+                        u.rowCount ?? "", u.processingStatus,
+                        `"${(u.processingResults || []).map((r: any) => `${r.trigger}: ${r.status}`).join("; ")}"`,
+                        new Date(u.createdAt).toLocaleString(), `"${u.uploadedByName}"`
+                      ].join(","))].join("\n");
+                      const blob = new Blob([csv], { type: "text/csv" });
+                      const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+                      link.download = `upload-history-${new Date().toISOString().split("T")[0]}.csv`; link.click();
+                    }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                      Export CSV
+                    </button>
+                  )}
+                  <button onClick={() => setShowFullHistory(!showFullHistory)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                    {showFullHistory ? "Show Recent" : `View All (${fullHistory?.length ?? 0})`}
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
-                {!uploadHistory || uploadHistory.length === 0 ? (
-                  <p className={`p-6 text-sm text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>No uploads yet</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
-                        {["File", "Type", "Date Range", "Rows", "Status", "Uploaded", "By"].map((h) => (
-                          <th key={h} className={`text-left px-4 py-3 text-xs font-semibold ${isDark ? "text-slate-400" : "text-gray-500"}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uploadHistory.map((u: any) => (
-                        <tr key={u._id} className={`border-b ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
-                          <td className={`px-4 py-2.5 font-mono text-xs truncate max-w-[200px] ${isDark ? "text-white" : "text-gray-900"}`}>{u.fileName}</td>
-                          <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.reportType}</td>
-                          <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
-                            {u.dateRangeStart && u.dateRangeEnd
-                              ? <span className="text-xs">{u.dateRangeStart} — {u.dateRangeEnd}</span>
-                              : formatMonth(u.reportingMonth)}
-                          </td>
-                          <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.rowCount ?? "—"}</td>
-                          <td className="px-4 py-2.5">
-                            <div>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                u.processingStatus === "complete" ? "bg-emerald-500/20 text-emerald-400" :
-                                u.processingStatus === "processing" ? "bg-blue-500/20 text-blue-400" :
-                                u.processingStatus === "failed" ? "bg-red-500/20 text-red-400" :
-                                "bg-slate-500/20 text-slate-400"
-                              }`}>
-                                {u.processingStatus}
-                              </span>
-                              {/* Show processing details */}
-                              {u.processingResults && u.processingResults.length > 0 && (
-                                <div className="mt-1 space-y-0.5">
-                                  {u.processingResults.map((r: any, i: number) => (
-                                    <div key={i} className={`text-[10px] ${r.status === "success" ? isDark ? "text-emerald-500" : "text-emerald-600" : isDark ? "text-red-400" : "text-red-600"}`}>
-                                      {r.trigger}: {r.message || r.status}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                            {new Date(u.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.uploadedByName}</td>
+                {(() => {
+                  const historyData = showFullHistory ? fullHistory : uploadHistory;
+                  if (!historyData || historyData.length === 0) {
+                    return <p className={`p-6 text-sm text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>No uploads yet</p>;
+                  }
+                  return (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={isDark ? "border-b border-slate-700" : "border-b border-gray-200"}>
+                          {["File", "Type", "Date Range", "Rows", "Status", "Uploaded", "By"].map((h) => (
+                            <th key={h} className={`text-left px-4 py-3 text-xs font-semibold ${isDark ? "text-slate-400" : "text-gray-500"}`}>{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                      </thead>
+                      <tbody>
+                        {historyData.map((u: any) => (
+                          <tr key={u._id} className={`border-b ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
+                            <td className={`px-4 py-2.5 font-mono text-xs truncate max-w-[200px] ${isDark ? "text-white" : "text-gray-900"}`}>{u.fileName}</td>
+                            <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.reportType}</td>
+                            <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                              {u.dateRangeStart && u.dateRangeEnd
+                                ? <span className="text-xs">{u.dateRangeStart} — {u.dateRangeEnd}</span>
+                                : formatMonth(u.reportingMonth)}
+                            </td>
+                            <td className={`px-4 py-2.5 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{u.rowCount ?? "—"}</td>
+                            <td className="px-4 py-2.5">
+                              <div>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  u.processingStatus === "complete" ? "bg-emerald-500/20 text-emerald-400" :
+                                  u.processingStatus === "processing" ? "bg-blue-500/20 text-blue-400" :
+                                  u.processingStatus === "failed" ? "bg-red-500/20 text-red-400" :
+                                  "bg-slate-500/20 text-slate-400"
+                                }`}>
+                                  {u.processingStatus}
+                                </span>
+                                {u.processingResults && u.processingResults.length > 0 && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {u.processingResults.map((r: any, i: number) => (
+                                      <div key={i} className={`text-[10px] ${r.status === "success" ? isDark ? "text-emerald-500" : "text-emerald-600" : isDark ? "text-red-400" : "text-red-600"}`}>
+                                        {r.trigger}: {r.message || r.status}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.uploadedByName}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               </div>
             </div>
             </>}
