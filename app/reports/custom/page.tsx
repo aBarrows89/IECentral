@@ -13,8 +13,6 @@ const SOURCE_TYPES = [
   { code: "OEA07V", label: "OEA07V — Sales Activity" },
   { code: "oeival", label: "OEIVAL — Inventory" },
   { code: "tires", label: "Tires Catalog" },
-  { code: "ART24T", label: "ART24T — Transaction Analysis" },
-  { code: "ART30S", label: "ART30S — Sales Summary" },
 ];
 
 const COLUMN_OPTIONS: Record<string, { key: string; name: string; defaultOn: boolean }[]> = {
