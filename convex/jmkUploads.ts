@@ -99,6 +99,13 @@ export const updateProcessing = mutation({
   },
 });
 
+export const deleteUpload = mutation({
+  args: { id: v.id("jmkUploadHistory") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const listUploadHistory = query({
   args: {
     reportType: v.optional(v.string()),

@@ -123,22 +123,30 @@ export default function ReportUploadPage() {
       });
       const data = await res.json();
 
-      // Scan for date range in OEA07V files (Activity Date is col 18, format MM/DD/YY)
+      // Scan for date range in OEA07V files (Activity Date format MM/DD/YY)
       let dateRangeStart: string | undefined;
       let dateRangeEnd: string | undefined;
       if (reportType === "OEA07V" && data.valid) {
-        const dateCol = 18; // Activity Date column index
         const dates: Date[] = [];
+        // Scan each line for MM/DD/YY date patterns (handles quoted CSV fields)
+        const datePattern = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g;
         for (let i = 1; i < Math.min(lines.length, 50000); i++) {
-          const cols = lines[i]?.split(",");
-          if (!cols || !cols[dateCol]) continue;
-          const raw = cols[dateCol].replace(/"/g, "").trim();
-          const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-          if (!match) continue;
-          let y = parseInt(match[3]);
-          if (y < 100) y += 2000;
-          const d = new Date(y, parseInt(match[1]) - 1, parseInt(match[2]));
-          if (!isNaN(d.getTime())) dates.push(d);
+          const line = lines[i];
+          if (!line) continue;
+          let m;
+          while ((m = datePattern.exec(line)) !== null) {
+            const mo = parseInt(m[1]);
+            const day = parseInt(m[2]);
+            let y = parseInt(m[3]);
+            if (mo < 1 || mo > 12 || day < 1 || day > 31) continue;
+            if (y < 100) y += 2000;
+            const d = new Date(y, mo - 1, day);
+            if (!isNaN(d.getTime()) && d.getFullYear() >= 2020 && d.getFullYear() <= 2030) {
+              dates.push(d);
+              break; // one date per row is enough
+            }
+          }
+          datePattern.lastIndex = 0;
         }
         if (dates.length > 0) {
           dates.sort((a, b) => a.getTime() - b.getTime());
