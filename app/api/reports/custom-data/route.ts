@@ -190,18 +190,11 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
     if (!buffer) continue;
 
     if (reportType === "oeival") {
-      const colMap: Record<string, number> = {
-        location: 0, productType: 1, dclass: 3, manufacturerCode: 4, manufacturerName: 5,
-        model: 6, itemId: 7, mfgItemId: 8, description: 9, qtyOnHand: 11,
-        qtyAvailable: 13, lastCost: 20, avgCost: 21, extendedValue: 24,
-      };
-
       let rawData: unknown[][];
       const fileKey = matches[0].Key!.toLowerCase();
       if (fileKey.endsWith(".csv")) {
         const text = new TextDecoder().decode(buffer);
-        const csvRows = parseCSV(text.replace(/^\uFEFF/, "").replace(/\0/g, ""));
-        rawData = csvRows;
+        rawData = parseCSV(text.replace(/^\uFEFF/, "").replace(/\0/g, ""));
       } else {
         const XLSX = await import("xlsx");
         const wb = XLSX.read(buffer, { type: "array" });
@@ -209,10 +202,35 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
         rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
       }
 
+      // Auto-detect columns from header
+      const headerRow = (rawData[0] as string[]).map((h) => String(h || "").replace(/"/g, "").trim().toLowerCase());
+      const headerAliases: Record<string, string[]> = {
+        location: ["loc id", "location"], productType: ["product type", "prod type"],
+        dclass: ["d class", "d-class", "dclass"], manufacturerCode: ["mfg code", "mfg id"],
+        manufacturerName: ["mfg name", "mfg's name", "brand"],
+        model: ["model"], itemId: ["item id", "itemid"], mfgItemId: ["mfg's item id", "mfg item id"],
+        description: ["item description", "description"], qtyOnHand: ["qty on hand", "on hand"],
+        qtyAvailable: ["qty available", "available"], lastCost: ["last cost"],
+        avgCost: ["avg cost", "average cost"], extendedValue: ["extended value", "ext value"],
+      };
+      const colMap: Record<string, number> = {};
+      for (const [field, aliases] of Object.entries(headerAliases)) {
+        const idx = headerRow.findIndex((h) => aliases.some((a) => h.includes(a)));
+        if (idx >= 0) colMap[field] = idx;
+      }
+      // Fallback to positional if no headers detected
+      if (Object.keys(colMap).length < 5) {
+        Object.assign(colMap, {
+          location: 0, productType: 1, dclass: 3, manufacturerCode: 4, manufacturerName: 5,
+          model: 6, itemId: 7, mfgItemId: 8, description: 9, qtyOnHand: 11,
+          qtyAvailable: 13, lastCost: 20, avgCost: 21, extendedValue: 24,
+        });
+      }
+
       const rows: Record<string, string>[] = [];
       for (let i = 1; i < rawData.length; i++) {
         const row = rawData[i] as (string | number | undefined)[];
-        if (!row[0]) continue;
+        if (!row[0] && !row[1]) continue;
         const record: Record<string, string> = {};
         for (const key of selectedColumns) {
           if (colMap[key] !== undefined) {
