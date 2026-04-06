@@ -67,9 +67,8 @@ type UploadState = "idle" | "uploading" | "processing" | "complete" | "error";
 
 // ─── TABS ────────────────────────────────────────────────────────────────────
 
-const ALL_TABS = ["Upload & Run", "Run History", "Status", "Settings"] as const;
+const ALL_TABS = ["Run History", "Status", "Settings"] as const;
 type AllTabType = (typeof ALL_TABS)[number];
-// removed duplicate
 
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 
@@ -79,11 +78,12 @@ export default function DunlopReportingPage() {
   const { user } = useAuth();
   const permissions = usePermissions();
 
-  const [activeTab, setActiveTab] = useState<AllTabType>("Upload & Run");
-  const env = "prod" as const; // Always prod — dev mode removed
+  const [activeTab, setActiveTab] = useState<AllTabType>("Run History");
+  const env = "prod" as const;
 
-  const canToggleEnv = false; // Dev toggle removed
-  const visibleTabs = ALL_TABS.filter(t => t !== "Settings");
+  const canToggleEnv = false;
+  const isSuperAdmin = permissions.tier >= 5;
+  const visibleTabs = isSuperAdmin ? ALL_TABS : ALL_TABS.filter(t => t !== "Settings");
 
   return (
     <Protected>
@@ -110,7 +110,7 @@ export default function DunlopReportingPage() {
                     Dunlop Sellout Reporter
                   </h1>
                   <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                    Monthly sellout reporting to SRNA via SFTP
+                    Automated monthly sellout reporting to SRNA — runs 1st of each month
                   </p>
                 </div>
               </div>
@@ -138,16 +138,13 @@ export default function DunlopReportingPage() {
           </header>
 
           <div className="max-w-5xl mx-auto px-6 py-6">
-            {activeTab === "Upload & Run" && (
-              <UploadRunTab isDark={isDark} env={env} userName={user?.name ?? "Unknown"} />
-            )}
             {activeTab === "Run History" && (
               <RunHistoryTab isDark={isDark} canDelete={permissions.hasPermission("dunlopReporting.deleteHistory")} canRerun={permissions.hasPermission("dunlopReporting.rerun")} env={env} userName={user?.name ?? "Unknown"} />
             )}
             {activeTab === "Status" && (
               <BackfillTab isDark={isDark} />
             )}
-            {activeTab === "Settings" && canToggleEnv && (
+            {activeTab === "Settings" && isSuperAdmin && (
               <SettingsTab isDark={isDark} />
             )}
           </div>
