@@ -16,6 +16,7 @@ type UploadState = "idle" | "validating" | "uploading" | "processing" | "complet
 const REPORT_TYPES = [
   { code: "OEA07V", label: "OEA07V — Daily Sales (CSV)", description: "Daily item-level sales/returns — fuels WTD Commission and Dunlop", accept: ".csv,.xlsx" },
   { code: "oeival", label: "OEIVAL — Inventory Snapshot", description: "Inventory quantities, costs, pricing by warehouse", accept: ".csv,.xlsx" },
+  { code: "oea07v-sales", label: "Sales History — Monthly Totals", description: "Monthly sales by item with stock levels (.xlsx)", accept: ".xlsx" },
 ];
 
 function getDefaultMonth(): string {
