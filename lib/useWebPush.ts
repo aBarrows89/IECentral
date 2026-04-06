@@ -72,8 +72,11 @@ export function useWebPush(userId: Id<"users"> | undefined) {
         return false;
       }
 
-      // Get service worker registration
-      const registration = await navigator.serviceWorker.ready;
+      // Get service worker registration (with timeout)
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Service worker not ready — try refreshing the page")), 10000)),
+      ]);
 
       // Subscribe to push
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
@@ -104,6 +107,7 @@ export function useWebPush(userId: Id<"users"> | undefined) {
       return true;
     } catch (error) {
       console.error("Failed to subscribe to push:", error);
+      alert(`Push notification setup failed: ${error instanceof Error ? error.message : "Unknown error"}. Try refreshing the page.`);
       setIsLoading(false);
       return false;
     }

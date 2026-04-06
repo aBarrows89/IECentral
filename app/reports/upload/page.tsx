@@ -67,10 +67,11 @@ export default function ReportUploadPage() {
   const [reportType, setReportType] = useState("OEA07V");
   const [selectedWarehouse, setSelectedWarehouse] = useState("");
   const month = getDefaultMonth(); // Auto-detected from current date
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0); // For multi-file: current index
   const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number } | null>(null);
   const [processingResults, setProcessingResults] = useState<{ trigger: string; status: string; message?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,9 +80,11 @@ export default function ReportUploadPage() {
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f && (f.name.endsWith(".csv") || f.name.endsWith(".xlsx"))) {
-      setFile(f);
+    const dropped = Array.from(e.dataTransfer.files).filter(
+      (f) => f.name.endsWith(".csv") || f.name.endsWith(".xlsx")
+    );
+    if (dropped.length > 0) {
+      setFiles(dropped);
       setValidation(null);
       setUploadState("idle");
       setErrorMsg("");
@@ -89,14 +92,17 @@ export default function ReportUploadPage() {
   }, []);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFile(f);
+    const selected = Array.from(e.target.files || []);
+    if (selected.length > 0) {
+      setFiles(selected);
       setValidation(null);
       setUploadState("idle");
       setErrorMsg("");
     }
   }, []);
+
+  // Convenience alias for single-file operations
+  const file = files[0] || null;
 
   const handleValidate = useCallback(async () => {
     if (!file) return;
