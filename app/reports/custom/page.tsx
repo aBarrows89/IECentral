@@ -310,6 +310,21 @@ export default function CustomReportPage() {
                 <div className="mt-3">
                   <label className={`flex items-center gap-2 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     <span>Fuse with:</span>
+                    <div className="relative group">
+                      <svg className={`w-3.5 h-3.5 cursor-help ${isDark ? "text-slate-500 hover:text-slate-300" : "text-gray-400 hover:text-gray-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className={`absolute left-0 bottom-full mb-2 w-72 p-3 rounded-lg border shadow-xl text-xs z-30 hidden group-hover:block ${isDark ? "bg-slate-800 border-slate-600 text-slate-300" : "bg-white border-gray-200 text-gray-700"}`}>
+                        <p className="font-semibold mb-1">What is Fusion?</p>
+                        <p className="mb-2">Combines two data sources by Item ID into one view. Example: fuse Inventory (OEIVAL) with Sales History (OEA07V) to see stock levels alongside sales trends.</p>
+                        <p className="font-medium mb-1">Use cases:</p>
+                        <ul className="space-y-0.5 ml-2">
+                          <li>Find dead stock (in inventory, zero sales)</li>
+                          <li>Identify hot items (high sales, low stock)</li>
+                          <li>Reorder decisions (selling fast + low inventory)</li>
+                        </ul>
+                      </div>
+                    </div>
                     <select value={secondSource} onChange={(e) => setSecondSource(e.target.value)}
                       className={`px-2 py-1 rounded-lg border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
                       <option value="">None (single source)</option>
