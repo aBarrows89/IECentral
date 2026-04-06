@@ -51,10 +51,14 @@ export default function ReportUploadPage() {
 
   const dataUploads = useQuery(api.reportData.listUploads, {});
   const ftpConnections = useQuery(api.ftpConnections.list);
+  const uploadAccess = useQuery(api.jmkUploads.getUploadAccessWithNames);
+  const allUsers = useQuery(api.auth.getAllUsers);
+  const setUploadAccess = useMutation(api.jmkUploads.setUploadAccess);
+  const [accessSearch, setAccessSearch] = useState("");
   const createFtp = useMutation(api.ftpConnections.create);
   const removeFtp = useMutation(api.ftpConnections.remove);
 
-  const [activeTab, setActiveTab] = useState<"upload" | "ftp">("upload");
+  const [activeTab, setActiveTab] = useState<"upload" | "ftp" | "access">("upload");
   const [ftpForm, setFtpForm] = useState({ name: "", host: "", port: "21", username: "", password: "", remotePath: "/", filePattern: "tires-*.csv", sourceType: "tires", frequency: "hourly" });
   const [ftpTesting, setFtpTesting] = useState(false);
   const [ftpTestResult, setFtpTestResult] = useState<{ connected: boolean; message: string; files?: string[] } | null>(null);
@@ -298,17 +302,20 @@ export default function ReportUploadPage() {
                   <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Upload and process JMK report files</p>
                 </div>
               </div>
+              <Link href="/reports/upload-status" className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                Upload Calendar
+              </Link>
             </div>
             {/* Tabs */}
             <div className="flex gap-1 mt-4">
-              {(["upload", "ftp"] as const).map((tab) => (
-                <button key={tab} onClick={() => setActiveTab(tab)}
+              {(["upload", "ftp", ...(permissions.tier >= 5 ? ["access" as const] : [])] as const).map((tab) => (
+                <button key={tab} onClick={() => setActiveTab(tab as any)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
                     activeTab === tab
                       ? isDark ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border border-emerald-300"
                       : isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                   }`}>
-                  {tab === "upload" ? "Manual Upload" : `FTP Connections (${ftpConnections?.length ?? 0})`}
+                  {tab === "upload" ? "Manual Upload" : tab === "ftp" ? `FTP Connections (${ftpConnections?.length ?? 0})` : "Access Control"}
                 </button>
               ))}
             </div>
@@ -446,6 +453,59 @@ export default function ReportUploadPage() {
               </div>
             )}
 
+            {/* Access Control Tab — T5 only */}
+            {activeTab === "access" && permissions.tier >= 5 && (
+              <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                <h2 className={`text-sm font-semibold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>Upload Access Overrides</h2>
+                <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                  Grant upload access to users below T5. They will be able to upload reports.
+                </p>
+                <div className="relative mb-4">
+                  <input type="text" value={accessSearch}
+                    onChange={(e) => setAccessSearch(e.target.value)}
+                    placeholder="Search users to grant access..."
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                  {accessSearch.length >= 1 && (
+                    <div className={`absolute z-20 w-full mt-1 rounded-lg border shadow-xl max-h-40 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}>
+                      {(allUsers ?? [])
+                        .filter((u: any) => u.isActive && !(uploadAccess?.userIds || []).includes(u._id) && (u.name.toLowerCase().includes(accessSearch.toLowerCase()) || u.email?.toLowerCase().includes(accessSearch.toLowerCase())))
+                        .slice(0, 8)
+                        .map((u: any) => (
+                          <button key={u._id} onClick={async () => {
+                            if (!user) return;
+                            await setUploadAccess({ userIds: [...(uploadAccess?.userIds || []), u._id], updatedBy: user._id });
+                            setAccessSearch("");
+                          }} className={`w-full text-left px-3 py-2 text-sm ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-700 hover:bg-gray-100"}`}>
+                            <span className="font-medium">{u.name}</span>
+                            <span className={`ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.email}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                {uploadAccess?.users && uploadAccess.users.length > 0 ? (
+                  <div className="space-y-2">
+                    {uploadAccess.users.map((u: any) => u && (
+                      <div key={u._id} className={`flex items-center justify-between px-3 py-2 rounded-lg ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
+                        <div>
+                          <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{u.name}</span>
+                          <span className={`text-xs ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.email}</span>
+                        </div>
+                        <button onClick={async () => {
+                          if (!user) return;
+                          await setUploadAccess({ userIds: (uploadAccess?.userIds || []).filter((id: any) => id !== u._id), updatedBy: user._id });
+                        }} className={`text-xs px-2 py-1 rounded ${isDark ? "text-red-400 hover:bg-red-500/20" : "text-red-600 hover:bg-red-100"}`}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>No access overrides configured. Only T5 users can upload.</p>
+                )}
+              </div>
+            )}
+
             {/* Upload Tab */}
             {activeTab === "upload" && <>
             {/* Upload Form */}
@@ -502,7 +562,7 @@ export default function ReportUploadPage() {
                       : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-300 hover:border-gray-400"
                 }`}
               >
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} className="sr-only" />
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} />
                 {file ? (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
