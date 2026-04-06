@@ -4,7 +4,7 @@ import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 const BUCKET = "ietires-dunlop-jmk-uploads";
 const CRON_SECRET = process.env.CRON_SECRET;
 const API_GATEWAY_URL = process.env.DUNLOP_API_GATEWAY_URL || "https://jzdhz2de88.execute-api.us-east-1.amazonaws.com/prod";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
 
 const s3 = new S3Client({
   region: process.env.S3_REGION || "us-east-1",

@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 const BUCKET = "ietires-dunlop-jmk-uploads";
 const CRON_SECRET = process.env.CRON_SECRET;
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
 
 const s3 = new S3Client({
   region: process.env.S3_REGION || "us-east-1",

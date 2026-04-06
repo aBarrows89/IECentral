@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         const fileBuffer = Buffer.concat(chunks);
 
         // Send to ingest endpoint
-        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
         const formData = new FormData();
         const blob = new Blob([fileBuffer], { type: "text/csv" });
         formData.append("file", blob, latestFile.name);
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
 
   // Reuse the GET logic by calling ourselves with the connection ID
   // For now, trigger a full sync
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
   const res = await fetch(`${APP_URL}/api/reports/ftp-sync`, {
     headers: { Authorization: `Bearer ${CRON_SECRET || ""}` },
   });

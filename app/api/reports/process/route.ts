@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://iecentral.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
 
 export async function POST(request: NextRequest) {
   try {
