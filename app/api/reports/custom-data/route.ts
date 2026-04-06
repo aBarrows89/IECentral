@@ -177,7 +177,7 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
     const matches = (listRes.Contents || [])
       .filter((o) => {
         const key = o.Key?.toLowerCase() || "";
-        if (reportType === "oeival") return key.includes("oeival") && key.endsWith(".xlsx");
+        if (reportType === "oeival") return key.includes("oeival") && (key.endsWith(".xlsx") || key.endsWith(".csv"));
         if (reportType === "tires") return key.includes("tires") && key.endsWith(".csv");
         return false;
       })
@@ -190,16 +190,24 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
     if (!buffer) continue;
 
     if (reportType === "oeival") {
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buffer, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
-
       const colMap: Record<string, number> = {
         location: 0, productType: 1, dclass: 3, manufacturerCode: 4, manufacturerName: 5,
         model: 6, itemId: 7, mfgItemId: 8, description: 9, qtyOnHand: 11,
         qtyAvailable: 13, lastCost: 20, avgCost: 21, extendedValue: 24,
       };
+
+      let rawData: unknown[][];
+      const fileKey = matches[0].Key!.toLowerCase();
+      if (fileKey.endsWith(".csv")) {
+        const text = new TextDecoder().decode(buffer);
+        const csvRows = parseCSV(text.replace(/^\uFEFF/, "").replace(/\0/g, ""));
+        rawData = csvRows;
+      } else {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(buffer, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
+      }
 
       const rows: Record<string, string>[] = [];
       for (let i = 1; i < rawData.length; i++) {
@@ -208,7 +216,7 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
         const record: Record<string, string> = {};
         for (const key of selectedColumns) {
           if (colMap[key] !== undefined) {
-            record[key] = String(row[colMap[key]] ?? "");
+            record[key] = String(row[colMap[key]] ?? "").replace(/"/g, "").trim();
           }
         }
         rows.push(record);

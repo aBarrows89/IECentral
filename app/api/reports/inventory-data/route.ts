@@ -51,10 +51,34 @@ export async function GET(request: NextRequest) {
     const buffer = await getRes.Body?.transformToByteArray();
     if (!buffer) return NextResponse.json({ items: [], filters: { locations: [], brands: [], productTypes: [], dclasses: [] }, fileDate });
 
-    const XLSX = await import("xlsx");
-    const wb = XLSX.read(buffer, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
+    let rawData: unknown[][];
+    if (fileKey.toLowerCase().endsWith(".csv")) {
+      const text = new TextDecoder().decode(buffer);
+      const lines = text.replace(/^\uFEFF/, "").replace(/\0/g, "").split("\n");
+      rawData = lines.map((line) => {
+        const fields: string[] = [];
+        let field = "", inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQuotes) {
+            if (ch === '"') { if (line[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+            else field += ch;
+          } else {
+            if (ch === '"') inQuotes = true;
+            else if (ch === ",") { fields.push(field.trim()); field = ""; }
+            else if (ch === "\r") continue;
+            else field += ch;
+          }
+        }
+        fields.push(field.trim());
+        return fields;
+      }).filter((r) => r.some((f) => f));
+    } else {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
+    }
 
     if (rawData.length < 2) {
       return NextResponse.json({ items: [], filters: { locations: [], brands: [], productTypes: [], dclasses: [] }, fileDate });
