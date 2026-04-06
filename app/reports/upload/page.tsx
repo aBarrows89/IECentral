@@ -16,10 +16,6 @@ type UploadState = "idle" | "validating" | "uploading" | "processing" | "complet
 const REPORT_TYPES = [
   { code: "OEA07V", label: "OEA07V — Daily Sales (CSV)", description: "Daily item-level sales/returns — fuels WTD Commission and Dunlop", accept: ".csv,.xlsx" },
   { code: "oeival", label: "OEIVAL — Inventory Snapshot", description: "Inventory quantities, costs, pricing by warehouse (.xlsx)", accept: ".xlsx" },
-  { code: "oea07v-sales", label: "Sales History — Monthly Totals", description: "Monthly sales by item with stock levels (.xlsx)", accept: ".xlsx", needsWarehouse: true },
-  { code: "tires", label: "Tires Catalog", description: "Product catalog with tire specs (~50K rows, .csv)", accept: ".csv" },
-  { code: "ART24T", label: "ART24T — Transaction Analysis", description: "A/R transaction detail with profitability and commission", accept: ".csv,.xlsx" },
-  { code: "ART30S", label: "ART30S — Sales Summary", description: "Sales summary by date range with totals", accept: ".csv,.xlsx" },
 ];
 
 function getDefaultMonth(): string {
