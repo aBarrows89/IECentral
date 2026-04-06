@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
 
     const expected = EXPECTED_HEADERS[reportType];
     if (!expected) {
-      return NextResponse.json({ valid: false, errors: [`Unknown report type: ${reportType}`] });
+      // Data sources (oeival, tires, oea07v-sales) don't need header validation
+      return NextResponse.json({ valid: true, detectedColumns: (headerRow as string[]).length, rowCount });
     }
 
     const headers = (headerRow as string[]).map((h: string) => h.replace(/"/g, "").trim());

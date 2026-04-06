@@ -610,21 +610,19 @@ export default function ReportUploadPage() {
               </div>
 
               {/* Drop zone */}
-              <label
+              <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
-                htmlFor="file-upload-input"
-                className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
                   dragOver
                     ? isDark ? "border-cyan-500 bg-cyan-500/10" : "border-blue-400 bg-blue-50"
                     : files.length > 0
                       ? isDark ? "border-emerald-500/50 bg-emerald-500/5" : "border-emerald-300 bg-emerald-50"
-                      : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-300 hover:border-gray-400"
+                      : isDark ? "border-slate-600" : "border-gray-300"
                 }`}
               >
-                <input id="file-upload-input" ref={fileInputRef} type="file" accept=".csv,.xlsx" multiple onChange={handleFileSelect}
-                  className="sr-only" />
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx" multiple onChange={handleFileSelect} className="hidden" />
                 {files.length > 0 ? (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,16 +643,25 @@ export default function ReportUploadPage() {
                         </div>
                       </>
                     )}
+                    <button type="button" onClick={() => { setFiles([]); setValidation(null); setUploadState("idle"); }}
+                      className={`mt-2 text-xs px-3 py-1 rounded-lg ${isDark ? "text-slate-400 hover:bg-slate-700" : "text-gray-500 hover:bg-gray-100"}`}>
+                      Change files
+                    </button>
                   </div>
                 ) : (
                   <div>
                     <svg className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-slate-500" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p className={`text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>Drop a file here or click to browse (.csv, .xlsx)</p>
+                    <p className={`text-sm mb-3 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Drag and drop files here, or</p>
+                    <button type="button" onClick={() => fileInputRef.current?.click()}
+                      className={`px-5 py-2 rounded-lg text-sm font-medium ${isDark ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                      Browse Files
+                    </button>
+                    <p className={`text-[10px] mt-2 ${isDark ? "text-slate-600" : "text-gray-400"}`}>.csv or .xlsx — hold Cmd to select multiple</p>
                   </div>
                 )}
-              </label>
+              </div>
 
               {/* Validation result */}
               {validation && (
