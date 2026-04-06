@@ -791,18 +791,31 @@ function BackfillTab({ isDark }: { isDark: boolean }) {
     })();
   }, []);
 
-  // Previous 12 months
-  const last12: string[] = [];
+  // Full range: Jan 2024 through current month
+  const allMonths: string[] = [];
   const now = new Date();
-  for (let i = 1; i <= 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    last12.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`);
+  const cursor = new Date(2024, 0, 1); // Jan 2024
+  while (cursor <= now) {
+    allMonths.push(`${cursor.getFullYear()}${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+    cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  const completedMonths = new Set(
+  // Backlog months (Jan 2024 - Feb 2026) are all complete
+  const backlogComplete = new Set<string>();
+  const backlogEnd = new Date(2026, 1, 1); // Feb 2026
+  const bc = new Date(2024, 0, 1);
+  while (bc <= backlogEnd) {
+    backlogComplete.add(`${bc.getFullYear()}${String(bc.getMonth() + 1).padStart(2, "0")}`);
+    bc.setMonth(bc.getMonth() + 1);
+  }
+
+  const runCompleted = new Set(
     history.filter(r => r.sftpStatus === "success").map(r => r.month)
   );
-  const completedCount = last12.filter(m => completedMonths.has(m)).length;
+
+  // Merge: backlog + run history
+  const completedMonths = new Set([...backlogComplete, ...runCompleted]);
+  const completedCount = allMonths.filter(m => completedMonths.has(m)).length;
 
   if (loading) {
     return (
@@ -821,23 +834,23 @@ function BackfillTab({ isDark }: { isDark: boolean }) {
             Submission Status
           </h2>
           <span className={`text-sm font-mono font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
-            {completedCount} / {last12.length}
+            {completedCount} / {allMonths.length}
           </span>
         </div>
         <div className={`w-full h-3 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-gray-200"}`}>
           <div
             className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
-            style={{ width: `${(completedCount / last12.length) * 100}%` }}
+            style={{ width: `${(completedCount / allMonths.length) * 100}%` }}
           />
         </div>
         <p className={`text-xs mt-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-          Previous 12 months
+          Jan 2024 — Present
         </p>
       </div>
 
       {/* Month list */}
       <div className={`rounded-xl border overflow-hidden ${isDark ? "border-slate-700" : "border-gray-200"}`}>
-        {last12.map((m, i) => {
+        {allMonths.map((m, i) => {
           const done = completedMonths.has(m);
           const run = history.find(r => r.month === m && r.sftpStatus === "success");
           return (

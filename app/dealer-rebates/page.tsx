@@ -154,7 +154,7 @@ type Dealer = {
 };
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
-const TABS = ["Upload & Process", "Dealer Management", "Upload History", "Stats"] as const;
+const TABS = ["Dealer Management", "Upload History", "Stats"] as const;
 type TabType = typeof TABS[number];
 
 const UPLOAD_STEPS = ["Upload OEA07V", "Select Programs", "Review & Export"];
@@ -167,7 +167,7 @@ export default function DealerRebatesPage() {
   const { user } = useAuth();
   const permissions = usePermissions();
 
-  const [activeTab, setActiveTab] = useState<TabType>("Upload & Process");
+  const [activeTab, setActiveTab] = useState<TabType>("Dealer Management");
 
   const canViewStats = permissions.hasPermission("dealerRebates.viewStats");
   const visibleTabs = TABS.filter(tab => tab !== "Stats" || canViewStats);
@@ -219,7 +219,6 @@ export default function DealerRebatesPage() {
           </header>
 
           <div className="max-w-5xl mx-auto px-6 py-6">
-            {activeTab === "Upload & Process" && <UploadTab isDark={isDark} userId={user?._id} />}
             {activeTab === "Dealer Management" && <DealerManagementTab isDark={isDark} />}
             {activeTab === "Upload History" && <UploadHistoryTab isDark={isDark} />}
             {activeTab === "Stats" && <StatsTab isDark={isDark} />}

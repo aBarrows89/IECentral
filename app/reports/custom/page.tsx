@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
@@ -9,6 +9,7 @@ import Link from "next/link";
 const SOURCE_TYPES = [
   { code: "OEA07V", label: "OEA07V — Sales Activity Detail" },
   { code: "ART24T", label: "ART24T — Transaction Analysis" },
+  { code: "ART30S", label: "ART30S — Sales Summary" },
 ];
 
 const COLUMN_OPTIONS: Record<string, { key: string; name: string; defaultOn: boolean }[]> = {
@@ -49,20 +50,17 @@ const COLUMN_OPTIONS: Record<string, { key: string; name: string; defaultOn: boo
     { key: "profitPct", name: "Profit %", defaultOn: false },
     { key: "customerName", name: "Customer Name", defaultOn: true },
   ],
+  ART30S: [
+    { key: "accountId", name: "Account", defaultOn: true },
+    { key: "invoiceId", name: "Invoice", defaultOn: true },
+    { key: "transDate", name: "Trans Date", defaultOn: true },
+    { key: "location", name: "Location", defaultOn: true },
+    { key: "itemId", name: "Item", defaultOn: true },
+    { key: "description", name: "Description", defaultOn: true },
+    { key: "qty", name: "Qty", defaultOn: true },
+    { key: "amount", name: "Amount", defaultOn: true },
+  ],
 };
-
-// Generate last 12 months as YYYYMM options
-function getMonthOptions(): { value: string; label: string }[] {
-  const months: { value: string; label: string }[] = [];
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
-    months.push({ value: val, label: `${names[d.getMonth()]} ${d.getFullYear()}` });
-  }
-  return months;
-}
 
 type RunState = "idle" | "loading" | "success" | "error";
 
@@ -71,7 +69,9 @@ export default function CustomReportPage() {
   const isDark = theme === "dark";
 
   const [sourceType, setSourceType] = useState("OEA07V");
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([getMonthOptions()[0].value]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [selectedColumns, setSelectedColumns] = useState<string[]>(
     COLUMN_OPTIONS.OEA07V.filter((c) => c.defaultOn).map((c) => c.key)
   );
@@ -82,8 +82,15 @@ export default function CustomReportPage() {
   const [totalRows, setTotalRows] = useState(0);
   const [truncated, setTruncated] = useState(false);
 
-  const monthOptions = getMonthOptions();
   const columnOptions = COLUMN_OPTIONS[sourceType] || [];
+
+  // Set default dates (current month)
+  useEffect(() => {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    setStartDate(firstOfMonth.toISOString().split("T")[0]);
+    setEndDate(now.toISOString().split("T")[0]);
+  }, []);
 
   const handleSourceChange = useCallback((code: string) => {
     setSourceType(code);
@@ -92,16 +99,29 @@ export default function CustomReportPage() {
     setRunState("idle");
   }, []);
 
-  const toggleMonth = useCallback((m: string) => {
-    setSelectedMonths((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
-  }, []);
-
   const toggleColumn = useCallback((key: string) => {
     setSelectedColumns((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
   }, []);
 
+  // Derive months from date range
+  function getMonthsFromRange(start: string, end: string): string[] {
+    if (!start || !end) return [];
+    const months: string[] = [];
+    const s = new Date(start);
+    const e = new Date(end);
+    const cursor = new Date(s.getFullYear(), s.getMonth(), 1);
+    while (cursor <= e) {
+      months.push(`${cursor.getFullYear()}${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return months;
+  }
+
   const handleGenerate = useCallback(async () => {
-    if (selectedMonths.length === 0 || selectedColumns.length === 0) return;
+    if (!startDate || !endDate || selectedColumns.length === 0) return;
+    const months = getMonthsFromRange(startDate, endDate);
+    if (months.length === 0) return;
+
     setRunState("loading");
     setErrorMsg("");
 
@@ -109,7 +129,7 @@ export default function CustomReportPage() {
       const res = await fetch("/api/reports/custom-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportType: sourceType, months: selectedMonths, selectedColumns }),
+        body: JSON.stringify({ reportType: sourceType, months, selectedColumns }),
       });
       const data = await res.json();
       if (!res.ok) { setRunState("error"); setErrorMsg(data.error); return; }
@@ -118,12 +138,13 @@ export default function CustomReportPage() {
       setRows(data.rows);
       setTotalRows(data.totalRows);
       setTruncated(data.truncated);
+      setAvailableMonths(months);
       setRunState("success");
     } catch (err) {
       setRunState("error");
       setErrorMsg(err instanceof Error ? err.message : "Failed to generate report");
     }
-  }, [sourceType, selectedMonths, selectedColumns]);
+  }, [sourceType, startDate, endDate, selectedColumns]);
 
   const handleExportCSV = useCallback(() => {
     if (rows.length === 0) return;
@@ -140,9 +161,22 @@ export default function CustomReportPage() {
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `custom-report-${sourceType}-${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `custom-${sourceType}-${startDate}-to-${endDate}.csv`;
     link.click();
-  }, [rows, columns, sourceType]);
+  }, [rows, columns, sourceType, startDate, endDate]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (rows.length === 0) return;
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const data = [
+      columns.map((c) => c.name),
+      ...rows.map((row) => columns.map((c) => row[c.key] || "")),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, sourceType);
+    XLSX.writeFile(wb, `custom-${sourceType}-${startDate}-to-${endDate}.xlsx`);
+  }, [rows, columns, sourceType, startDate, endDate]);
 
   return (
     <Protected>
@@ -166,12 +200,11 @@ export default function CustomReportPage() {
           </header>
 
           <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
-            {/* Configuration */}
             <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               {/* Source Type */}
               <div className="mb-5">
                 <label className={`block text-xs font-medium mb-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Source Report</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {SOURCE_TYPES.map((t) => (
                     <button
                       key={t.code}
@@ -182,29 +215,29 @@ export default function CustomReportPage() {
                           : isDark ? "bg-slate-900 text-slate-400 border-slate-600 hover:border-slate-500" : "bg-white text-gray-500 border-gray-300 hover:border-gray-400"
                       }`}
                     >
-                      {t.code}
+                      {t.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Month Selection */}
+              {/* Date Range */}
               <div className="mb-5">
-                <label className={`block text-xs font-medium mb-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Date Range (select months with data)</label>
-                <div className="flex flex-wrap gap-2">
-                  {monthOptions.map((m) => (
-                    <button
-                      key={m.value}
-                      onClick={() => toggleMonth(m.value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                        selectedMonths.includes(m.value)
-                          ? isDark ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-emerald-100 text-emerald-700 border-emerald-300"
-                          : isDark ? "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600" : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+                <label className={`block text-xs font-medium mb-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Date Range</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className={`px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                  />
+                  <span className={`text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className={`px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                  />
                 </div>
               </div>
 
@@ -212,21 +245,11 @@ export default function CustomReportPage() {
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-2">
                   <label className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`}>
-                    Columns ({selectedColumns.length}/{columnOptions.length} selected)
+                    Columns ({selectedColumns.length}/{columnOptions.length})
                   </label>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelectedColumns(columnOptions.map((c) => c.key))}
-                      className={`text-[10px] px-2 py-0.5 rounded ${isDark ? "text-cyan-400 hover:bg-slate-800" : "text-blue-600 hover:bg-gray-100"}`}
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={() => setSelectedColumns([])}
-                      className={`text-[10px] px-2 py-0.5 rounded ${isDark ? "text-slate-500 hover:bg-slate-800" : "text-gray-400 hover:bg-gray-100"}`}
-                    >
-                      Clear
-                    </button>
+                    <button onClick={() => setSelectedColumns(columnOptions.map((c) => c.key))} className={`text-[10px] px-2 py-0.5 rounded ${isDark ? "text-cyan-400 hover:bg-slate-800" : "text-blue-600 hover:bg-gray-100"}`}>All</button>
+                    <button onClick={() => setSelectedColumns([])} className={`text-[10px] px-2 py-0.5 rounded ${isDark ? "text-slate-500 hover:bg-slate-800" : "text-gray-400 hover:bg-gray-100"}`}>Clear</button>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -246,22 +269,27 @@ export default function CustomReportPage() {
                 </div>
               </div>
 
-              {/* Generate */}
+              {/* Actions */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={runState === "loading" || selectedMonths.length === 0 || selectedColumns.length === 0}
+                  disabled={runState === "loading" || !startDate || !endDate || selectedColumns.length === 0}
                   className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
                 >
                   {runState === "loading" ? "Generating..." : "Generate Report"}
                 </button>
                 {runState === "success" && (
-                  <button
-                    onClick={handleExportCSV}
-                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
-                  >
-                    Export CSV
-                  </button>
+                  <>
+                    <button onClick={handleExportCSV} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+                      Export CSV
+                    </button>
+                    <button onClick={handleExportExcel} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                      Export Excel
+                    </button>
+                    <button onClick={() => window.print()} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                      Print
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -280,6 +308,9 @@ export default function CustomReportPage() {
                   <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
                     {totalRows.toLocaleString()} rows
                     {truncated && <span className={`ml-1 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}>(showing first 10,000)</span>}
+                  </span>
+                  <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    {startDate} to {endDate} — {sourceType}
                   </span>
                 </div>
                 <div className="overflow-x-auto max-h-[60vh]">
@@ -307,7 +338,7 @@ export default function CustomReportPage() {
                   </table>
                   {rows.length > 500 && (
                     <p className={`text-center py-3 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                      Showing 500 of {rows.length.toLocaleString()} rows — export CSV for full data
+                      Showing 500 of {rows.length.toLocaleString()} rows — export for full data
                     </p>
                   )}
                 </div>
