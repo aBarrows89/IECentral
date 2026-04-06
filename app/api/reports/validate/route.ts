@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const EXPECTED_HEADERS: Record<string, string[]> = {
   OEA07V: ["Item Id", "Item Description", "Sidewall", "Product Type", "MFG Id", "MFG's Item Id"],
   ART24T: ["A/R ACCT ID", "AlphaNumeric Invoice id", "Trans id", "Trans date", "Loc id"],
+  ART30S: ["Account", "Invoice", "Trans Date", "Loc", "Item"],
 };
 
 export async function POST(request: NextRequest) {

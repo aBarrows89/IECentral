@@ -15,6 +15,8 @@ type UploadState = "idle" | "validating" | "uploading" | "processing" | "complet
 
 const REPORT_TYPES = [
   { code: "OEA07V", label: "OEA07V — Sales Activity Detail", description: "Item-level sales/returns with customer, location, dates" },
+  { code: "ART24T", label: "ART24T — Transaction Analysis", description: "A/R transaction detail with profitability and commission" },
+  { code: "ART30S", label: "ART30S — Sales Summary", description: "Sales summary by date range with totals" },
 ];
 
 function getDefaultMonth(): string {
@@ -45,7 +47,7 @@ export default function ReportUploadPage() {
   const recordUpload = useMutation(api.jmkUploads.recordUpload);
 
   const [reportType, setReportType] = useState("OEA07V");
-  const [month, setMonth] = useState(getDefaultMonth());
+  const month = getDefaultMonth(); // Auto-detected from current date
   const [file, setFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -216,13 +218,10 @@ export default function ReportUploadPage() {
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Reporting Month</label>
-                  <input
-                    type="month"
-                    value={`${month.slice(0, 4)}-${month.slice(4, 6)}`}
-                    onChange={(e) => setMonth(e.target.value.replace("-", ""))}
-                    className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
-                  />
+                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Filing Period</label>
+                  <div className={`px-3 py-2 rounded-lg border text-sm font-medium ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
+                    {formatMonth(month)} — dates auto-detected from file
+                  </div>
                 </div>
               </div>
 
