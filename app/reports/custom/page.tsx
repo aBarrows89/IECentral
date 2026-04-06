@@ -4,6 +4,9 @@ import { useState, useCallback, useEffect } from "react";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
+import { useAuth } from "@/app/auth-context";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 
 const SOURCE_TYPES = [
@@ -67,8 +70,17 @@ type RunState = "idle" | "loading" | "success" | "error";
 export default function CustomReportPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { user } = useAuth();
+  const saveConfig = useMutation(api.savedReports.create);
 
   const [sourceType, setSourceType] = useState("OEA07V");
+  const [secondSource, setSecondSource] = useState("");
+  const [fusionJoinKey, setFusionJoinKey] = useState("itemId");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveDescription, setSaveDescription] = useState("");
+  const [saveAutoRun, setSaveAutoRun] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -218,6 +230,38 @@ export default function CustomReportPage() {
     XLSX.writeFile(wb, `custom-${sourceType}-${startDate}-to-${endDate}.xlsx`);
   }, [rows, columns, sourceType, startDate, endDate]);
 
+  const handleSaveConfig = useCallback(async () => {
+    if (!user || !saveName) return;
+    setSaving(true);
+    try {
+      const sources = secondSource ? [sourceType, secondSource] : [sourceType];
+      await saveConfig({
+        name: saveName,
+        description: saveDescription || undefined,
+        sources,
+        selectedColumns,
+        excludeTransactions: excludeTransactions.length > 0 ? excludeTransactions : undefined,
+        filterBrand: filterBrand || undefined,
+        filterAccount: filterAccount || undefined,
+        negateQty: negateQty || undefined,
+        dateRangeType: "custom",
+        customStartDate: startDate || undefined,
+        customEndDate: endDate || undefined,
+        fusionJoinKey: secondSource ? fusionJoinKey : undefined,
+        autoRun: saveAutoRun,
+        createdBy: user._id,
+        createdByName: user.name || "Unknown",
+      });
+      setShowSaveModal(false);
+      setSaveName("");
+      setSaveDescription("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }, [user, saveName, saveDescription, sourceType, secondSource, selectedColumns, excludeTransactions, filterBrand, filterAccount, negateQty, startDate, endDate, fusionJoinKey, saveAutoRun, saveConfig]);
+
   return (
     <Protected>
       <div className="flex h-screen theme-bg-primary">
@@ -258,6 +302,25 @@ export default function CustomReportPage() {
                       {t.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Fusion — join with second source */}
+                <div className="mt-3">
+                  <label className={`flex items-center gap-2 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                    <span>Fuse with:</span>
+                    <select value={secondSource} onChange={(e) => setSecondSource(e.target.value)}
+                      className={`px-2 py-1 rounded-lg border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                      <option value="">None (single source)</option>
+                      {SOURCE_TYPES.filter((t) => t.code !== sourceType).map((t) => (
+                        <option key={t.code} value={t.code}>{t.label}</option>
+                      ))}
+                    </select>
+                    {secondSource && (
+                      <span className={`text-[10px] ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
+                        Joined by Item ID
+                      </span>
+                    )}
+                  </label>
                 </div>
               </div>
 
@@ -367,6 +430,9 @@ export default function CustomReportPage() {
                     <button onClick={() => window.print()} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
                       Print
                     </button>
+                    <button onClick={() => setShowSaveModal(true)} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-amber-100 text-amber-700 hover:bg-amber-200"}`}>
+                      Save Config
+                    </button>
                   </>
                 )}
               </div>
@@ -425,6 +491,46 @@ export default function CustomReportPage() {
           </div>
         </main>
       </div>
+
+      {/* Save Configuration Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSaveModal(false)}>
+          <div className={`w-full max-w-md rounded-xl p-6 ${isDark ? "bg-slate-800" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>Save Report Configuration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Name *</label>
+                <input type="text" value={saveName} onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="e.g. Daily Sales Summary" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+              </div>
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Description</label>
+                <input type="text" value={saveDescription} onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="Optional description" className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+              </div>
+              <div className={`p-3 rounded-lg ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
+                <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                  Source: <strong>{sourceType}</strong>{secondSource && ` + ${secondSource} (joined by Item ID)`}
+                  <br />Columns: {selectedColumns.length} selected
+                  {excludeTransactions.length > 0 && <><br />Excluding: {excludeTransactions.join(", ")}</>}
+                  {filterBrand && <><br />Brand: {filterBrand}</>}
+                </p>
+              </div>
+              <label className={`flex items-center gap-2 text-sm ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                <input type="checkbox" checked={saveAutoRun} onChange={(e) => setSaveAutoRun(e.target.checked)} className="rounded" />
+                Auto-run when new data is uploaded
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowSaveModal(false)} className={`px-4 py-2 rounded-lg text-sm ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-600 hover:bg-gray-100"}`}>Cancel</button>
+              <button onClick={handleSaveConfig} disabled={saving || !saveName}
+                className={`px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Protected>
   );
 }

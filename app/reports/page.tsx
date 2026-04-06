@@ -54,6 +54,7 @@ function ReportsContent() {
 
   const { user } = useAuth();
   const permissions = usePermissions();
+  const savedConfigs = useQuery(api.savedReports.list);
   const [showHub, setShowHub] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeReport, setActiveReport] = useState<ReportType>("personnel");
@@ -267,6 +268,54 @@ function ReportsContent() {
               </div>
 
               {REPORT_GROUPS.map((group) => {
+                // Saved configs group — render dynamically from Convex
+                if (group.id === "saved") {
+                  const configs = savedConfigs || [];
+                  let filteredConfigs = configs;
+                  if (searchQuery) {
+                    const q = searchQuery.toLowerCase();
+                    filteredConfigs = configs.filter((c: { name: string; description?: string }) =>
+                      c.name.toLowerCase().includes(q) || (c.description || "").toLowerCase().includes(q)
+                    );
+                  }
+                  if (filteredConfigs.length === 0) return null;
+
+                  return (
+                    <div key={group.id}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className={`w-4 h-4 ${isDark ? "text-slate-500" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={group.icon} />
+                        </svg>
+                        <h2 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-gray-400"}`}>{group.label}</h2>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {filteredConfigs.map((config: { _id: string; name: string; description?: string; sources: string[]; autoRun: boolean }) => (
+                          <Link key={config._id} href={`/reports/custom?config=${config._id}`}>
+                            <div className={`group rounded-xl border p-5 transition-all cursor-pointer ${isDark ? "bg-slate-800/50 border-slate-700 hover:border-amber-500/40 hover:bg-slate-800" : "bg-white border-gray-200 hover:border-amber-300 hover:shadow-md"}`}>
+                              <div className="flex items-start gap-4">
+                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-amber-500/10 group-hover:bg-amber-500/20" : "bg-amber-50 group-hover:bg-amber-100"}`}>
+                                  <svg className={`w-5 h-5 ${isDark ? "text-amber-400" : "text-amber-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                  </svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{config.name}</h3>
+                                  <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                                    {config.description || config.sources.join(" + ")}
+                                  </p>
+                                  {config.autoRun && (
+                                    <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>Auto-run</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
                 let groupReports = REPORT_TYPES.filter((r) => r.group === group.id);
                 // Filter by search
                 if (searchQuery) {

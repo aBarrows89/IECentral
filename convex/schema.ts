@@ -3201,6 +3201,34 @@ export default defineSchema({
     .index("by_active", ["isActive"])
     .index("by_sourceType", ["sourceType"]),
 
+  // ============ SAVED REPORT CONFIGURATIONS ============
+  savedReportConfigs: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    sources: v.array(v.string()),         // ["OEA07V"] or ["OEA07V", "oeival"] for fusion
+    selectedColumns: v.array(v.string()),
+    excludeTransactions: v.optional(v.array(v.string())),
+    filterBrand: v.optional(v.string()),
+    filterAccount: v.optional(v.string()),
+    filterLocation: v.optional(v.string()),
+    filterProductType: v.optional(v.string()),
+    filterDclass: v.optional(v.string()),
+    negateQty: v.optional(v.boolean()),
+    dateRangeType: v.string(),            // "last7", "last30", "thisMonth", "lastMonth", "custom"
+    customStartDate: v.optional(v.string()),
+    customEndDate: v.optional(v.string()),
+    fusionJoinKey: v.optional(v.string()), // "itemId" for cross-source joins
+    autoRun: v.boolean(),                  // Auto-generate when data is uploaded
+    lastRunAt: v.optional(v.number()),
+    lastRunRowCount: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdByName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_created", ["createdAt"])
+    .index("by_autoRun", ["autoRun"]),
+
   // ============ REPORT DATA TABLES ============
 
   // Upload tracking for report data ingestion
