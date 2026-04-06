@@ -18,10 +18,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "reportType, month, and filename required" }, { status: 400 });
     }
 
-    const sanitized = filename.replace(/[^a-zA-Z0-9._()-]/g, "_");
-    const key = `jmk-uploads/${month}/${sanitized}`;
+    const sanitized = filename.replace(/[^a-zA-Z0-9._() -]/g, "_");
 
-    const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: "text/csv" });
+    // Organize by report type for data sources
+    const typeFolder = ["oeival", "oea07v-sales", "tires"].includes(reportType) ? reportType : "";
+    const key = typeFolder
+      ? `jmk-uploads/${typeFolder}/${month}/${sanitized}`
+      : `jmk-uploads/${month}/${sanitized}`;
+
+    const contentType = sanitized.endsWith(".xlsx")
+      ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      : "text/csv";
+
+    const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
     const url = await getSignedUrl(s3, command, { expiresIn: 900 });
 
     return NextResponse.json({ url, key });

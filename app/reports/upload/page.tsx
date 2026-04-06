@@ -133,27 +133,37 @@ export default function ReportUploadPage() {
 
     try {
       if (isDataSource) {
-        // Data source uploads go to /api/reports/ingest (parsed into Convex tables)
-        const sourceType = reportType === "oea07v-sales" ? "oea07v" : reportType;
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("sourceType", sourceType);
-        formData.append("userId", user._id);
-        formData.append("userName", user.name || "Unknown");
-        if (selectedWarehouse) formData.append("warehouse", selectedWarehouse);
+        // Data source uploads go directly to S3 — reports read from S3 at query time
+        const sourceType = reportType === "oea07v-sales" ? "oea07v-sales" : reportType;
+        const urlRes = await fetch("/api/reports/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportType: sourceType, month, filename: file.name }),
+        });
+        const { url, key } = await urlRes.json();
+        if (!url) throw new Error("Failed to get upload URL");
 
-        setStatusMsg("Parsing and ingesting data...");
-        setUploadState("processing");
+        setStatusMsg("Uploading to S3...");
+        const contentType = file.name.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+        const uploadRes = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
+        if (!uploadRes.ok) throw new Error("S3 upload failed");
 
-        const res = await fetch("/api/reports/ingest", { method: "POST", body: formData });
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || "Ingest failed");
+        // Record in upload history
+        await recordUpload({
+          reportType: sourceType,
+          fileName: file.name,
+          fileSize: file.size,
+          s3Key: key,
+          reportingMonth: month,
+          validationStatus: "valid",
+          uploadedBy: user._id,
+          uploadedByName: user.name || "Unknown",
+        });
 
         setProcessingResults([{
-          trigger: "data-ingest",
+          trigger: "s3-upload",
           status: "success",
-          message: `${data.rowCount} rows ingested`,
+          message: `Uploaded ${file.name} to S3 — available in reports immediately`,
         }]);
       } else {
         // JMK report uploads go to S3 + processing pipeline
