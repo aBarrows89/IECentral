@@ -47,14 +47,24 @@ export default function WTDCommissionReportPage() {
   const deleteReport = useMutation(api.wtdCommission.deleteReport);
 
   const [viewingReportId, setViewingReportId] = useState<string | null>(null);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const viewingReport = useQuery(
     api.wtdCommission.getReport,
     viewingReportId ? { id: viewingReportId as Id<"wtdCommissionReports"> } : "skip"
   ) as ReportDetail | undefined;
 
+  // Available months from report history
+  const availableMonths = [...new Set((reportHistory || []).map((r: ReportSummary) => r.startDate?.slice(0, 7)).filter(Boolean))].sort().reverse();
+
+  // Filter reports to selected month
+  const filteredReports = (reportHistory || []).filter((r: ReportSummary) => r.startDate?.startsWith(viewMonth));
+
   // Group reports by date for display
-  const reportsByDate = (reportHistory || []).reduce((acc: Record<string, ReportSummary[]>, r: ReportSummary) => {
+  const reportsByDate = filteredReports.reduce((acc: Record<string, ReportSummary[]>, r: ReportSummary) => {
     const key = r.startDate;
     if (!acc[key]) acc[key] = [];
     acc[key].push(r);
@@ -167,6 +177,36 @@ export default function WTDCommissionReportPage() {
           </header>
 
           <div className="max-w-6xl mx-auto px-6 py-6">
+            {/* Month selector */}
+            {!viewingReportId && (
+              <div className={`flex items-center gap-3 mb-6 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                <span className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`}>Month:</span>
+                {availableMonths.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableMonths.map((m: string) => {
+                      const [y, mo] = m.split("-");
+                      const label = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(mo) - 1]} ${y}`;
+                      return (
+                        <button key={m} onClick={() => setViewMonth(m)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            viewMonth === m
+                              ? isDark ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40" : "bg-blue-100 text-blue-700 border-blue-300"
+                              : isDark ? "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                          }`}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>No reports generated yet</span>
+                )}
+                <span className={`ml-auto text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                  {filteredReports.length} report{filteredReports.length !== 1 ? "s" : ""} in {viewMonth}
+                </span>
+              </div>
+            )}
+
             {/* Viewing a specific report */}
             {viewingReportId && viewingReport ? (
               <div>
