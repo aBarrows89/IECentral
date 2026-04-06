@@ -62,6 +62,7 @@ import type * as equipment from "../equipment.js";
 import type * as events from "../events.js";
 import type * as exitInterviews from "../exitInterviews.js";
 import type * as expenseReports from "../expenseReports.js";
+import type * as ftpConnections from "../ftpConnections.js";
 import type * as groups from "../groups.js";
 import type * as holidays from "../holidays.js";
 import type * as http from "../http.js";
@@ -172,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   exitInterviews: typeof exitInterviews;
   expenseReports: typeof expenseReports;
+  ftpConnections: typeof ftpConnections;
   groups: typeof groups;
   holidays: typeof holidays;
   http: typeof http;
