@@ -27,6 +27,8 @@ export default function InventoryReportPage() {
   const [brand, setBrand] = useState("");
   const [productType, setProductType] = useState("");
   const [dclass, setDclass] = useState("");
+  const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
   const [sortCol, setSortCol] = useState("manufacturerName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
@@ -59,8 +61,28 @@ export default function InventoryReportPage() {
       .finally(() => setLoading(false));
   }, [location, brand, productType, dclass]);
 
+  const filtered = useMemo(() => {
+    let result = items;
+    // Search across item ID, description, brand, model
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((i) =>
+        i.itemId.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) ||
+        i.manufacturerName.toLowerCase().includes(q) || i.model.toLowerCase().includes(q) ||
+        i.mfgItemId.toLowerCase().includes(q)
+      );
+    }
+    // Stock filters
+    if (stockFilter === "low") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable <= i.reorderPoint);
+    else if (stockFilter === "zero") result = result.filter((i) => i.qtyOnHand <= 0);
+    else if (stockFilter === "negative") result = result.filter((i) => i.qtyAvailable < 0);
+    else if (stockFilter === "overstocked") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable > i.reorderPoint * 5);
+    else if (stockFilter === "hasStock") result = result.filter((i) => i.qtyOnHand > 0);
+    return result;
+  }, [items, search, stockFilter]);
+
   const sorted = useMemo(() => {
-    return [...items].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = a[sortCol]; const bv = b[sortCol];
       const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
@@ -137,20 +159,61 @@ export default function InventoryReportPage() {
             {error && <div className={`rounded-xl border p-4 mb-4 ${isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700"}`}>{error}</div>}
 
             {/* Filters */}
-            <div className={`flex flex-wrap gap-3 mb-4 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-              {[
-                { val: location, set: setLocation, opts: filters.locations, label: "All Warehouses" },
-                { val: brand, set: setBrand, opts: filters.brands, label: "All Brands" },
-                { val: productType, set: setProductType, opts: filters.productTypes, label: "All Product Types" },
-                { val: dclass, set: setDclass, opts: filters.dclasses, label: "All D-Classes" },
-              ].map(({ val, set, opts, label }) => (
-                <select key={label} value={val} onChange={(e) => { set(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                  <option value="">{label}</option>
-                  {opts.map((o) => <option key={o} value={o}>{o || "(blank)"}</option>)}
-                </select>
-              ))}
-              {(location || brand || productType || dclass) && (
-                <button onClick={() => { setLocation(""); setBrand(""); setProductType(""); setDclass(""); setPage(0); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "text-red-400" : "text-red-600"}`}>Clear</button>
+            <div className={`space-y-3 mb-4 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+              {/* Search + dropdowns */}
+              <div className="flex flex-wrap gap-3">
+                <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                  placeholder="Search item ID, description, brand..."
+                  className={`px-3 py-1.5 rounded-lg border text-sm w-64 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
+                {[
+                  { val: location, set: setLocation, opts: filters.locations, label: "All Warehouses" },
+                  { val: brand, set: setBrand, opts: filters.brands, label: "All Brands" },
+                  { val: productType, set: setProductType, opts: filters.productTypes, label: "All Product Types" },
+                  { val: dclass, set: setDclass, opts: filters.dclasses, label: "All D-Classes" },
+                ].map(({ val, set, opts, label }) => (
+                  <select key={label} value={val} onChange={(e) => { set(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                    <option value="">{label}</option>
+                    {opts.map((o) => <option key={o} value={o}>{o || "(blank)"}</option>)}
+                  </select>
+                ))}
+              </div>
+              {/* Stock quick filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-[10px] font-medium ${isDark ? "text-slate-500" : "text-gray-400"}`}>Stock:</span>
+                {[
+                  { key: "", label: "All" },
+                  { key: "low", label: "Below Min" },
+                  { key: "zero", label: "Zero Stock" },
+                  { key: "negative", label: "Negative" },
+                  { key: "overstocked", label: "Overstocked" },
+                  { key: "hasStock", label: "In Stock Only" },
+                ].map(({ key, label }) => (
+                  <button key={key} onClick={() => { setStockFilter(key); setPage(0); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      stockFilter === key
+                        ? key === "low" || key === "negative" ? "bg-red-500/20 text-red-400 border-red-500/30"
+                          : key === "zero" ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                          : key === "overstocked" ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                          : isDark ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" : "bg-blue-100 text-blue-700 border-blue-200"
+                        : isDark ? "bg-slate-900/50 text-slate-500 border-slate-700" : "bg-gray-50 text-gray-400 border-gray-200"
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+                {(location || brand || productType || dclass || search || stockFilter) && (
+                  <button onClick={() => { setLocation(""); setBrand(""); setProductType(""); setDclass(""); setSearch(""); setStockFilter(""); setPage(0); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Clear All</button>
+                )}
+              </div>
+              {/* Summary stats */}
+              {items.length > 0 && (
+                <div className={`flex gap-4 text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                  <span>{items.length.toLocaleString()} total items</span>
+                  <span>{items.filter((i) => i.reorderPoint > 0 && i.qtyAvailable <= i.reorderPoint).length} below min</span>
+                  <span>{items.filter((i) => i.qtyOnHand <= 0).length} zero stock</span>
+                  <span>${items.reduce((sum, i) => sum + i.extendedValue, 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} total value</span>
+                  {filtered.length !== items.length && <span className={isDark ? "text-cyan-400" : "text-blue-600"}>Showing {filtered.length.toLocaleString()} filtered</span>}
+                </div>
               )}
             </div>
 
