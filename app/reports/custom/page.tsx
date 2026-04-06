@@ -111,6 +111,7 @@ export default function CustomReportPage() {
   const [saveDescription, setSaveDescription] = useState("");
   const [saveAutoRun, setSaveAutoRun] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveDateRange, setSaveDateRange] = useState("yesterday");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -276,9 +277,9 @@ export default function CustomReportPage() {
         filterBrand: filterBrand || undefined,
         filterAccount: filterAccount || undefined,
         negateQty: negateQty || undefined,
-        dateRangeType: "custom",
-        customStartDate: startDate || undefined,
-        customEndDate: endDate || undefined,
+        dateRangeType: saveDateRange,
+        customStartDate: saveDateRange === "custom" ? startDate : undefined,
+        customEndDate: saveDateRange === "custom" ? endDate : undefined,
         fusionJoinKey: secondSource ? fusionJoinKey : undefined,
         autoRun: saveAutoRun,
         createdBy: user._id,
@@ -474,9 +475,6 @@ export default function CustomReportPage() {
                     <button onClick={handleExportExcel} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
                       Export Excel
                     </button>
-                    <button onClick={() => window.print()} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
-                      Print
-                    </button>
                     <button onClick={() => setShowSaveModal(true)} className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-amber-100 text-amber-700 hover:bg-amber-200"}`}>
                       Save Config
                     </button>
@@ -616,7 +614,17 @@ export default function CustomReportPage() {
       {showSaveModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSaveModal(false)}>
           <div className={`w-full max-w-md rounded-xl p-6 ${isDark ? "bg-slate-800" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
-            <h3 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>Save Report Configuration</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Save Report Configuration</h3>
+              <div className="relative group">
+                <svg className={`w-4 h-4 cursor-help ${isDark ? "text-slate-500" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className={`absolute left-0 top-full mt-1 w-64 p-3 rounded-lg border shadow-xl text-xs z-30 hidden group-hover:block ${isDark ? "bg-slate-700 border-slate-600 text-slate-300" : "bg-white border-gray-200 text-gray-600"}`}>
+                  Saved configs appear as cards in the Reports hub under "Saved Configurations". Auto-run configs execute on schedule using relative date ranges (not fixed dates).
+                </div>
+              </div>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Name *</label>
@@ -636,15 +644,30 @@ export default function CustomReportPage() {
                   {filterBrand && <><br />Brand: {filterBrand}</>}
                 </p>
               </div>
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Auto-Run Schedule</label>
-                <select value={saveAutoRun ? "daily" : "manual"} onChange={(e) => setSaveAutoRun(e.target.value !== "manual")}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                  <option value="manual">Manual only</option>
-                  <option value="daily">Daily (when new data is uploaded)</option>
-                  <option value="weekly">Weekly (every Monday)</option>
-                  <option value="monthly">Monthly (1st of each month)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Date Range (for auto-runs)</label>
+                  <select value={saveDateRange} onChange={(e) => setSaveDateRange(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last7">Last 7 days</option>
+                    <option value="last30">Last 30 days</option>
+                    <option value="thisMonth">This month</option>
+                    <option value="lastMonth">Last month</option>
+                    <option value="last90">Last 90 days</option>
+                    <option value="custom">Custom (use current dates)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Schedule</label>
+                  <select value={saveAutoRun ? "daily" : "manual"} onChange={(e) => setSaveAutoRun(e.target.value !== "manual")}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                    <option value="manual">Manual only</option>
+                    <option value="daily">Daily (4 AM EST)</option>
+                    <option value="weekly">Weekly (Monday)</option>
+                    <option value="monthly">Monthly (1st)</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
