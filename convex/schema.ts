@@ -3176,6 +3176,125 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // ============ REPORT DATA TABLES ============
+
+  // Upload tracking for report data ingestion
+  reportDataUploads: defineTable({
+    uploadedBy: v.optional(v.id("users")),
+    uploadedByName: v.string(),
+    uploadedAt: v.number(),
+    sourceType: v.string(),           // "oeival" | "oea07v" | "tires"
+    warehouse: v.optional(v.string()), // Required for oea07v
+    fileName: v.string(),
+    rowCount: v.number(),
+    status: v.string(),               // "processing" | "complete" | "error"
+    errorMessage: v.optional(v.string()),
+    replacedUploadId: v.optional(v.id("reportDataUploads")),
+  })
+    .index("by_sourceType", ["sourceType", "uploadedAt"])
+    .index("by_status", ["status"]),
+
+  // Tire catalog from tires- CSV (~50K rows)
+  tireCatalog: defineTable({
+    uploadId: v.id("reportDataUploads"),
+    itemId: v.string(),
+    mfgItemId: v.optional(v.string()),
+    mfgName: v.string(),
+    mfgId: v.string(),
+    model: v.string(),
+    size: v.string(),
+    rawSize: v.optional(v.number()),
+    xlrf: v.optional(v.string()),
+    loadIndex: v.optional(v.number()),
+    speedRating: v.optional(v.string()),
+    plyRating: v.optional(v.string()),
+    sidewall: v.optional(v.string()),
+    productType: v.string(),
+    stockType: v.optional(v.number()),
+    season: v.optional(v.string()),
+    computedDescription: v.string(),
+    // Future-use fields
+    weight: v.optional(v.number()),
+    utqg: v.optional(v.string()),
+    upc: v.optional(v.string()),
+    warrantyMiles: v.optional(v.number()),
+    treadDepth: v.optional(v.number()),
+    runflat: v.optional(v.number()),
+    overallDiameter: v.optional(v.number()),
+    sectionWidth: v.optional(v.number()),
+    measuredRim: v.optional(v.number()),
+    rimWidthMin: v.optional(v.number()),
+    rimWidthMax: v.optional(v.number()),
+    maxLoadSingle: v.optional(v.number()),
+    maxAirSingle: v.optional(v.number()),
+    maxLoadDual: v.optional(v.number()),
+    maxAirDual: v.optional(v.number()),
+    fet: v.optional(v.number()),
+    ean: v.optional(v.string()),
+  })
+    .index("by_itemId", ["itemId"])
+    .index("by_mfgName", ["mfgName"])
+    .index("by_productType", ["productType"])
+    .index("by_uploadId", ["uploadId"]),
+
+  // Inventory from OEIVAL export
+  inventoryItems: defineTable({
+    uploadId: v.id("reportDataUploads"),
+    location: v.string(),
+    productType: v.string(),
+    stockType: v.optional(v.number()),
+    dclass: v.string(),               // Decoded (not "Blank"/"Dash"/"colon")
+    manufacturerCode: v.string(),
+    manufacturerName: v.string(),
+    model: v.optional(v.string()),
+    itemId: v.string(),
+    mfgItemId: v.string(),
+    description: v.string(),
+    reorderPoint: v.number(),
+    qtyOnHand: v.number(),
+    qtyCommitted: v.number(),
+    qtyAvailable: v.number(),
+    priceRetail: v.number(),
+    priceCommercial: v.number(),
+    priceWholesale: v.number(),
+    priceBase: v.number(),
+    priceList: v.number(),
+    priceAdj: v.number(),
+    lastCost: v.number(),
+    avgCost: v.number(),
+    stdCost: v.number(),
+    fet: v.number(),
+    extendedValue: v.number(),
+  })
+    .index("by_location", ["location"])
+    .index("by_mfgName", ["manufacturerName"])
+    .index("by_productType", ["productType"])
+    .index("by_itemId", ["itemId"])
+    .index("by_uploadId", ["uploadId"]),
+
+  // Sales history from OEA07V export
+  salesHistory: defineTable({
+    uploadId: v.id("reportDataUploads"),
+    warehouse: v.string(),
+    itemId: v.string(),               // Cleaned (trailing : stripped)
+    dclass: v.string(),               // Decoded
+    mfgItemId: v.string(),
+    manufacturerName: v.string(),
+    model: v.optional(v.string()),
+    description: v.string(),
+    productType: v.string(),
+    strippedSize: v.optional(v.number()),
+    monthlySales: v.string(),         // JSON: { "2024-01": 4, "2024-06": 2, ... }
+    total: v.number(),
+    availableStock: v.optional(v.number()),
+    isColonRow: v.boolean(),
+  })
+    .index("by_warehouse", ["warehouse"])
+    .index("by_mfgName", ["manufacturerName"])
+    .index("by_productType", ["productType"])
+    .index("by_itemId", ["itemId"])
+    .index("by_uploadId", ["uploadId"]),
+
   // ============ ZOOM INTEGRATION ============
   zoomAccounts: defineTable({
     userId: v.id("users"),

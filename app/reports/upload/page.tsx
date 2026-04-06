@@ -14,9 +14,12 @@ import Link from "next/link";
 type UploadState = "idle" | "validating" | "uploading" | "processing" | "complete" | "error";
 
 const REPORT_TYPES = [
-  { code: "OEA07V", label: "OEA07V — Sales Activity Detail", description: "Item-level sales/returns with customer, location, dates" },
-  { code: "ART24T", label: "ART24T — Transaction Analysis", description: "A/R transaction detail with profitability and commission" },
-  { code: "ART30S", label: "ART30S — Sales Summary", description: "Sales summary by date range with totals" },
+  { code: "OEA07V", label: "OEA07V — Sales Activity Detail", description: "Item-level sales/returns with customer, location, dates", accept: ".csv,.xlsx" },
+  { code: "ART24T", label: "ART24T — Transaction Analysis", description: "A/R transaction detail with profitability and commission", accept: ".csv,.xlsx" },
+  { code: "ART30S", label: "ART30S — Sales Summary", description: "Sales summary by date range with totals", accept: ".csv,.xlsx" },
+  { code: "oeival", label: "OEIVAL — Inventory Report", description: "Inventory quantities, costs, pricing by warehouse", accept: ".xlsx" },
+  { code: "oea07v-sales", label: "OEA07V — Sales History", description: "Monthly sales by item with stock levels", accept: ".xlsx", needsWarehouse: true },
+  { code: "tires", label: "Tires Catalog", description: "Product catalog with tire specs (~50K rows)", accept: ".csv" },
 ];
 
 function getDefaultMonth(): string {
@@ -46,7 +49,10 @@ export default function ReportUploadPage() {
   const uploadHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 20 });
   const recordUpload = useMutation(api.jmkUploads.recordUpload);
 
+  const dataUploads = useQuery(api.reportData.listUploads, {});
+
   const [reportType, setReportType] = useState("OEA07V");
+  const [selectedWarehouse, setSelectedWarehouse] = useState("");
   const month = getDefaultMonth(); // Auto-detected from current date
   const [file, setFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -105,54 +111,79 @@ export default function ReportUploadPage() {
     }
   }, [file, reportType]);
 
+  const isDataSource = ["oeival", "oea07v-sales", "tires"].includes(reportType);
+  const currentType = REPORT_TYPES.find((t) => t.code === reportType);
+
   const handleUpload = useCallback(async () => {
     if (!file || !user) return;
 
     setUploadState("uploading");
-    setStatusMsg("Getting upload URL...");
+    setStatusMsg("Uploading...");
     setErrorMsg("");
     setProcessingResults([]);
 
     try {
-      // 1. Get presigned URL
-      const urlRes = await fetch("/api/reports/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportType, month, filename: file.name }),
-      });
-      const { url, key } = await urlRes.json();
-      if (!url) throw new Error("Failed to get upload URL");
+      if (isDataSource) {
+        // Data source uploads go to /api/reports/ingest (parsed into Convex tables)
+        const sourceType = reportType === "oea07v-sales" ? "oea07v" : reportType;
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("sourceType", sourceType);
+        formData.append("userId", user._id);
+        formData.append("userName", user.name || "Unknown");
+        if (selectedWarehouse) formData.append("warehouse", selectedWarehouse);
 
-      // 2. Upload to S3
-      setStatusMsg("Uploading to S3...");
-      const uploadRes = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": "text/csv" } });
-      if (!uploadRes.ok) throw new Error("S3 upload failed");
+        setStatusMsg("Parsing and ingesting data...");
+        setUploadState("processing");
 
-      // 3. Record in Convex
-      setStatusMsg("Recording upload...");
-      const uploadId = await recordUpload({
-        reportType,
-        fileName: file.name,
-        fileSize: file.size,
-        s3Key: key,
-        reportingMonth: month,
-        rowCount: validation?.rowCount,
-        validationStatus: validation?.valid ? "valid" : "warning",
-        uploadedBy: user._id,
-        uploadedByName: user.name || "Unknown",
-      });
+        const res = await fetch("/api/reports/ingest", { method: "POST", body: formData });
+        const data = await res.json();
 
-      // 4. Trigger processing
-      setUploadState("processing");
-      setStatusMsg("Processing report data...");
+        if (!res.ok) throw new Error(data.error || "Ingest failed");
 
-      const processRes = await fetch("/api/reports/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId, reportType, s3Key: key, month }),
-      });
-      const processData = await processRes.json();
-      setProcessingResults(processData.results || []);
+        setProcessingResults([{
+          trigger: "data-ingest",
+          status: "success",
+          message: `${data.rowCount} rows ingested`,
+        }]);
+      } else {
+        // JMK report uploads go to S3 + processing pipeline
+        const urlRes = await fetch("/api/reports/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportType, month, filename: file.name }),
+        });
+        const { url, key } = await urlRes.json();
+        if (!url) throw new Error("Failed to get upload URL");
+
+        setStatusMsg("Uploading to S3...");
+        const uploadRes = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": "text/csv" } });
+        if (!uploadRes.ok) throw new Error("S3 upload failed");
+
+        setStatusMsg("Recording upload...");
+        const uploadId = await recordUpload({
+          reportType,
+          fileName: file.name,
+          fileSize: file.size,
+          s3Key: key,
+          reportingMonth: month,
+          rowCount: validation?.rowCount,
+          validationStatus: validation?.valid ? "valid" : "warning",
+          uploadedBy: user._id,
+          uploadedByName: user.name || "Unknown",
+        });
+
+        setUploadState("processing");
+        setStatusMsg("Processing...");
+
+        const processRes = await fetch("/api/reports/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploadId, reportType, s3Key: key, month }),
+        });
+        const processData = await processRes.json();
+        setProcessingResults(processData.results || []);
+      }
 
       setUploadState("complete");
       setStatusMsg("Upload and processing complete!");
@@ -160,7 +191,7 @@ export default function ReportUploadPage() {
       setUploadState("error");
       setErrorMsg(err instanceof Error ? err.message : "Upload failed");
     }
-  }, [file, user, reportType, month, validation, recordUpload]);
+  }, [file, user, reportType, month, validation, recordUpload, isDataSource, selectedWarehouse]);
 
   if (!canAccess) {
     return (
@@ -217,12 +248,29 @@ export default function ReportUploadPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Filing Period</label>
-                  <div className={`px-3 py-2 rounded-lg border text-sm font-medium ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
-                    {formatMonth(month)} — dates auto-detected from file
+                {currentType?.needsWarehouse && (
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Warehouse</label>
+                    <select
+                      value={selectedWarehouse}
+                      onChange={(e) => setSelectedWarehouse(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                    >
+                      <option value="">Select warehouse...</option>
+                      <option value="R10">R10 — Latrobe</option>
+                      <option value="EXP">EXP — Export / Everson</option>
+                      <option value="R30">R30 — Chestnut Ridge</option>
+                    </select>
                   </div>
-                </div>
+                )}
+                {!isDataSource && (
+                  <div>
+                    <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Filing Period</label>
+                    <div className={`px-3 py-2 rounded-lg border text-sm font-medium ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}>
+                      {formatMonth(month)} — dates auto-detected from file
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Drop zone */}
