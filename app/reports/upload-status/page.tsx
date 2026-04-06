@@ -109,19 +109,32 @@ export default function UploadStatusPage() {
                       const isSelected = selectedDate === dateStr;
                       const isToday = dateStr === new Date().toISOString().split("T")[0];
                       const isFuture = day > new Date();
-                      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                      const isSunday = day.getDay() === 0;
+                      const isSaturday = day.getDay() === 6;
+                      const isWeekend = isSunday || isSaturday;
+
+                      // Sunday inherits Saturday's status (no reports on Sunday)
+                      const satDate = isSunday ? new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1).toISOString().split("T")[0] : null;
+                      const effectiveStatus = isSunday ? statusByDate[satDate!] : dayStatus;
 
                       // Determine overall status for the day
                       let hasAny = false;
                       let hasAll = true;
                       let hasPartial = false;
-                      for (const source of sources) {
-                        const s = dayStatus?.[source.type];
-                        if (s?.complete) hasAny = true;
-                        else if (s?.partial) { hasAny = true; hasPartial = true; hasAll = false; }
-                        else if (!isFuture && !isWeekend) hasAll = false;
+                      if (isSunday) {
+                        // Sunday is green if Saturday has data
+                        const satHasData = effectiveStatus && Object.values(effectiveStatus).some((s: any) => s?.complete || s?.partial);
+                        hasAny = !!satHasData;
+                        hasAll = !!satHasData;
+                      } else {
+                        for (const source of sources) {
+                          const s = dayStatus?.[source.type];
+                          if (s?.complete) hasAny = true;
+                          else if (s?.partial) { hasAny = true; hasPartial = true; hasAll = false; }
+                          else if (!isFuture && !isWeekend) hasAll = false;
+                        }
+                        if (!hasAny) hasAll = false;
                       }
-                      if (!hasAny) hasAll = false;
 
                       return (
                         <button
@@ -135,7 +148,7 @@ export default function UploadStatusPage() {
                           <span className={`text-[11px] font-medium ${isToday ? isDark ? "text-cyan-400" : "text-blue-600" : isDark ? "text-slate-300" : "text-gray-700"}`}>
                             {day.getDate()}
                           </span>
-                          {!isFuture && !isWeekend && (
+                          {!isFuture && !isSunday && !isSaturday && (
                             <div className="flex gap-0.5">
                               {sources.map((source) => {
                                 const s = dayStatus?.[source.type];
@@ -146,6 +159,21 @@ export default function UploadStatusPage() {
                                 );
                               })}
                             </div>
+                          )}
+                          {!isFuture && isSaturday && (
+                            <div className="flex gap-0.5">
+                              {sources.map((source) => {
+                                const s = dayStatus?.[source.type];
+                                const color = s?.complete ? "bg-emerald-500" : s?.partial ? "bg-amber-500" : isDark ? "bg-slate-600" : "bg-gray-300";
+                                return (
+                                  <div key={source.type} className={`w-1.5 h-1.5 rounded-full ${color}`}
+                                    title={`${source.label}: ${s?.complete ? "Complete" : s?.partial ? "Partial" : "No data"}`} />
+                                );
+                              })}
+                            </div>
+                          )}
+                          {!isFuture && isSunday && hasAny && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="No reports on Sunday" />
                           )}
                         </button>
                       );
