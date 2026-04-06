@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/reports/ftp-sync",
-      "schedule": "17 * * * *"
+      "schedule": "17 8 * * *"
     }
   ]
 }
