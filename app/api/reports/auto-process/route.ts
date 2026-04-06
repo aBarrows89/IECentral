@@ -17,7 +17,7 @@ const s3 = new S3Client({
 
 // Report types to check for
 const REPORT_PATTERNS = [
-  { type: "OEA07V", pattern: "iet-oea07v", triggers: ["sales-refresh", "wtd-commission"] },
+  { type: "OEA07V", pattern: "iet-oea07v", triggers: ["sales-refresh", "wtd-commission", "dealer-rebates"] },
   { type: "ART24T", pattern: "iet-art24t", triggers: [] },
   { type: "ART30S", pattern: "iet-art30s", triggers: [] },
 ];
