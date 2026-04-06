@@ -3129,6 +3129,53 @@ export default defineSchema({
     .index("by_created", ["createdAt"])
     .index("by_expires", ["expiresAt"]),
 
+  // ============ JMK REPORT UPLOADS ============
+  jmkReportTypes: defineTable({
+    reportCode: v.string(),       // "OEA07V", "ART24T"
+    displayName: v.string(),
+    description: v.string(),
+    expectedColumns: v.array(v.string()),
+    filePattern: v.string(),      // e.g. "iet-oea07v"
+    acceptedFormats: v.array(v.string()), // [".csv", ".xlsx"]
+    s3Prefix: v.string(),         // "jmk-uploads"
+    processingTriggers: v.array(v.string()), // ["sales-refresh", "wtd-commission"]
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_code", ["reportCode"])
+    .index("by_active", ["isActive"]),
+
+  jmkUploadHistory: defineTable({
+    reportType: v.string(),
+    fileName: v.string(),
+    fileSize: v.number(),
+    s3Key: v.string(),
+    reportingMonth: v.string(),   // "202604"
+    rowCount: v.optional(v.number()),
+    validationStatus: v.string(), // "valid" | "invalid" | "warning"
+    validationErrors: v.optional(v.array(v.string())),
+    processingStatus: v.string(), // "pending" | "processing" | "complete" | "failed"
+    processingResults: v.optional(v.array(v.object({
+      trigger: v.string(),
+      status: v.string(),
+      message: v.optional(v.string()),
+      completedAt: v.optional(v.number()),
+    }))),
+    uploadedBy: v.id("users"),
+    uploadedByName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_report_type", ["reportType"])
+    .index("by_month", ["reportingMonth"])
+    .index("by_created", ["createdAt"]),
+
+  reportUploadAccess: defineTable({
+    userIds: v.array(v.id("users")),
+    updatedBy: v.id("users"),
+    updatedAt: v.number(),
+  }),
+
   // ============ ZOOM INTEGRATION ============
   zoomAccounts: defineTable({
     userId: v.id("users"),

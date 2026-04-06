@@ -5,9 +5,13 @@ import { useSearchParams } from "next/navigation";
 import Protected from "../protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "../theme-context";
+import { useAuth } from "../auth-context";
+import { usePermissions } from "@/lib/usePermissions";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMemo } from "react";
+import Link from "next/link";
+import { REPORT_TYPES, REPORT_GROUPS } from "@/lib/reportTypes";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -48,6 +52,9 @@ function ReportsContent() {
   const isDark = theme === "dark";
   const searchParams = useSearchParams();
 
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const [showHub, setShowHub] = useState(true);
   const [activeReport, setActiveReport] = useState<ReportType>("personnel");
   const [appStatus, setAppStatus] = useState("all");
   const [startDate, setStartDate] = useState("");
@@ -74,10 +81,15 @@ function ReportsContent() {
   // Read URL params on mount
   useEffect(() => {
     const type = searchParams.get("type");
+    const view = searchParams.get("view");
     const equipmentType = searchParams.get("equipmentType");
 
-    if (type && ["personnel", "applications", "hiring", "attendance", "equipment", "weekly"].includes(type)) {
-      setActiveReport(type as ReportType);
+    const validViews = ["personnel", "applications", "hiring", "attendance", "equipment", "weekly", "sales"];
+    const selected = view || type;
+
+    if (selected && validViews.includes(selected)) {
+      setActiveReport(selected as ReportType);
+      setShowHub(false);
     }
     if (equipmentType) {
       setEquipmentTypeFilter(equipmentType);
@@ -205,61 +217,106 @@ function ReportsContent() {
         {/* Header */}
         <header className={`sticky top-0 z-10 backdrop-blur-sm border-b px-4 sm:px-8 py-3 sm:py-4 ${isDark ? "bg-slate-900/80 border-slate-700" : "bg-white/80 border-gray-200"}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                Reports & Export
-              </h1>
-              <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                Generate reports and export data
-              </p>
+            <div className="flex items-center gap-3">
+              {!showHub && (
+                <button
+                  onClick={() => setShowHub(true)}
+                  className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-gray-200 text-gray-500"}`}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </button>
+              )}
+              <div>
+                <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
+                  {showHub ? "Reports" : reportTypes.find((r) => r.id === activeReport)?.label || "Report"}
+                </h1>
+                <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                  {showHub ? "Select a report to view" : "Generate and export data"}
+                </p>
+              </div>
             </div>
           </div>
         </header>
 
         <div className="p-4 sm:p-8 space-y-6">
-          {/* Report Type Selection */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {reportTypes.map((report) => (
-              <button
-                key={report.id}
-                onClick={() => setActiveReport(report.id)}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  activeReport === report.id
-                    ? isDark
-                      ? "bg-cyan-500/20 border-cyan-500/50 ring-2 ring-cyan-500/30"
-                      : "bg-blue-50 border-blue-300 ring-2 ring-blue-200"
-                    : isDark
-                      ? "bg-slate-800/50 border-slate-700 hover:border-slate-600"
-                      : "bg-white border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                  activeReport === report.id
-                    ? isDark ? "bg-cyan-500/30" : "bg-blue-100"
-                    : isDark ? "bg-slate-700" : "bg-gray-100"
-                }`}>
-                  <svg
-                    className={`w-5 h-5 ${
-                      activeReport === report.id
-                        ? isDark ? "text-cyan-400" : "text-blue-600"
-                        : isDark ? "text-slate-400" : "text-gray-500"
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={report.icon} />
-                  </svg>
-                </div>
-                <h3 className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                  {report.label}
-                </h3>
-                <p className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
-                  {report.description}
-                </p>
-              </button>
-            ))}
-          </div>
+          {/* Card Hub */}
+          {showHub ? (
+            <div className="space-y-8">
+              {REPORT_GROUPS.map((group) => {
+                const groupReports = REPORT_TYPES.filter((r) => r.group === group.id);
+                // Hide admin group for non-T5 users
+                if (group.id === "admin" && permissions.tier < 5) return null;
+                if (groupReports.length === 0) return null;
+
+                return (
+                  <div key={group.id}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className={`w-4 h-4 ${isDark ? "text-slate-500" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={group.icon} />
+                      </svg>
+                      <h2 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                        {group.label}
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {groupReports.map((report) => {
+                        // External links go to their own pages
+                        if (report.external) {
+                          return (
+                            <Link key={report.id} href={report.href}>
+                              <div className={`group rounded-xl border p-5 transition-all cursor-pointer ${isDark ? "bg-slate-800/50 border-slate-700 hover:border-cyan-500/40 hover:bg-slate-800" : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-md"}`}>
+                                <div className="flex items-start gap-4">
+                                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-cyan-500/10 group-hover:bg-cyan-500/20" : "bg-blue-50 group-hover:bg-blue-100"}`}>
+                                    <svg className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={report.icon} />
+                                    </svg>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{report.title}</h3>
+                                    <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{report.description}</p>
+                                  </div>
+                                  <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDark ? "text-slate-600" : "text-gray-300"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        }
+
+                        // Internal reports activate the report view
+                        const reportId = report.id as ReportType;
+                        return (
+                          <button
+                            key={report.id}
+                            onClick={() => { setActiveReport(reportId); setShowHub(false); }}
+                            className={`text-left group rounded-xl border p-5 transition-all cursor-pointer ${isDark ? "bg-slate-800/50 border-slate-700 hover:border-cyan-500/40 hover:bg-slate-800" : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-md"}`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-cyan-500/10 group-hover:bg-cyan-500/20" : "bg-blue-50 group-hover:bg-blue-100"}`}>
+                                <svg className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={report.icon} />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{report.title}</h3>
+                                <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{report.description}</p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {/* Report Content */}
+          <div className={showHub ? "hidden" : ""}>
 
           {/* Filters */}
           {(activeReport === "applications" || activeReport === "hiring" || activeReport === "attendance" || activeReport === "weekly") && (
@@ -907,6 +964,7 @@ function ReportsContent() {
             {activeReport === "sales" && (
               <SalesDashboard isDark={isDark} />
             )}
+          </div>
           </div>
         </div>
       </main>
