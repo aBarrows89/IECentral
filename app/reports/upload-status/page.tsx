@@ -196,16 +196,33 @@ export default function UploadStatusPage() {
                               </div>
                               {s?.files.length ? (
                                 <div className="space-y-1">
-                                  {s.files.map((f, i) => (
-                                    <div key={i} className={`text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                                      {f.key.split("/").pop()} — {(f.size / 1024).toFixed(0)}KB
-                                      {source.frequency === "hourly" && f.hour != null && ` — ${String(f.hour).padStart(2, "0")}:00`}
-                                    </div>
-                                  ))}
-                                  {source.frequency === "hourly" && (
-                                    <div className={`text-[10px] mt-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
-                                      {s.files.length} of 24 hours covered
-                                    </div>
+                                  {source.frequency === "hourly" ? (
+                                    <>
+                                      {/* Hour grid */}
+                                      <div className="grid grid-cols-12 gap-0.5 mt-1">
+                                        {Array.from({ length: 24 }).map((_, h) => {
+                                          const hasFile = s.files.some((f) => f.hour === h);
+                                          return (
+                                            <div key={h} className={`text-center rounded py-0.5 text-[8px] font-mono ${
+                                              hasFile
+                                                ? isDark ? "bg-emerald-500/30 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                                                : isDark ? "bg-slate-800 text-slate-600" : "bg-gray-100 text-gray-400"
+                                            }`} title={`${String(h).padStart(2, "0")}:00 — ${hasFile ? "uploaded" : "missing"}`}>
+                                              {String(h).padStart(2, "0")}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className={`text-[10px] mt-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>
+                                        {s.files.length} of 24 hours covered
+                                      </div>
+                                    </>
+                                  ) : (
+                                    s.files.map((f, i) => (
+                                      <div key={i} className={`text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                                        {f.key.split("/").pop()} — {(f.size / 1024).toFixed(0)}KB
+                                      </div>
+                                    ))
                                   )}
                                 </div>
                               ) : (
