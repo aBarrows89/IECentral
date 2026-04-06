@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
 import { useAuth } from "@/app/auth-context";
 import { usePermissions } from "@/lib/usePermissions";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
@@ -43,29 +42,51 @@ export default function WTDCommissionReportPage() {
 
   const canAccess = permissions.tier >= 5 || hasOverrideAccess === true;
 
-  const reportHistory = useQuery(api.wtdCommission.listReports) as ReportSummary[] | undefined;
-  const deleteReport = useMutation(api.wtdCommission.deleteReport);
+  const [reportHistory, setReportHistory] = useState<ReportSummary[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
 
-  const [viewingReportId, setViewingReportId] = useState<string | null>(null);
+  const [viewingReportKey, setViewingReportKey] = useState<string | null>(null);
+  const [viewingReport, setViewingReport] = useState<ReportDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [viewMonth, setViewMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  const viewingReport = useQuery(
-    api.wtdCommission.getReport,
-    viewingReportId ? { id: viewingReportId as Id<"wtdCommissionReports"> } : "skip"
-  ) as ReportDetail | undefined;
+  // Fetch reports from S3
+  useEffect(() => {
+    setLoadingReports(true);
+    fetch(`/api/wtd-commission/reports?month=${viewMonth}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setReportHistory(data.reports || []);
+        setAvailableMonths(data.months || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingReports(false));
+  }, [viewMonth]);
 
-  // Available months from report history
-  const availableMonths = [...new Set((reportHistory || []).map((r: ReportSummary) => r.startDate?.slice(0, 7)).filter(Boolean))].sort().reverse();
+  // Fetch individual report from S3
+  useEffect(() => {
+    if (!viewingReportKey) { setViewingReport(null); return; }
+    setLoadingDetail(true);
+    fetch("/api/wtd-commission/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: viewingReportKey }),
+    })
+      .then((r) => r.json())
+      .then((data) => setViewingReport(data))
+      .catch(() => {})
+      .finally(() => setLoadingDetail(false));
+  }, [viewingReportKey]);
 
-  // Filter reports to selected month
-  const filteredReports = (reportHistory || []).filter((r: ReportSummary) => r.startDate?.startsWith(viewMonth));
+  const filteredReports = reportHistory;
 
   // Group reports by date for display
   const reportsByDate = filteredReports.reduce((acc: Record<string, ReportSummary[]>, r: ReportSummary) => {
-    const key = r.startDate;
+    const key = r.date;
     if (!acc[key]) acc[key] = [];
     acc[key].push(r);
     return acc;
@@ -84,7 +105,7 @@ export default function WTDCommissionReportPage() {
     doc.text("WTD Commission Report", 14, y); y += 8;
     doc.setFontSize(11);
     doc.text(`Customer: ${report.customerName} (${report.customerNumber})`, 14, y); y += 6;
-    doc.text(`Date: ${report.startDate}`, 14, y); y += 6;
+    doc.text(`Date: ${report.date}`, 14, y); y += 6;
     const commLabel = report.commissionType === "percentage"
       ? `${report.commissionValue}% of product cost` : `$${report.commissionValue.toFixed(2)} per unit`;
     doc.text(`Commission: ${commLabel}`, 14, y); y += 10;
@@ -98,7 +119,7 @@ export default function WTDCommissionReportPage() {
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
       styles: { fontSize: 9 },
     });
-    doc.save(`wtd-commission-${report.customerName}-${report.startDate}.pdf`);
+    doc.save(`wtd-commission-${report.customerName}-${report.date}.pdf`);
   }, []);
 
   const handleExportExcel = useCallback(async (report: ReportDetail) => {
@@ -107,7 +128,7 @@ export default function WTDCommissionReportPage() {
     const data = [
       ["WTD Commission Report"],
       [`Customer: ${report.customerName} (${report.customerNumber})`],
-      [`Date: ${report.startDate}`],
+      [`Date: ${report.date}`],
       [],
       ["Order #", "Brand", "Mfg Code", "Description", "Qty", "Unit Cost", "Commission"],
       ...report.lineItems.map((li: CommissionLineItem) => [li.orderNo, li.brand, li.mfgItemId, li.description, li.qty, li.unitCost, li.commissionAmount]),
@@ -117,7 +138,7 @@ export default function WTDCommissionReportPage() {
     const ws = XLSX.utils.aoa_to_sheet(data);
     ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, ws, report.customerName.slice(0, 28));
-    XLSX.writeFile(wb, `wtd-commission-${report.customerName}-${report.startDate}.xlsx`);
+    XLSX.writeFile(wb, `wtd-commission-${report.customerName}-${report.date}.xlsx`);
   }, []);
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
@@ -178,7 +199,7 @@ export default function WTDCommissionReportPage() {
 
           <div className="max-w-6xl mx-auto px-6 py-6">
             {/* Month selector */}
-            {!viewingReportId && (
+            {!viewingReportKey && (
               <div className={`flex items-center gap-3 mb-6 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
                 <span className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`}>Month:</span>
                 {availableMonths.length > 0 ? (
@@ -208,10 +229,10 @@ export default function WTDCommissionReportPage() {
             )}
 
             {/* Viewing a specific report */}
-            {viewingReportId && viewingReport ? (
+            {viewingReportKey && viewingReport ? (
               <div>
                 <button
-                  onClick={() => setViewingReportId(null)}
+                  onClick={() => setViewingReportKey(null)}
                   className={`mb-4 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
                 >
                   &larr; Back to Reports
@@ -230,9 +251,9 @@ export default function WTDCommissionReportPage() {
                     <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{viewingReport.customerName}</h2>
                     <div className={`text-xs mt-1 space-x-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                       <span>Account: {viewingReport.customerNumber}</span>
-                      <span>Date: {viewingReport.startDate}</span>
-                      <span>Commission: {viewingReport.commissionType === "percentage" ? `${viewingReport.commissionValue}% of product cost` : `$${viewingReport.commissionValue.toFixed(2)} per unit`}</span>
-                      <span>Generated: {new Date(viewingReport.createdAt).toLocaleString()}</span>
+                      <span>Date: {viewingReport.date || viewingReport.startDate}</span>
+                      {viewingReport.commissionType && <span>Commission: {viewingReport.commissionType === "percentage" ? `${viewingReport.commissionValue}% of product cost` : `$${viewingReport.commissionValue?.toFixed(2)} per unit`}</span>}
+                      <span>Generated: {new Date(viewingReport.generatedAt || viewingReport.createdAt).toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -298,11 +319,10 @@ export default function WTDCommissionReportPage() {
                           <div className="space-y-2">
                             {dateReports.map((r: ReportSummary) => (
                               <div
-                                key={r._id}
+                                key={r.key}
                                 className={`rounded-xl border p-4 flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
                               >
                                 <div className="flex items-center gap-4">
-                                  {/* Status indicator */}
                                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.lineItemCount > 0 ? "bg-emerald-500" : "bg-slate-500"}`} />
                                   <div>
                                     <div className="flex items-center gap-2">
@@ -318,26 +338,15 @@ export default function WTDCommissionReportPage() {
                                       ) : (
                                         <span className={isDark ? "text-amber-400" : "text-amber-600"}>No qualifying transactions</span>
                                       )}
-                                      <span className="ml-2">by {r.generatedByName}</span>
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setViewingReportId(r._id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
-                                  >
-                                    View
-                                  </button>
-                                  {permissions.tier >= 5 && (
-                                    <button
-                                      onClick={() => { if (confirm("Delete this report?")) deleteReport({ id: r._id }); }}
-                                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
-                                    >
-                                      Delete
-                                    </button>
-                                  )}
-                                </div>
+                                <button
+                                  onClick={() => setViewingReportKey(r.key)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                                >
+                                  View
+                                </button>
                               </div>
                             ))}
                           </div>

@@ -66,13 +66,19 @@ export default function SalesHistoryReportPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [brand, productType, dclass, startMonth, endMonth, showAllRows]);
+  }, [startMonth, endMonth]);
+
+  // Filter month columns to selected range
+  const visibleMonths = useMemo((): string[] => {
+    let cols = monthColumns;
+    if (startMonth) cols = cols.filter((m: string) => m >= startMonth);
+    if (endMonth) cols = cols.filter((m: string) => m <= endMonth);
+    return cols;
+  }, [monthColumns, startMonth, endMonth]);
 
   const filtered = useMemo(() => {
     let result = items;
-    // Hide items starting with special chars (=, ~, $, *, #)
     if (hideSpecial) result = result.filter((i) => !/^[=~$*#]/.test(i.description));
-    // Search
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((i) =>
@@ -81,8 +87,11 @@ export default function SalesHistoryReportPage() {
         i.mfgItemId.toLowerCase().includes(q)
       );
     }
+    if (brand) result = result.filter((i) => (i.brand || i.manufacturerName) === brand);
+    if (productType) result = result.filter((i) => i.productType === productType);
+    if (dclass) result = result.filter((i) => i.dclass === dclass);
     return result;
-  }, [items, hideSpecial, search]);
+  }, [items, hideSpecial, search, brand, productType, dclass]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -103,24 +112,24 @@ export default function SalesHistoryReportPage() {
 
   const handleExportCSV = useCallback(() => {
     if (sorted.length === 0) return;
-    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...monthColumns.map(fmtMonth), "Total", "Available"];
+    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total", "Available"];
     const csv = [headers.join(","), ...sorted.map((r) => [
       `"${r.description}"`, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass,
-      ...monthColumns.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? "",
+      ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? "",
     ].join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `sales-history-${new Date().toISOString().split("T")[0]}.csv`; link.click();
-  }, [sorted, monthColumns]);
+  }, [sorted, visibleMonths]);
 
   const handleExportExcel = useCallback(async () => {
     if (sorted.length === 0) return;
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
-    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...monthColumns.map(fmtMonth), "Total", "Available"];
-    const data = [headers, ...sorted.map((r) => [r.description, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass, ...monthColumns.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? ""])];
+    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total", "Available"];
+    const data = [headers, ...sorted.map((r) => [r.description, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass, ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? ""])];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Sales History");
     XLSX.writeFile(wb, `sales-history-${new Date().toISOString().split("T")[0]}.xlsx`);
-  }, [sorted, monthColumns]);
+  }, [sorted, visibleMonths]);
 
   return (
     <Protected>
@@ -138,7 +147,7 @@ export default function SalesHistoryReportPage() {
                   <h1 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Sales History</h1>
                   <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     {fileDate ? `Data from ${new Date(fileDate).toLocaleDateString()}` : loading ? "Loading..." : "No data — upload an OEA07V Sales History report"}
-                    {sorted.length > 0 && ` — ${sorted.length} items, ${monthColumns.length} months`}
+                    {sorted.length > 0 && ` — ${sorted.length} items, ${visibleMonths.length} months`}
                   </p>
                 </div>
               </div>
@@ -165,6 +174,10 @@ export default function SalesHistoryReportPage() {
                 <select value={productType} onChange={(e) => { setProductType(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
                   <option value="">All Types</option>
                   {filters.productTypes.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <select value={dclass} onChange={(e) => { setDclass(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">All D-Classes</option>
+                  {filters.dclasses.map((d) => <option key={d} value={d}>{d || "(blank)"}</option>)}
                 </select>
 
                 <div className={`h-6 w-px ${isDark ? "bg-slate-700" : "bg-gray-200"}`} />
@@ -219,7 +232,7 @@ export default function SalesHistoryReportPage() {
                           { key: "description", label: "Description" }, { key: "manufacturerName", label: "Brand" },
                           { key: "model", label: "Model" }, { key: "itemId", label: "Item ID" },
                           { key: "productType", label: "Type" }, { key: "dclass", label: "D-Class" },
-                          ...monthColumns.map((m) => ({ key: `m_${m}`, label: fmtMonth(m) })),
+                          ...visibleMonths.map((m) => ({ key: `m_${m}`, label: fmtMonth(m) })),
                           { key: "total", label: "Total" }, { key: "availableStock", label: "Avail" },
                         ].map((col) => (
                           <th key={col.key} onClick={() => !col.key.startsWith("m_") && handleSort(col.key)}
@@ -231,7 +244,7 @@ export default function SalesHistoryReportPage() {
                     </thead>
                     <tbody>
                       {paged.length === 0 ? (
-                        <tr><td colSpan={6 + monthColumns.length + 2} className={`px-3 py-8 text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>No data</td></tr>
+                        <tr><td colSpan={6 + visibleMonths.length + 2} className={`px-3 py-8 text-center ${isDark ? "text-slate-500" : "text-gray-400"}`}>No data</td></tr>
                       ) : paged.map((item, i) => (
                         <tr key={i} className={`border-b ${i % 2 ? isDark ? "bg-slate-800/30" : "bg-gray-50/50" : ""} ${isDark ? "border-slate-700/30 hover:bg-slate-700/20" : "border-gray-100 hover:bg-gray-50"}`}>
                           <td className={`px-3 py-1.5 font-medium min-w-[220px] ${isDark ? "text-white" : "text-gray-900"}`}>{item.description}</td>
@@ -240,7 +253,7 @@ export default function SalesHistoryReportPage() {
                           <td className={`px-3 py-1.5 font-mono text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{item.itemId}</td>
                           <td className={`px-3 py-1.5 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.productType}</td>
                           <td className={`px-3 py-1.5 font-mono ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.dclass || "—"}</td>
-                          {monthColumns.map((m) => {
+                          {visibleMonths.map((m) => {
                             const val = item.monthlySales[m];
                             return (
                               <td key={m} className={`px-3 py-1.5 text-right ${val ? (val < 0 ? "text-red-400" : isDark ? "text-emerald-400" : "text-emerald-600") : isDark ? "text-slate-700" : "text-gray-200"}`}>
