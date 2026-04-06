@@ -29,7 +29,9 @@ export default function SalesHistoryReportPage() {
   const [startMonth, setStartMonth] = useState("");
   const [endMonth, setEndMonth] = useState("");
   const [showAllRows, setShowAllRows] = useState(false);
-  const [sortCol, setSortCol] = useState("manufacturerName");
+  const [search, setSearch] = useState("");
+  const [hideSpecial, setHideSpecial] = useState(true);
+  const [sortCol, setSortCol] = useState("total");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
@@ -66,13 +68,29 @@ export default function SalesHistoryReportPage() {
       .finally(() => setLoading(false));
   }, [brand, productType, dclass, startMonth, endMonth, showAllRows]);
 
+  const filtered = useMemo(() => {
+    let result = items;
+    // Hide items starting with special chars (=, ~, $, *, #)
+    if (hideSpecial) result = result.filter((i) => !/^[=~$*#]/.test(i.description));
+    // Search
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((i) =>
+        i.itemId.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) ||
+        (i.brand || i.manufacturerName || "").toLowerCase().includes(q) ||
+        i.mfgItemId.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [items, hideSpecial, search]);
+
   const sorted = useMemo(() => {
-    return [...items].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = a[sortCol]; const bv = b[sortCol];
       const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [items, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir]);
 
   const paged = useMemo(() => sorted.slice(page * pageSize, (page + 1) * pageSize), [sorted, page, pageSize]);
   const totalPages = Math.ceil(sorted.length / pageSize);
@@ -135,41 +153,45 @@ export default function SalesHistoryReportPage() {
             {error && <div className={`rounded-xl border p-4 mb-4 ${isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700"}`}>{error}</div>}
 
             {/* Filters */}
-            <div className={`flex flex-wrap items-center gap-3 mb-4 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-              <select value={brand} onChange={(e) => { setBrand(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                <option value="">All Brands</option>
-                {filters.brands.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select value={productType} onChange={(e) => { setProductType(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                <option value="">All Types</option>
-                {filters.productTypes.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <select value={dclass} onChange={(e) => { setDclass(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                <option value="">All D-Classes</option>
-                {filters.dclasses.map((d) => <option key={d} value={d}>{d || "(blank)"}</option>)}
-              </select>
+            <div className={`space-y-3 mb-4 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+              <div className="flex flex-wrap items-center gap-3">
+                <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                  placeholder="Search item ID, description, brand..."
+                  className={`px-3 py-1.5 rounded-lg border text-sm w-56 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
+                <select value={brand} onChange={(e) => { setBrand(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">All Brands</option>
+                  {filters.brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select value={productType} onChange={(e) => { setProductType(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">All Types</option>
+                  {filters.productTypes.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
 
-              <div className={`h-6 w-px ${isDark ? "bg-slate-700" : "bg-gray-200"}`} />
+                <div className={`h-6 w-px ${isDark ? "bg-slate-700" : "bg-gray-200"}`} />
 
-              {/* Date Range */}
-              <select value={startMonth} onChange={(e) => { setStartMonth(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                <option value="">Start Month</option>
-                {allMonths.map((m) => <option key={m} value={m}>{fmtMonth(m)}</option>)}
-              </select>
-              <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>to</span>
-              <select value={endMonth} onChange={(e) => { setEndMonth(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
-                <option value="">End Month</option>
-                {allMonths.map((m) => <option key={m} value={m}>{fmtMonth(m)}</option>)}
-              </select>
-
-              <label className={`flex items-center gap-1.5 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                <input type="checkbox" checked={showAllRows} onChange={(e) => setShowAllRows(e.target.checked)} className="rounded" />
-                All rows
-              </label>
-
-              {(brand || productType || dclass || startMonth || endMonth) && (
-                <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setStartMonth(""); setEndMonth(""); setPage(0); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "text-red-400" : "text-red-600"}`}>Clear</button>
-              )}
+                <select value={startMonth} onChange={(e) => { setStartMonth(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">Start Month</option>
+                  {allMonths.map((m) => <option key={m} value={m}>{fmtMonth(m)}</option>)}
+                </select>
+                <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>to</span>
+                <select value={endMonth} onChange={(e) => { setEndMonth(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">End Month</option>
+                  {allMonths.map((m) => <option key={m} value={m}>{fmtMonth(m)}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className={`flex items-center gap-1.5 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                  <input type="checkbox" checked={hideSpecial} onChange={(e) => { setHideSpecial(e.target.checked); setPage(0); }} className="rounded" />
+                  Hide non-product items (=, ~, $, *, #)
+                </label>
+                {(brand || productType || dclass || startMonth || endMonth || search || !hideSpecial) && (
+                  <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setStartMonth(""); setEndMonth(""); setSearch(""); setHideSpecial(true); setPage(0); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Clear All</button>
+                )}
+                {filtered.length !== items.length && (
+                  <span className={`text-[10px] ${isDark ? "text-cyan-400" : "text-blue-600"}`}>{filtered.length.toLocaleString()} of {items.length.toLocaleString()} items</span>
+                )}
+              </div>
             </div>
 
             {/* Table */}
