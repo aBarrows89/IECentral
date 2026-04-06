@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const BUCKET = "ietires-sales-data";
 const PREFIX = "wtd-commission-reports/";
@@ -100,8 +100,31 @@ export async function POST(request: NextRequest) {
     const body = await getRes.Body?.transformToString("utf-8");
     if (!body) return NextResponse.json({ error: "Report not found" }, { status: 404 });
 
-    return NextResponse.json(JSON.parse(body));
+    const data = JSON.parse(body);
+
+    // Handle delete request
+    if (data && request.headers.get("x-action") === "delete") {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+      return NextResponse.json({ deleted: true });
+    }
+
+    return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to load report" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/wtd-commission/reports
+ * Delete a report by S3 key.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { key } = await request.json();
+    if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to delete" }, { status: 500 });
   }
 }
