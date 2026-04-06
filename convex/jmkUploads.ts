@@ -66,7 +66,7 @@ export const recordUpload = mutation({
     rowCount: v.optional(v.number()),
     validationStatus: v.string(),
     validationErrors: v.optional(v.array(v.string())),
-    uploadedBy: v.id("users"),
+    uploadedBy: v.optional(v.id("users")),
     uploadedByName: v.string(),
   },
   handler: async (ctx, args) => {

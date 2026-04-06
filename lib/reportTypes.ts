@@ -94,6 +94,15 @@ export const REPORT_TYPES: ReportType[] = [
     group: "sales",
     external: true,
   },
+  // Custom Report Builder
+  {
+    id: "custom",
+    title: "Custom Report",
+    description: "Build a custom report from uploaded JMK data — pick sources, columns, and date ranges",
+    icon: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
+    href: "/reports/custom",
+    group: "sales",
+  },
   // Operations — Website Messages
   {
     id: "website-messages",

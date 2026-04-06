@@ -3,6 +3,14 @@
     {
       "path": "/api/sales/refresh",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/reports/auto-process",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/dunlop/run-monthly",
+      "schedule": "0 14 1 * *"
     }
   ]
 }

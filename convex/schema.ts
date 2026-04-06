@@ -3162,7 +3162,7 @@ export default defineSchema({
       message: v.optional(v.string()),
       completedAt: v.optional(v.number()),
     }))),
-    uploadedBy: v.id("users"),
+    uploadedBy: v.optional(v.id("users")),
     uploadedByName: v.string(),
     createdAt: v.number(),
   })
