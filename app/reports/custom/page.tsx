@@ -184,9 +184,10 @@ export default function CustomReportPage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("/api/reports/custom-data", {
+      const res = await fetch(`/api/reports/custom-data?_t=${Date.now()}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           reportType: sourceType,
           months,
@@ -242,7 +243,7 @@ export default function CustomReportPage() {
       setRunState("error");
       setErrorMsg(err instanceof Error ? err.message : "Failed to generate report");
     }
-  }, [sourceType, startDate, endDate, selectedColumns]);
+  }, [sourceType, startDate, endDate, selectedColumns, secondSource, fusionJoinKey, selectedFusionColumns]);
 
   const handleExportCSV = useCallback(() => {
     if (rows.length === 0) return;
