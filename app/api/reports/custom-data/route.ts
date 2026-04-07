@@ -285,12 +285,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "reportType and months required" }, { status: 400 });
     }
 
+    // Ensure the fusion join key is always fetched from the primary source
+    const primaryColumns = [...selectedColumns];
+    if (secondSource && fusionJoinKey && !primaryColumns.includes(fusionJoinKey)) {
+      primaryColumns.push(fusionJoinKey);
+    }
+
     // Fetch primary source
     let primaryData;
     if (["oeival", "tires"].includes(reportType)) {
-      primaryData = await fetchXlsxData(reportType, selectedColumns);
+      primaryData = await fetchXlsxData(reportType, primaryColumns);
     } else {
-      primaryData = await fetchSourceData(reportType, months, selectedColumns);
+      primaryData = await fetchSourceData(reportType, months, primaryColumns);
     }
 
     let finalRows = primaryData.rows;
