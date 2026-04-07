@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Protected from "../protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "../theme-context";
@@ -137,6 +137,30 @@ function CalendarContent() {
 
   // Calendar sharing state
   const [showShareModal, setShowShareModal] = useState(false);
+  const [zoomSyncing, setZoomSyncing] = useState(false);
+  const [zoomSyncResult, setZoomSyncResult] = useState<{ synced: number; message?: string } | null>(null);
+
+  const handleZoomSync = useCallback(async () => {
+    if (!user?._id) return;
+    setZoomSyncing(true);
+    setZoomSyncResult(null);
+    try {
+      const res = await fetch("/api/calendar/zoom-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user._id }),
+      });
+      const data = await res.json();
+      setZoomSyncResult({
+        synced: data.synced || 0,
+        message: data.error || (data.synced > 0 ? `${data.synced} meeting${data.synced > 1 ? "s" : ""} added` : "No new Zoom meetings found"),
+      });
+    } catch {
+      setZoomSyncResult({ synced: 0, message: "Sync failed" });
+    } finally {
+      setZoomSyncing(false);
+    }
+  }, [user]);
   const [shareUserId, setShareUserId] = useState<Id<"users"> | "">("");
   const [viewingSharedCalendar, setViewingSharedCalendar] = useState<Id<"users"> | null>(null);
 
@@ -410,6 +434,25 @@ function CalendarContent() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Zoom Sync */}
+              <button
+                onClick={handleZoomSync}
+                disabled={zoomSyncing}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                  isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                }`}
+                title="Sync Zoom meetings from email"
+              >
+                <svg className={`w-4 h-4 ${zoomSyncing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {zoomSyncing ? "Syncing..." : "Sync Zoom"}
+              </button>
+              {zoomSyncResult && (
+                <span className={`text-xs ${zoomSyncResult.synced > 0 ? (isDark ? "text-emerald-400" : "text-emerald-600") : (isDark ? "text-slate-400" : "text-gray-500")}`}>
+                  {zoomSyncResult.message}
+                </span>
+              )}
               {/* Help Button */}
               <CalendarHelpModal isDark={isDark} />
               <button
