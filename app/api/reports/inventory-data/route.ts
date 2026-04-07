@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
         location: g(row, "location"),
         productType: g(row, "productType"),
         stockType: gn(row, "stockType"),
-        dclass: decodeDclass(g(row, "dclass") || "Blank"),
+        dclass: col.dclass !== undefined ? decodeDclass(g(row, "dclass") || "Blank") : (() => { const id = g(row, "itemId"); const last = id.slice(-1); return /[.\^\[:\-]/.test(last) ? last : ""; })(),
         manufacturerCode: g(row, "manufacturerCode"),
         manufacturerName: g(row, "manufacturerName"),
         model: g(row, "model"),
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
         avgCost: gn(row, "avgCost"),
         stdCost: gn(row, "stdCost"),
         fet: gn(row, "fet"),
-        extendedValue: num(row[24]),
+        extendedValue: gn(row, "extendedValue") || (gn(row, "qtyOnHand") * gn(row, "avgCost")),
       });
     }
 

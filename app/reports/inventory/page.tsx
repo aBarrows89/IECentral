@@ -29,6 +29,9 @@ export default function InventoryReportPage() {
   const [dclass, setDclass] = useState("");
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const [filterSearch, setFilterSearch] = useState("");
   const [sortCol, setSortCol] = useState("manufacturerName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
@@ -78,8 +81,13 @@ export default function InventoryReportPage() {
     else if (stockFilter === "negative") result = result.filter((i) => i.qtyAvailable < 0);
     else if (stockFilter === "overstocked") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable > i.reorderPoint * 5);
     else if (stockFilter === "hasStock") result = result.filter((i) => i.qtyOnHand > 0);
+    // Column filters
+    for (const [colKey, allowedValues] of Object.entries(columnFilters)) {
+      if (allowedValues.size === 0) continue;
+      result = result.filter((row) => allowedValues.has(String(row[colKey] || "")));
+    }
     return result;
-  }, [items, search, stockFilter]);
+  }, [items, search, stockFilter, columnFilters]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -117,11 +125,11 @@ export default function InventoryReportPage() {
     XLSX.writeFile(wb, `inventory-${new Date().toISOString().split("T")[0]}.xlsx`);
   }, [sorted]);
 
-  const cols: { key: string; label: string; align?: string }[] = [
-    { key: "location", label: "Location" }, { key: "description", label: "Description" },
-    { key: "productType", label: "Type" }, { key: "dclass", label: "D-Class" },
-    { key: "manufacturerName", label: "Brand" }, { key: "model", label: "Model" },
-    { key: "itemId", label: "Item ID" }, { key: "reorderPoint", label: "Min", align: "right" },
+  const cols: { key: string; label: string; align?: string; filterable?: boolean }[] = [
+    { key: "location", label: "Location", filterable: true }, { key: "description", label: "Description", filterable: true },
+    { key: "productType", label: "Type", filterable: true }, { key: "dclass", label: "D-Class", filterable: true },
+    { key: "manufacturerName", label: "Brand", filterable: true }, { key: "model", label: "Model", filterable: true },
+    { key: "itemId", label: "Item ID", filterable: true }, { key: "reorderPoint", label: "Min", align: "right" },
     { key: "qtyOnHand", label: "On Hand", align: "right" },
     { key: "qtyCommitted", label: "Committed", align: "right" }, { key: "qtyAvailable", label: "Available", align: "right" },
     { key: "lastCost", label: "Last Cost", align: "right" }, { key: "avgCost", label: "Avg Cost", align: "right" },
@@ -236,14 +244,69 @@ export default function InventoryReportPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead className={`sticky top-0 ${isDark ? "bg-slate-800" : "bg-gray-50"}`}>
+                    <thead className={`sticky top-0 z-10 ${isDark ? "bg-slate-800" : "bg-gray-50"}`}>
                       <tr>
-                        {cols.map((col) => (
-                          <th key={col.key} onClick={() => handleSort(col.key)}
-                            className={`px-3 py-2.5 font-semibold whitespace-nowrap cursor-pointer select-none ${col.align === "right" ? "text-right" : "text-left"} ${isDark ? "text-slate-300 border-b border-slate-700 hover:bg-slate-700" : "text-gray-600 border-b border-gray-200 hover:bg-gray-100"}`}>
-                            {col.label}{sortCol === col.key && <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>}
-                          </th>
-                        ))}
+                        {cols.map((col) => {
+                          const hasFilter = columnFilters[col.key]?.size > 0;
+                          const isOpen = openFilterCol === col.key;
+                          const uniqueVals = col.filterable ? [...new Set(filtered.map((r) => String(r[col.key] || "")))].sort() : [];
+                          return (
+                            <th key={col.key} className={`relative px-3 py-2.5 font-semibold whitespace-nowrap ${col.align === "right" ? "text-right" : "text-left"} ${isDark ? "text-slate-300 border-b border-slate-700" : "text-gray-600 border-b border-gray-200"}`}>
+                              <div className="flex items-center gap-1">
+                                <span className="cursor-pointer select-none" onClick={() => handleSort(col.key)}>
+                                  {col.label}{sortCol === col.key && <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>}
+                                </span>
+                                {col.filterable && (
+                                  <button onClick={(e) => { e.stopPropagation(); setOpenFilterCol(isOpen ? null : col.key); setFilterSearch(""); }}
+                                    className={`p-0.5 rounded ${hasFilter ? (isDark ? "text-cyan-400" : "text-blue-600") : isDark ? "text-slate-600 hover:text-slate-400" : "text-gray-300 hover:text-gray-500"}`}>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                              {isOpen && (() => {
+                                const searched = filterSearch ? uniqueVals.filter((v) => v.toLowerCase().includes(filterSearch.toLowerCase())) : uniqueVals;
+                                return (
+                                  <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                                    onClick={(e) => e.stopPropagation()}>
+                                    <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+                                      <input type="text" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)}
+                                        placeholder="Search..." autoFocus
+                                        className={`w-full px-2 py-1 rounded border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300"}`} />
+                                      <div className="flex items-center justify-between mt-1">
+                                        <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{searched.length} values</span>
+                                        <div className="flex gap-1">
+                                          <button onClick={() => setColumnFilters((f) => ({ ...f, [col.key]: new Set(searched) }))}
+                                            className={`text-[10px] px-1 ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Select shown</button>
+                                          <button onClick={() => setColumnFilters((f) => { const n = { ...f }; delete n[col.key]; return n; })}
+                                            className={`text-[10px] px-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Clear</button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="max-h-52 overflow-y-auto p-1">
+                                      {searched.slice(0, 200).map((val) => {
+                                        const checked = !columnFilters[col.key] || columnFilters[col.key].size === 0 || columnFilters[col.key].has(val);
+                                        return (
+                                          <label key={val} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${isDark ? "hover:bg-slate-700 text-slate-300" : "hover:bg-gray-50 text-gray-700"}`}>
+                                            <input type="checkbox" checked={checked} onChange={() => {
+                                              setColumnFilters((prev) => {
+                                                const current = prev[col.key] ? new Set(prev[col.key]) : new Set(uniqueVals);
+                                                if (current.has(val)) current.delete(val); else current.add(val);
+                                                return { ...prev, [col.key]: current };
+                                              });
+                                            }} className="rounded w-3 h-3" />
+                                            <span className="truncate">{val || "(blank)"}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
