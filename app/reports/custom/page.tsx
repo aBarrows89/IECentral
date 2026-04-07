@@ -119,7 +119,9 @@ export default function CustomReportPage() {
   );
   const [excludeTransactions, setExcludeTransactions] = useState<string[]>([]);
   const [negateQty, setNegateQty] = useState(true);
-  const [filterBrand, setFilterBrand] = useState("");
+  const [filterBrands, setFilterBrands] = useState<string[]>([]);
+  const [brandSearchOpen, setBrandSearchOpen] = useState(false);
+  const [brandSearch, setBrandSearch] = useState("");
   const [filterAccount, setFilterAccount] = useState("");
   const [runState, setRunState] = useState<RunState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -221,8 +223,9 @@ export default function CustomReportPage() {
       if (excludeTransactions.length > 0) {
         filtered = filtered.filter((r: Record<string, string>) => !excludeTransactions.includes(r.transaction || ""));
       }
-      if (filterBrand) {
-        filtered = filtered.filter((r: Record<string, string>) => r.brand === filterBrand);
+      if (filterBrands.length > 0) {
+        const brandSet = new Set(filterBrands);
+        filtered = filtered.filter((r: Record<string, string>) => brandSet.has(r.brand || ""));
       }
       if (filterAccount) {
         filtered = filtered.filter((r: Record<string, string>) => (r.accountId || "").includes(filterAccount));
@@ -288,7 +291,7 @@ export default function CustomReportPage() {
         sources,
         selectedColumns,
         excludeTransactions: excludeTransactions.length > 0 ? excludeTransactions : undefined,
-        filterBrand: filterBrand || undefined,
+        filterBrand: filterBrands.length > 0 ? filterBrands.join(",") : undefined,
         filterAccount: filterAccount || undefined,
         negateQty: negateQty || undefined,
         dateRangeType: saveDateRange,
@@ -307,7 +310,7 @@ export default function CustomReportPage() {
     } finally {
       setSaving(false);
     }
-  }, [user, saveName, saveDescription, sourceType, secondSource, selectedColumns, excludeTransactions, filterBrand, filterAccount, negateQty, startDate, endDate, fusionJoinKey, saveAutoRun, saveConfig]);
+  }, [user, saveName, saveDescription, sourceType, secondSource, selectedColumns, excludeTransactions, filterBrands, filterAccount, negateQty, startDate, endDate, fusionJoinKey, saveAutoRun, saveConfig]);
 
   return (
     <Protected>
@@ -487,10 +490,36 @@ export default function CustomReportPage() {
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Brand</label>
-                      <input type="text" value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} placeholder="Filter brand..."
-                        className={`px-2 py-1 rounded-lg border text-xs w-28 ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                    <div className="relative">
+                      <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Brands</label>
+                      <button onClick={() => { setBrandSearchOpen(!brandSearchOpen); setBrandSearch(""); }}
+                        className={`px-2 py-1 rounded-lg border text-xs text-left min-w-[120px] ${filterBrands.length > 0 ? (isDark ? "border-cyan-500/40 text-cyan-400" : "border-blue-300 text-blue-700") : isDark ? "border-slate-600 text-slate-400" : "border-gray-300 text-gray-500"} ${isDark ? "bg-slate-900" : "bg-white"}`}>
+                        {filterBrands.length === 0 ? "All brands" : `${filterBrands.length} selected`}
+                      </button>
+                      {brandSearchOpen && (
+                        <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-30 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                          onClick={(e) => e.stopPropagation()}>
+                          <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
+                            <input type="text" value={brandSearch} onChange={(e) => setBrandSearch(e.target.value)}
+                              placeholder="Search brands..." autoFocus
+                              className={`w-full px-2 py-1 rounded border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300"}`} />
+                            <div className="flex items-center justify-between mt-1">
+                              <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>{filterBrands.length} selected</span>
+                              <button onClick={() => setFilterBrands([])} className={`text-[10px] px-1 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Clear</button>
+                            </div>
+                          </div>
+                          <div className="max-h-52 overflow-y-auto p-1">
+                            {(brandSearch ? availableBrands.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase())) : availableBrands).slice(0, 200).map((b) => (
+                              <label key={b} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${isDark ? "hover:bg-slate-700 text-slate-300" : "hover:bg-gray-50 text-gray-700"}`}>
+                                <input type="checkbox" checked={filterBrands.includes(b)} onChange={() => {
+                                  setFilterBrands((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]);
+                                }} className="rounded w-3 h-3" />
+                                <span className="truncate">{b}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Account ID</label>
@@ -722,7 +751,7 @@ export default function CustomReportPage() {
                   Source: <strong>{sourceType}</strong>{secondSource && ` + ${secondSource} (joined by Item ID)`}
                   <br />Columns: {selectedColumns.length} selected
                   {excludeTransactions.length > 0 && <><br />Excluding: {excludeTransactions.join(", ")}</>}
-                  {filterBrand && <><br />Brand: {filterBrand}</>}
+                  {filterBrands.length > 0 && <><br />Brands: {filterBrands.join(", ")}</>}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
