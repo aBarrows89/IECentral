@@ -388,11 +388,10 @@ export const performFullSync = internalAction({
               }
 
               // Check for attachments
-              const hasAttachments =
-                msg.bodyStructure?.childNodes?.some(
-                  (node: { disposition?: string }) =>
-                    node.disposition === "attachment"
-                ) || false;
+              const attachmentNodes = (msg.bodyStructure?.childNodes || []).filter(
+                (node: { disposition?: string }) => node.disposition === "attachment"
+              );
+              const hasAttachments = attachmentNodes.length > 0;
 
               // Determine flags
               const flags = msg.flags || new Set();
@@ -401,7 +400,7 @@ export const performFullSync = internalAction({
               const isDraft = flags.has("\\Draft");
 
               // Create email
-              await ctx.runMutation(internal.email.emails.create, {
+              const emailId = await ctx.runMutation(internal.email.emails.create, {
                 accountId: args.accountId,
                 folderId: folderId as Id<"emailFolders">,
                 messageId: envelope.messageId || `${msg.uid}@${folder.path}`,
@@ -429,6 +428,23 @@ export const performFullSync = internalAction({
                 hasAttachments,
                 labels: msg.labels ? Array.from(msg.labels) : undefined,
               });
+
+              // Create attachment records
+              if (hasAttachments && emailId) {
+                for (const node of attachmentNodes) {
+                  const n = node as { disposition?: string; type?: string; subtype?: string; size?: number; dispositionParameters?: { filename?: string }; id?: string };
+                  const fileName = n.dispositionParameters?.filename || `attachment.${n.subtype || "bin"}`;
+                  const mimeType = `${n.type || "application"}/${n.subtype || "octet-stream"}`;
+                  await ctx.runMutation(internal.email.emails.createAttachment, {
+                    emailId: emailId as Id<"emails">,
+                    fileName,
+                    mimeType,
+                    size: n.size || 0,
+                    contentId: n.id || undefined,
+                    isInline: false,
+                  });
+                }
+              }
 
               totalEmails++;
             }

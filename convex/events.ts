@@ -310,6 +310,17 @@ export const update = mutation({
   },
 });
 
+// Delete an event permanently
+export const deleteEvent = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, args) => {
+    // Delete invites first
+    const invites = await ctx.db.query("eventInvites").withIndex("by_event", (q) => q.eq("eventId", args.eventId)).collect();
+    for (const inv of invites) await ctx.db.delete(inv._id);
+    await ctx.db.delete(args.eventId);
+  },
+});
+
 // Cancel an event
 export const cancel = mutation({
   args: {
