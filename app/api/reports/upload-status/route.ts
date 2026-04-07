@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -92,21 +92,21 @@ export async function GET() {
                 statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
               }
               statusByDate[dateStr][source.type].files.push(fileInfo);
-            } else {
-              // Daily sources: spread across the month folder's business days
+            } else if (source.type === "OEA07V") {
+              // OEA07V: parse CSV to find actual activity dates
               const month = extractMonth(obj.Key);
               if (month) {
                 if (!monthFiles[month]) monthFiles[month] = [];
                 monthFiles[month].push({ source: source.type, file: fileInfo });
-              } else {
-                // Fallback: use upload date if no month folder
-                const dateStr = obj.LastModified.toISOString().split("T")[0];
-                if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
-                if (!statusByDate[dateStr][source.type]) {
-                  statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
-                }
-                statusByDate[dateStr][source.type].files.push(fileInfo);
               }
+            } else {
+              // Other daily sources (oeival): use upload date
+              const dateStr = obj.LastModified.toISOString().split("T")[0];
+              if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
+              if (!statusByDate[dateStr][source.type]) {
+                statusByDate[dateStr][source.type] = { files: [], complete: false, partial: false };
+              }
+              statusByDate[dateStr][source.type].files.push(fileInfo);
             }
           }
 
@@ -119,19 +119,54 @@ export async function GET() {
       }
     }
 
-    // Spread daily files across business days in their month
-    for (const [month, files] of Object.entries(monthFiles)) {
-      const businessDays = getBusinessDaysInMonth(month);
-      for (const dateStr of businessDays) {
-        for (const { source, file } of files) {
+    // For OEA07V files: parse CSV to find actual activity dates
+    for (const files of Object.values(monthFiles)) {
+      for (const { source, file } of files) {
+        try {
+          const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: file.key }));
+          const body = await getRes.Body?.transformToString("utf-8");
+          if (!body) continue;
+
+          // Scan for MM/DD/YY date patterns to find unique activity dates
+          const dates = new Set<string>();
+          const datePattern = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g;
+          const lines = body.split("\n");
+          for (let i = 1; i < lines.length && i < 50000; i++) {
+            let m;
+            while ((m = datePattern.exec(lines[i])) !== null) {
+              const mo = parseInt(m[1]);
+              const day = parseInt(m[2]);
+              let y = parseInt(m[3]);
+              if (mo < 1 || mo > 12 || day < 1 || day > 31) continue;
+              if (y < 100) y += 2000;
+              if (y < 2020 || y > 2030) continue;
+              const d = new Date(y, mo - 1, day);
+              if (!isNaN(d.getTime())) {
+                dates.add(d.toISOString().split("T")[0]);
+                break; // one date per row
+              }
+            }
+            datePattern.lastIndex = 0;
+          }
+
+          for (const dateStr of dates) {
+            if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
+            if (!statusByDate[dateStr][source]) {
+              statusByDate[dateStr][source] = { files: [], complete: false, partial: false };
+            }
+            const alreadyHas = statusByDate[dateStr][source].files.some((f) => f.key === file.key);
+            if (!alreadyHas) {
+              statusByDate[dateStr][source].files.push(file);
+            }
+          }
+        } catch {
+          // If parsing fails, fall back to upload date
+          const dateStr = file.lastModified.split("T")[0];
           if (!statusByDate[dateStr]) statusByDate[dateStr] = {};
           if (!statusByDate[dateStr][source]) {
             statusByDate[dateStr][source] = { files: [], complete: false, partial: false };
           }
-          const alreadyHas = statusByDate[dateStr][source].files.some((f) => f.key === file.key);
-          if (!alreadyHas) {
-            statusByDate[dateStr][source].files.push(file);
-          }
+          statusByDate[dateStr][source].files.push(file);
         }
       }
     }
