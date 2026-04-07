@@ -314,16 +314,48 @@ export async function POST(request: NextRequest) {
         secondData = await fetchSourceData(secondSource, months, secondCols.map((c) => c.key));
       }
 
-      // Strip D-class suffix from item IDs for matching (e.g., "KN217028[" -> "KN217028")
+      // Strip D-class suffix from item IDs for matching
       const stripDclass = (id: string) => id.replace(/[.\^\[:\-]$/, "");
 
-      // Build lookup map from second source keyed by join field (both raw and stripped)
-      const secondMap = new Map<string, Record<string, string>>();
-      for (const row of secondData.rows) {
-        const key = row[fusionJoinKey];
-        if (key) {
-          secondMap.set(key, row);
-          secondMap.set(stripDclass(key), row);
+      // Try mfgItemId first (best match), then fall back to requested join key
+      const joinKeys = fusionJoinKey === "mfgItemId" ? ["mfgItemId"] : ["mfgItemId", fusionJoinKey];
+
+      // Build lookup maps for each potential join key
+      const secondMaps = new Map<string, Map<string, Record<string, string>>>();
+      for (const jk of joinKeys) {
+        const map = new Map<string, Record<string, string>>();
+        for (const row of secondData.rows) {
+          const key = row[jk];
+          if (key) {
+            map.set(key, row);
+            map.set(stripDclass(key), row);
+          }
+        }
+        secondMaps.set(jk, map);
+      }
+
+      // Pick the join key with the most matches
+      let bestJoinKey = joinKeys[0];
+      let bestMap = secondMaps.get(bestJoinKey)!;
+      for (const jk of joinKeys) {
+        const map = secondMaps.get(jk)!;
+        let matches = 0;
+        for (const row of finalRows) {
+          const k = row[jk];
+          if (k && (map.has(k) || map.has(stripDclass(k)))) matches++;
+        }
+        const bestMatches = (() => {
+          let c = 0;
+          const bm = secondMaps.get(bestJoinKey)!;
+          for (const row of finalRows) {
+            const k = row[bestJoinKey];
+            if (k && (bm.has(k) || bm.has(stripDclass(k)))) c++;
+          }
+          return c;
+        })();
+        if (matches > bestMatches) {
+          bestJoinKey = jk;
+          bestMap = map;
         }
       }
 
@@ -331,14 +363,14 @@ export async function POST(request: NextRequest) {
       const primaryKeys = new Set(finalColumns.map((c) => c.key));
       const fusionColSet = fusionColumns ? new Set(fusionColumns as string[]) : null;
       const newCols = secondData.columns.filter((c) =>
-        !primaryKeys.has(c.key) && c.key !== fusionJoinKey && (!fusionColSet || fusionColSet.has(c.key))
+        !primaryKeys.has(c.key) && c.key !== bestJoinKey && (!fusionColSet || fusionColSet.has(c.key))
       );
       finalColumns = [...finalColumns, ...newCols.map((c) => ({ key: `fusion_${c.key}`, name: `${c.name} (${secondSource})` }))];
 
-      // Join rows — try exact match first, then stripped D-class suffix
+      // Join rows using the best join key
       finalRows = finalRows.map((row) => {
-        const joinKey = row[fusionJoinKey];
-        const secondRow = joinKey ? (secondMap.get(joinKey) || secondMap.get(stripDclass(joinKey))) : undefined;
+        const joinKey = row[bestJoinKey];
+        const secondRow = joinKey ? (bestMap.get(joinKey) || bestMap.get(stripDclass(joinKey))) : undefined;
         if (!secondRow) return row;
         const merged = { ...row };
         for (const col of newCols) {
