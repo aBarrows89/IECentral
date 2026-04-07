@@ -67,15 +67,32 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Trigger 3: Dealer Rebates (Falken/Milestar) — auto-generate from OEA07V data
+      // Trigger 3: Dealer Rebates (Falken/Milestar) — auto-process from OEA07V
       try {
-        // The dealer rebates tool processes client-side, but we record that data was available
-        results.push({
-          trigger: "dealer-rebates",
-          status: "success",
-          message: "OEA07V data available for dealer rebate processing",
-          completedAt: Date.now(),
+        const rebateRes = await fetch(`${APP_URL}/api/dealer-rebates/auto-process`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ s3Key }),
         });
+        const rebateData = await rebateRes.json();
+        if (rebateRes.ok) {
+          const summary = (rebateData.results || [])
+            .map((r: any) => `${r.type}: ${r.rows} rows, ${r.dealers} dealers`)
+            .join("; ");
+          results.push({
+            trigger: "dealer-rebates",
+            status: "success",
+            message: summary || "No qualifying transactions",
+            completedAt: Date.now(),
+          });
+        } else {
+          results.push({
+            trigger: "dealer-rebates",
+            status: "failed",
+            message: rebateData.error || "Processing failed",
+            completedAt: Date.now(),
+          });
+        }
       } catch (err) {
         results.push({
           trigger: "dealer-rebates",
