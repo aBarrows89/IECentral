@@ -223,6 +223,19 @@ export async function GET(request: NextRequest) {
       autoRunResults.push({ name: "_fetch", status: "failed", message: "Failed to load auto-run configs" });
     }
 
+    // On the 1st of the month, trigger Dunlop monthly SFTP
+    let dunlopMonthlyResult: any = null;
+    if (now.getDate() === 1) {
+      try {
+        const dunlopRes = await fetch(`${APP_URL}/api/dunlop/monthly-run`, {
+          headers: { Authorization: `Bearer ${CRON_SECRET || ""}` },
+        });
+        dunlopMonthlyResult = await dunlopRes.json();
+      } catch (err) {
+        dunlopMonthlyResult = { error: err instanceof Error ? err.message : "Monthly run failed" };
+      }
+    }
+
     return NextResponse.json({
       status: "success",
       processedAt: now.toISOString(),
@@ -231,6 +244,7 @@ export async function GET(request: NextRequest) {
       monthsChecked: [currentMonth, prevMonthStr],
       results,
       autoRunResults,
+      ...(dunlopMonthlyResult ? { dunlopMonthlyResult } : {}),
     });
   } catch (err) {
     console.error("Auto-process error:", err);
