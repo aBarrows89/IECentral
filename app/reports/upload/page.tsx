@@ -36,11 +36,7 @@ export default function ReportUploadPage() {
   const { user } = useAuth();
   const permissions = usePermissions();
 
-  const hasOverrideAccess = useQuery(
-    api.jmkUploads.checkUploadAccess,
-    user?._id ? { userId: user._id } : "skip"
-  );
-  const canAccess = permissions.tier >= 5 || hasOverrideAccess === true;
+  const canAccess = permissions.menu.reportUpload;
 
   const uploadHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 5 });
   const fullHistory = useQuery(api.jmkUploads.listUploadHistory, { limit: 500 });
@@ -49,14 +45,10 @@ export default function ReportUploadPage() {
 
   const dataUploads = useQuery(api.reportData.listUploads, {});
   const ftpConnections = useQuery(api.ftpConnections.list);
-  const uploadAccess = useQuery(api.jmkUploads.getUploadAccessWithNames);
-  const allUsers = useQuery(api.auth.getAllUsers);
-  const setUploadAccess = useMutation(api.jmkUploads.setUploadAccess);
-  const [accessSearch, setAccessSearch] = useState("");
   const createFtp = useMutation(api.ftpConnections.create);
   const removeFtp = useMutation(api.ftpConnections.remove);
 
-  const [activeTab, setActiveTab] = useState<"upload" | "ftp" | "access">("upload");
+  const [activeTab, setActiveTab] = useState<"upload" | "ftp">("upload");
   const [ftpForm, setFtpForm] = useState({ name: "", host: "", port: "21", username: "", password: "", remotePath: "/", filePattern: "tires-*.csv", sourceType: "tires", frequency: "hourly" });
   const [ftpTesting, setFtpTesting] = useState(false);
   const [ftpTestResult, setFtpTestResult] = useState<{ connected: boolean; message: string; files?: string[] } | null>(null);
@@ -366,7 +358,7 @@ export default function ReportUploadPage() {
             </div>
             {/* Tabs */}
             <div className="flex gap-1 mt-4">
-              {(["upload", "ftp", ...(permissions.tier >= 5 ? ["access" as const] : [])] as const).map((tab) => (
+              {(["upload", "ftp"] as const).map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab as any)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
                     activeTab === tab
@@ -508,59 +500,6 @@ export default function ReportUploadPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* Access Control Tab — T5 only */}
-            {activeTab === "access" && permissions.tier >= 5 && (
-              <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-                <h2 className={`text-sm font-semibold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>Upload Access Overrides</h2>
-                <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                  Grant upload access to users below T5. They will be able to upload reports.
-                </p>
-                <div className="relative mb-4">
-                  <input type="text" value={accessSearch}
-                    onChange={(e) => setAccessSearch(e.target.value)}
-                    placeholder="Search users to grant access..."
-                    className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
-                  {accessSearch.length >= 1 && (
-                    <div className={`absolute z-20 w-full mt-1 rounded-lg border shadow-xl max-h-40 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}>
-                      {(allUsers ?? [])
-                        .filter((u: any) => u.isActive && !(uploadAccess?.userIds || []).includes(u._id) && (u.name.toLowerCase().includes(accessSearch.toLowerCase()) || u.email?.toLowerCase().includes(accessSearch.toLowerCase())))
-                        .slice(0, 8)
-                        .map((u: any) => (
-                          <button key={u._id} onClick={async () => {
-                            if (!user) return;
-                            await setUploadAccess({ userIds: [...(uploadAccess?.userIds || []), u._id], updatedBy: user._id });
-                            setAccessSearch("");
-                          }} className={`w-full text-left px-3 py-2 text-sm ${isDark ? "text-slate-300 hover:bg-slate-700" : "text-gray-700 hover:bg-gray-100"}`}>
-                            <span className="font-medium">{u.name}</span>
-                            <span className={`ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.email}</span>
-                          </button>
-                        ))}
-                    </div>
-                  )}
-                </div>
-                {uploadAccess?.users && uploadAccess.users.length > 0 ? (
-                  <div className="space-y-2">
-                    {uploadAccess.users.map((u: any) => u && (
-                      <div key={u._id} className={`flex items-center justify-between px-3 py-2 rounded-lg ${isDark ? "bg-slate-900/50" : "bg-gray-50"}`}>
-                        <div>
-                          <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{u.name}</span>
-                          <span className={`text-xs ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.email}</span>
-                        </div>
-                        <button onClick={async () => {
-                          if (!user) return;
-                          await setUploadAccess({ userIds: (uploadAccess?.userIds || []).filter((id: any) => id !== u._id), updatedBy: user._id });
-                        }} className={`text-xs px-2 py-1 rounded ${isDark ? "text-red-400 hover:bg-red-500/20" : "text-red-600 hover:bg-red-100"}`}>
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={`text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>No access overrides configured. Only T5 users can upload.</p>
-                )}
               </div>
             )}
 

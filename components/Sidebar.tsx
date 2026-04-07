@@ -741,7 +741,7 @@ export default function Sidebar() {
                 "/projects": permissions.menu.projects,
                 "/daily-log": permissions.menu.dailyLog,
                 "/reports": permissions.menu.reports,
-                "/reports/upload": tier >= 5,
+                "/reports/upload": permissions.menu.reportUpload,
                 "/settings/credentials": tier >= 5,
                 "/suggestions": permissions.menu.suggestions,
                 // People & Org

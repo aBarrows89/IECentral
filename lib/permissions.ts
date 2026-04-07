@@ -157,6 +157,7 @@ export interface MenuPermissions {
 
   // Reports
   reports: boolean;
+  reportUpload: boolean;
   surveys: boolean;
 
   // Organization
@@ -247,6 +248,7 @@ export function getMenuPermissions(user: PermissionUser): MenuPermissions {
 
     // Reports - T4+
     reports: tier >= 4,
+    reportUpload: tier >= 4,
     surveys: tier >= 4, // Create surveys (take surveys is all tiers)
 
     // Organization - T4+
@@ -589,6 +591,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
 
   // Reports & Organization
   { key: "menu.reports", label: "Reports", description: "Access system reports", category: "reports" },
+  { key: "menu.reportUpload", label: "Upload Reports", description: "Upload JMK report files", category: "reports" },
   { key: "menu.surveys", label: "Surveys", description: "Create and manage surveys", category: "reports" },
   { key: "menu.orgChart", label: "Org Chart", description: "View organization chart", category: "reports" },
   { key: "menu.locations", label: "Locations", description: "Manage locations", category: "reports" },
