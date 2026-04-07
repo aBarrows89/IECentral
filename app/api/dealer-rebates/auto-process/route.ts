@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
     const convex = new ConvexHttpClient(CONVEX_URL);
     const dealers = await convex.query(api.dealerRebates.listDealers, {}) as any[];
 
-    const falkenDealers = dealers.filter((d: any) => d.isActive && d.programs?.includes("falken"));
-    const milestarDealers = dealers.filter((d: any) => d.isActive && d.programs?.includes("milestar"));
+    const falkenDealers = dealers.filter((d: any) => d.isActive && Array.isArray(d.programs) && d.programs.includes("falken"));
+    const milestarDealers = dealers.filter((d: any) => d.isActive && Array.isArray(d.programs) && d.programs.includes("milestar"));
 
     const falkenByJmk: Record<string, any[]> = {};
     falkenDealers.forEach((d: any) => {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         for (const dealer of falkenByJmk[jmk]) {
           if (!dealer.fanaticId) continue;
           falkenRows.push([
-            IE_FALKEN.distributorAccount, dealer.fanaticId,
+            IE_FALKEN.distributorAccount, String(dealer.fanaticId),
             IE_FALKEN.address, IE_FALKEN.city, IE_FALKEN.state, IE_FALKEN.zip,
             invoice, mfrPartNumber, dateRaw, qty, price,
           ]);
