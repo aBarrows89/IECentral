@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { useTheme } from "@/app/theme-context";
 import { useMutation, useQuery } from "convex/react";
@@ -19,12 +19,15 @@ interface AttachmentViewerProps {
 }
 
 // Document categories for DocHub
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { value: "forms", label: "Forms" },
   { value: "policies", label: "Policies" },
   { value: "sops", label: "SOPs" },
   { value: "templates", label: "Templates" },
   { value: "training", label: "Training" },
+  { value: "reports", label: "Reports" },
+  { value: "financials", label: "Financials" },
+  { value: "hr", label: "HR" },
   { value: "other", label: "Other" },
 ];
 
@@ -43,12 +46,41 @@ export default function AttachmentViewer({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [documentName, setDocumentName] = useState(attachment.fileName);
   const [category, setCategory] = useState("other");
+  const [customCategory, setCustomCategory] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState("");
+  const [csvContent, setCsvContent] = useState<string[][] | null>(null);
+  const [loadingCsv, setLoadingCsv] = useState(false);
 
   const saveToDocHub = useMutation(api.email.emails.saveAttachmentToDocHub);
+
+  // Load CSV/text content for preview
+  useEffect(() => {
+    if ((isCsv || isText) && attachmentUrl && !csvContent) {
+      setLoadingCsv(true);
+      fetch(attachmentUrl)
+        .then(r => r.text())
+        .then(text => {
+          const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(l => l.trim());
+          const rows = lines.slice(0, 200).map(line => {
+            const fields: string[] = [];
+            let field = "", inQ = false;
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i];
+              if (inQ) { if (ch === '"') { if (line[i+1] === '"') { field += '"'; i++; } else inQ = false; } else field += ch; }
+              else { if (ch === '"') inQ = true; else if (ch === ',') { fields.push(field); field = ''; } else field += ch; }
+            }
+            fields.push(field);
+            return fields;
+          });
+          setCsvContent(rows);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingCsv(false));
+    }
+  }, [isCsv, isText, attachmentUrl, csvContent]);
   const fetchAttachment = (api as any).email?.sync?.fetchAttachment;
 
   const handleFetchFromServer = async () => {
@@ -108,7 +140,7 @@ export default function AttachmentViewer({
         userId,
         userName,
         documentName,
-        category,
+        category: category === "_custom" ? (customCategory.toLowerCase().replace(/\s+/g, "-") || "other") : category,
       });
       setSaveSuccess(true);
       setTimeout(() => {
@@ -254,12 +286,35 @@ export default function AttachmentViewer({
               </div>
             </div>
           ) : (isCsv || isText) && attachmentUrl ? (
-            <iframe
-              src={attachmentUrl}
-              className="w-full h-full border-0 bg-white"
-              title={attachment.fileName}
-              style={{ fontFamily: "monospace" }}
-            />
+            <div className="h-full overflow-auto bg-white">
+              {loadingCsv ? (
+                <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
+              ) : csvContent ? (
+                <table className="text-xs border-collapse w-full">
+                  <thead className="sticky top-0 bg-gray-100">
+                    <tr>
+                      {csvContent[0]?.map((h, i) => (
+                        <th key={i} className="border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvContent.slice(1).map((row, ri) => (
+                      <tr key={ri} className={ri % 2 ? "bg-gray-50" : ""}>
+                        {row.map((cell, ci) => (
+                          <td key={ci} className="border border-gray-100 px-2 py-1 text-gray-600 whitespace-nowrap">{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="p-4 text-gray-400">Could not load preview</p>
+              )}
+              {csvContent && csvContent.length >= 200 && (
+                <p className="text-center text-xs text-gray-400 py-2">Showing first 200 rows — download for full file</p>
+              )}
+            </div>
           ) : isImage ? (
             <div className="h-full flex items-center justify-center p-4 overflow-auto">
               <img
@@ -338,19 +393,32 @@ export default function AttachmentViewer({
                     </label>
                     <select
                       value={category}
-                      onChange={(e) => setCategory(e.target.value)}
+                      onChange={(e) => { setCategory(e.target.value); if (e.target.value !== "_custom") setCustomCategory(""); }}
                       className={`w-full px-3 py-2 rounded-lg border ${
                         isDark
                           ? 'bg-slate-700 border-slate-600 text-white'
                           : 'bg-white border-gray-300 text-gray-900'
                       } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                     >
-                      {CATEGORIES.map((cat) => (
+                      {DEFAULT_CATEGORIES.map((cat) => (
                         <option key={cat.value} value={cat.value}>
                           {cat.label}
                         </option>
                       ))}
+                      <option value="_custom">+ New Category...</option>
                     </select>
+                    {category === "_custom" && (
+                      <input
+                        type="text"
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        placeholder="Enter category name..."
+                        className={`w-full mt-2 px-3 py-2 rounded-lg border ${
+                          isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                        }`}
+                        autoFocus
+                      />
+                    )}
                   </div>
                 </>
               )}
