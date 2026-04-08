@@ -10,7 +10,7 @@ import { useSidebar } from "@/app/sidebar-context";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { usePermissions } from "@/lib/usePermissions";
-import { useAppearance } from "@/app/appearance-context";
+import { useAppearance, type Appearance } from "@/app/appearance-context";
 
 interface NavItem {
   href: string;
@@ -136,7 +136,8 @@ export default function Sidebar() {
   const permissions = usePermissions();
 
   // Hide sidebar in desktop and JMK modes — those have their own navigation
-  if (appearance !== "modern") return null;
+  // CSS-only themes (pipboy, amber, dracula) use the standard sidebar
+  if (appearance === "desktop" || appearance === "jmk") return null;
 
   const isDark = theme === "dark";
 
@@ -227,7 +228,10 @@ export default function Sidebar() {
           w-64 border-r flex flex-col theme-sidebar
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-          ${isDark ? "bg-slate-800/95 lg:bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}
+          ${appearance === "pipboy" ? "!bg-[#091209] !border-[rgba(0,255,65,0.2)]"
+            : appearance === "amber" ? "!bg-[#1a1000] !border-[rgba(255,176,0,0.15)]"
+            : appearance === "dracula" ? "!bg-[#21222c] !border-[#44475a]"
+            : isDark ? "bg-slate-800/95 lg:bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}
         `}
       >
         {/* Logo */}
