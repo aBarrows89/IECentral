@@ -394,7 +394,7 @@ function SettingsContent() {
                   Choose how IE Central looks and feels
                 </p>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {/* Modern */}
                   <button
                     onClick={() => setAppearance("modern")}
@@ -538,6 +538,75 @@ function SettingsContent() {
                     <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Vault-Tec terminal</p>
                     {appearance === "pipboy" && (
                       <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#00ff41] flex items-center justify-center">
+                        <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Amber CRT */}
+                  <button
+                    onClick={() => setAppearance("amber")}
+                    className={`relative p-4 rounded-xl border-2 transition-all ${
+                      appearance === "amber"
+                        ? "border-amber-400 ring-2 ring-amber-400/20"
+                        : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="aspect-[4/3] rounded-lg overflow-hidden mb-3 bg-[#1a1000] p-1.5 font-mono relative">
+                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,176,0,0.08) 2px, rgba(255,176,0,0.08) 4px)" }} />
+                      <p className="text-amber-400 text-[7px] leading-tight font-bold">IBM 3270 TERMINAL</p>
+                      <p className="text-amber-500/70 text-[6px] leading-tight mt-0.5">IMPORT EXPORT TIRE CO</p>
+                      <div className="mt-1.5 space-y-0.5">
+                        <p className="text-amber-400 text-[5px]">&gt; CONNECTED TO MAINFRAME</p>
+                        <p className="text-amber-400/50 text-[5px]">&gt; LOADING INVENTORY...</p>
+                        <div className="flex gap-0.5 mt-1">
+                          {[1,2,3,4,5].map(i => <div key={i} className="h-1 flex-1 rounded-sm bg-amber-500/30"><div className="h-full rounded-sm bg-amber-400" style={{width:`${i*20}%`}} /></div>)}
+                        </div>
+                      </div>
+                    </div>
+                    <p className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>Amber CRT</p>
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>IBM mainframe</p>
+                    {appearance === "amber" && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                        <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Dracula */}
+                  <button
+                    onClick={() => setAppearance("dracula")}
+                    className={`relative p-4 rounded-xl border-2 transition-all ${
+                      appearance === "dracula"
+                        ? "border-purple-400 ring-2 ring-purple-400/20"
+                        : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="aspect-[4/3] rounded-lg overflow-hidden mb-3 bg-[#282a36] p-1.5 font-mono relative">
+                      <div className="flex h-full">
+                        <div className="w-1/4 pr-1 border-r border-[#44475a]">
+                          <div className="w-full h-1.5 rounded mb-1 bg-[#bd93f9]" />
+                          <div className="w-3/4 h-1 rounded mb-0.5 bg-[#6272a4]" />
+                          <div className="w-2/3 h-1 rounded bg-[#6272a4]" />
+                        </div>
+                        <div className="flex-1 pl-1">
+                          <p className="text-[#ff79c6] text-[6px]">Dashboard</p>
+                          <div className="flex gap-0.5 mt-1">
+                            <div className="flex-1 h-4 rounded-sm bg-[#44475a]" />
+                            <div className="flex-1 h-4 rounded-sm bg-[#44475a]" />
+                          </div>
+                          <div className="mt-1 h-3 rounded-sm bg-[#44475a]" />
+                        </div>
+                      </div>
+                    </div>
+                    <p className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>Dracula</p>
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Purple dark</p>
+                    {appearance === "dracula" && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#bd93f9] flex items-center justify-center">
                         <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>

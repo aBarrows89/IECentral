@@ -35,6 +35,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return <JMKShell>{children}</JMKShell>;
     case "pipboy":
       return <div className="pipboy-theme">{children}</div>;
+    case "amber":
+      return <div className="amber-theme">{children}</div>;
+    case "dracula":
+      return <div className="dracula-theme">{children}</div>;
     default:
       return <>{children}</>;
   }
