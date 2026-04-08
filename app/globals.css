@@ -914,15 +914,26 @@ button {
 }
 
 /* Sidebar — ensure visible */
-.pipboy-theme aside, .pipboy-theme .theme-sidebar {
-  background-color: var(--pip-bg) !important; border-right-color: var(--pip-border) !important;
+.pipboy-theme aside,
+.pipboy-theme aside[class*="bg-slate"],
+.pipboy-theme .theme-sidebar,
+.pipboy-theme .theme-sidebar[class*="bg-slate"] {
+  background-color: var(--pip-bg) !important;
+  border-color: rgba(0,255,65,0.2) !important;
 }
-.pipboy-theme aside *, .pipboy-theme .theme-sidebar * { color: var(--pip-mid) !important; }
+.pipboy-theme aside *,
+.pipboy-theme .theme-sidebar * { color: var(--pip-mid) !important; }
+.pipboy-theme aside a:hover *, .pipboy-theme aside button:hover *,
+.pipboy-theme .theme-sidebar a:hover *, .pipboy-theme .theme-sidebar button:hover * {
+  color: var(--pip) !important;
+}
 .pipboy-theme aside a:hover, .pipboy-theme aside button:hover,
 .pipboy-theme .theme-sidebar a:hover, .pipboy-theme .theme-sidebar button:hover {
   color: var(--pip) !important; background-color: var(--pip-faint) !important;
 }
-.pipboy-theme aside img, .pipboy-theme .theme-sidebar img { filter: sepia(1) saturate(3) hue-rotate(85deg) brightness(1.2); }
+.pipboy-theme aside img, .pipboy-theme .theme-sidebar img {
+  filter: sepia(1) saturate(3) hue-rotate(85deg) brightness(1.2) !important;
+}
 
 /* Primary action buttons — filled green */
 .pipboy-theme .bg-emerald-600, .pipboy-theme .bg-emerald-500,
@@ -1021,15 +1032,16 @@ button {
 .amber-theme .border-slate-700, .amber-theme .border-slate-600,
 .amber-theme .border-gray-200, .amber-theme .border-gray-300 { border-color: var(--amb-border) !important; }
 
-.amber-theme aside, .amber-theme .theme-sidebar {
-  background-color: var(--amb-bg) !important; border-right-color: var(--amb-border) !important;
+.amber-theme aside, .amber-theme aside[class*="bg-slate"],
+.amber-theme .theme-sidebar, .amber-theme .theme-sidebar[class*="bg-slate"] {
+  background-color: var(--amb-bg) !important; border-color: rgba(255,176,0,0.15) !important;
 }
 .amber-theme aside *, .amber-theme .theme-sidebar * { color: var(--amb-mid) !important; }
 .amber-theme aside a:hover, .amber-theme aside button:hover,
 .amber-theme .theme-sidebar a:hover, .amber-theme .theme-sidebar button:hover {
   color: var(--amb) !important; background-color: var(--amb-faint) !important;
 }
-.amber-theme aside img, .amber-theme .theme-sidebar img { filter: sepia(1) saturate(2) hue-rotate(-10deg) brightness(1.1); }
+.amber-theme aside img, .amber-theme .theme-sidebar img { filter: sepia(1) saturate(2) hue-rotate(-10deg) brightness(1.1) !important; }
 
 .amber-theme .bg-emerald-600, .amber-theme .bg-emerald-500,
 .amber-theme .bg-cyan-600, .amber-theme .bg-blue-600 {
@@ -1098,8 +1110,9 @@ button {
 .dracula-theme .border-slate-700, .dracula-theme .border-slate-600,
 .dracula-theme .border-gray-200, .dracula-theme .border-gray-300 { border-color: var(--drac-border) !important; }
 
-.dracula-theme aside, .dracula-theme .theme-sidebar {
-  background-color: var(--drac-panel) !important; border-right-color: var(--drac-border) !important;
+.dracula-theme aside, .dracula-theme aside[class*="bg-slate"],
+.dracula-theme .theme-sidebar, .dracula-theme .theme-sidebar[class*="bg-slate"] {
+  background-color: var(--drac-panel) !important; border-color: var(--drac-border) !important;
 }
 .dracula-theme aside *, .dracula-theme .theme-sidebar * { color: var(--drac-comment) !important; }
 .dracula-theme aside a:hover, .dracula-theme aside button:hover,
