@@ -16,8 +16,8 @@ import { Theme } from "emoji-picker-react";
 // Dynamic import for emoji picker to avoid SSR issues
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 
-// GIPHY API setup (using public beta key - replace with your own for production)
-const gf = new GiphyFetch("GlVGYHkr3WSBnllca54iNt0yFbjz7L65");
+// GIPHY API setup
+const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || "BW3sXppKhkkA8YfZwjS1ImzUoiWQbYWk");
 
 type User = Doc<"users">;
 
