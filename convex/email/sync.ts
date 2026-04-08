@@ -1012,3 +1012,98 @@ export const triggerSync = action({
   },
 });
 
+/**
+ * Fetch an email attachment from IMAP and cache it in Convex storage.
+ */
+export const fetchAttachment = action({
+  args: {
+    attachmentId: v.id("emailAttachments"),
+    accountId: v.id("emailAccounts"),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
+    let client: InstanceType<typeof ImapFlow> | null = null;
+    try {
+      // Get attachment and email info
+      const attachment = await ctx.runQuery(internal.email.emails.getAttachmentInternal, { attachmentId: args.attachmentId });
+      if (!attachment) return { success: false, error: "Attachment not found" };
+      if (attachment.storageId) return { success: true }; // Already cached
+
+      const email = await ctx.runQuery(internal.email.emails.getInternal, { emailId: attachment.emailId });
+      if (!email) return { success: false, error: "Email not found" };
+
+      // Get account credentials
+      const account = await ctx.runQuery(internal.email.accounts.getInternal, { accountId: args.accountId });
+      if (!account) return { success: false, error: "Account not found" };
+
+      const credentials = getImapCredentials(account);
+
+      // Connect to IMAP
+      client = new ImapFlow({
+        host: credentials.host,
+        port: credentials.port,
+        secure: credentials.secure,
+        auth: { user: credentials.user, pass: credentials.pass },
+        logger: false,
+      });
+      await client.connect();
+
+      // Find the folder
+      const folder = await ctx.runQuery(internal.email.folders.getInternal, { folderId: email.folderId });
+      const folderPath = folder?.path || "INBOX";
+      const lock = await client.getMailboxLock(folderPath);
+
+      try {
+        // Fetch the email by UID and get the attachment
+        const msg = await client.fetchOne(String(email.uid), {
+          bodyStructure: true,
+          source: true, // Full source to parse attachments
+        }, { uid: true });
+
+        if (!msg || !(msg as any).source) {
+          return { success: false, error: "Could not fetch email source" };
+        }
+
+        // Parse the full email to get attachments
+        const parsed = await simpleParser((msg as any).source);
+        if (!parsed.attachments || parsed.attachments.length === 0) {
+          return { success: false, error: "No attachments in email" };
+        }
+
+        // Find matching attachment by filename
+        const match = parsed.attachments.find(
+          (a) => a.filename === attachment.fileName || a.filename?.includes(attachment.fileName.split(".")[0])
+        ) || parsed.attachments[0]; // Fallback to first attachment
+
+        if (!match || !match.content) {
+          return { success: false, error: "Attachment content not found" };
+        }
+
+        // Upload to Convex storage
+        const uploadUrl = await ctx.storage.generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": match.contentType || attachment.mimeType },
+          body: new Uint8Array(match.content),
+        });
+        if (!res.ok) return { success: false, error: "Storage upload failed" };
+
+        const { storageId } = await res.json();
+
+        // Update attachment record with storage ID
+        await ctx.runMutation(internal.email.emails.updateAttachmentStorage, {
+          attachmentId: args.attachmentId,
+          storageId,
+        });
+
+        return { success: true };
+      } finally {
+        lock.release();
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Fetch failed" };
+    } finally {
+      if (client) try { await client.logout(); } catch {}
+    }
+  },
+});
+

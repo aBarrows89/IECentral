@@ -5,7 +5,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "../_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
 // Super admin role has automatic email access
@@ -444,3 +444,8 @@ export function mapFolderType(
 
   return "custom";
 }
+
+export const getInternal = internalQuery({
+  args: { folderId: v.id("emailFolders") },
+  handler: async (ctx, args) => ctx.db.get(args.folderId),
+});

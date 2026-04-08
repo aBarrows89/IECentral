@@ -5,7 +5,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "../_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
 // Super admin role has automatic email access
@@ -675,5 +675,23 @@ export const saveAttachmentToDocHub = mutation({
     });
 
     return documentId;
+  },
+});
+
+// Internal queries for attachment fetching
+export const getAttachmentInternal = internalQuery({
+  args: { attachmentId: v.id("emailAttachments") },
+  handler: async (ctx, args) => ctx.db.get(args.attachmentId),
+});
+
+export const getInternal = internalQuery({
+  args: { emailId: v.id("emails") },
+  handler: async (ctx, args) => ctx.db.get(args.emailId),
+});
+
+export const updateAttachmentStorage = internalMutation({
+  args: { attachmentId: v.id("emailAttachments"), storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.attachmentId, { storageId: args.storageId });
   },
 });

@@ -5,7 +5,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation, action } from "../_generated/server";
+import { query, mutation, internalMutation, internalQuery, action } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 
@@ -678,4 +678,9 @@ export const getSignatureImageUrl = query({
   handler: async (ctx, args) => {
     return await ctx.storage.getUrl(args.storageId);
   },
+});
+
+export const getInternal = internalQuery({
+  args: { accountId: v.id("emailAccounts") },
+  handler: async (ctx, args) => ctx.db.get(args.accountId),
 });
