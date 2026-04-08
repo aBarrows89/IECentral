@@ -346,10 +346,10 @@ export default function DesktopShell({ children }: { children: React.ReactNode }
             }`}>
               {icon.icon}
             </div>
-            <span className={`text-[11px] text-center font-medium leading-tight px-1 py-0.5 rounded ${
+            <span className={`text-[11px] text-center font-medium leading-tight px-1.5 py-0.5 rounded ${
               isDark
-                ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
-                : "text-gray-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.8)]"
+                ? "text-white bg-black/50 backdrop-blur-sm"
+                : "text-white bg-black/50 backdrop-blur-sm"
             }`}>
               {icon.label}
             </span>
