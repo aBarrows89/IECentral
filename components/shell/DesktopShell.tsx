@@ -51,12 +51,12 @@ const DEFAULT_ICONS: Omit<DesktopIcon, "x" | "y">[] = [
 
 function layoutIcons(): DesktopIcon[] {
   const cols = 2;
-  const spacingX = 100;
-  const spacingY = 100;
+  const spacingX = 110;
+  const spacingY = 95;
   return DEFAULT_ICONS.map((icon, i) => ({
     ...icon,
-    x: 30 + (i % cols) * spacingX,
-    y: 30 + Math.floor(i / cols) * spacingY,
+    x: 15 + (i % cols) * spacingX,
+    y: 15 + Math.floor(i / cols) * spacingY,
   }));
 }
 
@@ -167,16 +167,18 @@ export default function DesktopShell({ children }: { children: React.ReactNode }
     }
 
     // Open new window with staggered position
-    const offset = (windows.length % 8) * 30;
+    const offset = (windows.length % 8) * 25;
     const z = nextZ;
+    const iconAreaWidth = 240; // Space reserved for desktop icons
+    const taskbarHeight = 48;
     const newWin: OpenWindow = {
       id: icon.id,
       label: icon.label,
       href: icon.href,
-      x: 200 + offset,
-      y: 50 + offset,
-      w: Math.min(900, window.innerWidth - 250),
-      h: Math.min(600, window.innerHeight - 120),
+      x: iconAreaWidth + 20 + offset,
+      y: 20 + offset,
+      w: Math.min(1100, window.innerWidth - iconAreaWidth - 60),
+      h: Math.min(700, window.innerHeight - taskbarHeight - 40),
       minimized: false,
       maximized: false,
       zIndex: z,
@@ -336,8 +338,8 @@ export default function DesktopShell({ children }: { children: React.ReactNode }
             key={icon.id}
             onMouseDown={(e) => handleIconMouseDown(e, icon.id)}
             onDoubleClick={() => openApp(icon)}
-            className="absolute flex flex-col items-center gap-1 cursor-pointer group"
-            style={{ left: icon.x, top: icon.y, width: 80 }}
+            className="absolute flex flex-col items-center gap-1 cursor-pointer group select-none"
+            style={{ left: icon.x, top: icon.y, width: 90 }}
           >
             <div className={`text-4xl p-2 rounded-xl transition-all group-hover:scale-110 ${
               isDark ? "group-hover:bg-white/10" : "group-hover:bg-black/10"
@@ -415,14 +417,14 @@ export default function DesktopShell({ children }: { children: React.ReactNode }
               {/* Resize handles */}
               {!win.maximized && (
                 <>
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "n")} className="absolute top-0 left-2 right-2 h-1 cursor-n-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "s")} className="absolute bottom-0 left-2 right-2 h-1 cursor-s-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "w")} className="absolute top-2 bottom-2 left-0 w-1 cursor-w-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "e")} className="absolute top-2 bottom-2 right-0 w-1 cursor-e-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "nw")} className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "ne")} className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "sw")} className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize" />
-                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "se")} className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "n")} className="absolute top-0 left-3 right-3 h-2 cursor-n-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "s")} className="absolute bottom-0 left-3 right-3 h-2 cursor-s-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "w")} className="absolute top-3 bottom-3 left-0 w-2 cursor-w-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "e")} className="absolute top-3 bottom-3 right-0 w-2 cursor-e-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "nw")} className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "ne")} className="absolute top-0 right-0 w-4 h-4 cursor-ne-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "sw")} className="absolute bottom-0 left-0 w-4 h-4 cursor-sw-resize" />
+                  <div onMouseDown={(e) => handleResizeStart(e, win.id, "se")} className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize" />
                 </>
               )}
             </div>
