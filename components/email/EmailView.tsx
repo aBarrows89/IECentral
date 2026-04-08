@@ -1049,7 +1049,14 @@ export default function EmailView({
           attachmentUrl={attachmentUrlResult?.url || null}
           userId={userId}
           userName={currentUserName}
+          accountId={email.accountId}
           onClose={() => setSelectedAttachment(null)}
+          onFetched={() => {
+            // Re-select to refresh the URL query
+            const a = selectedAttachment;
+            setSelectedAttachment(null);
+            setTimeout(() => setSelectedAttachment(a), 100);
+          }}
         />
       )}
     </div>
