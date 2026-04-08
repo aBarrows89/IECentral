@@ -166,7 +166,7 @@ export default function SalesHistoryReportPage() {
             </div>
           </header>
 
-          <div className="px-6 py-4">
+          <div className="px-4 sm:px-6 py-4">
             {error && <div className={`rounded-xl border p-4 mb-4 ${isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700"}`}>{error}</div>}
 
             {/* Filters */}
@@ -174,7 +174,7 @@ export default function SalesHistoryReportPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
                   placeholder="Search item ID, description, brand..."
-                  className={`px-3 py-1.5 rounded-lg border text-sm w-56 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
+                  className={`px-3 py-1.5 rounded-lg border text-sm w-full sm:w-56 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
                 <select value={brand} onChange={(e) => { setBrand(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
                   <option value="">All Brands</option>
                   {filters.brands.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -271,7 +271,7 @@ export default function SalesHistoryReportPage() {
                               {isOpen && (() => {
                                 const searched = filterSearch ? uniqueVals.filter((v) => v.toLowerCase().includes(filterSearch.toLowerCase())) : uniqueVals;
                                 return (
-                                  <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                                  <div className={`absolute left-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
                                     onClick={(e) => e.stopPropagation()}>
                                     <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
                                       <input type="text" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)}

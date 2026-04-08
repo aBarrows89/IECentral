@@ -179,7 +179,7 @@ export default function DealerRebatesPage() {
         <main className="flex-1 overflow-y-auto">
           <MobileHeader />
           {/* Header */}
-          <header className={`sticky top-0 z-10 border-b px-6 py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
+          <header className={`sticky top-0 z-10 border-b px-4 sm:px-6 py-3 sm:py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
             <div className="flex items-center gap-3">
               <a href="/reports" className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-gray-200 text-gray-500"}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -218,7 +218,7 @@ export default function DealerRebatesPage() {
             </div>
           </header>
 
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
             {activeTab === "Dealer Management" && <DealerManagementTab isDark={isDark} />}
             {activeTab === "Upload History" && <UploadHistoryTab isDark={isDark} />}
             {activeTab === "Stats" && <StatsTab isDark={isDark} />}

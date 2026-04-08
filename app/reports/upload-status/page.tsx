@@ -71,7 +71,7 @@ export default function UploadStatusPage() {
             </div>
           </header>
 
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
             {loading ? (
               <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : (

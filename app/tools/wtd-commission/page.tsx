@@ -197,10 +197,10 @@ export default function WTDCommissionReportPage() {
             </div>
           </header>
 
-          <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
             {/* Month selector */}
             {!viewingReportKey && (
-              <div className={`flex items-center gap-3 mb-6 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+              <div className={`flex flex-wrap items-center gap-3 mb-6 p-4 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
                 <span className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`}>Month:</span>
                 {availableMonths.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
@@ -322,7 +322,7 @@ export default function WTDCommissionReportPage() {
                                 key={r.key}
                                 className={`rounded-xl border p-4 flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}
                               >
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.lineItemCount > 0 ? "bg-emerald-500" : "bg-slate-500"}`} />
                                   <div>
                                     <div className="flex items-center gap-2">
@@ -343,7 +343,7 @@ export default function WTDCommissionReportPage() {
                                 </div>
                                 <button
                                   onClick={() => setViewingReportKey(r.key)}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                                  className={`px-4 py-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
                                 >
                                   View
                                 </button>

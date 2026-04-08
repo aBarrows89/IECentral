@@ -142,7 +142,7 @@ export default function InventoryReportPage() {
         <Sidebar />
         <main className="flex-1 overflow-y-auto">
           <MobileHeader />
-          <header className={`sticky top-0 z-10 border-b px-6 py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
+          <header className={`sticky top-0 z-10 border-b px-4 sm:px-6 py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Link href="/reports" className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-gray-200 text-gray-500"}`}>
@@ -163,7 +163,7 @@ export default function InventoryReportPage() {
             </div>
           </header>
 
-          <div className="px-6 py-4">
+          <div className="px-4 sm:px-6 py-4">
             {error && <div className={`rounded-xl border p-4 mb-4 ${isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700"}`}>{error}</div>}
 
             {/* Filters */}
@@ -172,7 +172,7 @@ export default function InventoryReportPage() {
               <div className="flex flex-wrap gap-3">
                 <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
                   placeholder="Search item ID, description, brand..."
-                  className={`px-3 py-1.5 rounded-lg border text-sm w-64 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
+                  className={`px-3 py-1.5 rounded-lg border text-sm w-full sm:w-64 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
                 {[
                   { val: location, set: setLocation, opts: filters.locations, label: "All Warehouses" },
                   { val: brand, set: setBrand, opts: filters.brands, label: "All Brands" },
@@ -197,7 +197,7 @@ export default function InventoryReportPage() {
                   { key: "hasStock", label: "In Stock Only" },
                 ].map(({ key, label }) => (
                   <button key={key} onClick={() => { setStockFilter(key); setPage(0); }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                    className={`px-3 py-2 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium border transition-colors ${
                       stockFilter === key
                         ? key === "low" || key === "negative" ? "bg-red-500/20 text-red-400 border-red-500/30"
                           : key === "zero" ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
@@ -268,7 +268,7 @@ export default function InventoryReportPage() {
                               {isOpen && (() => {
                                 const searched = filterSearch ? uniqueVals.filter((v) => v.toLowerCase().includes(filterSearch.toLowerCase())) : uniqueVals;
                                 return (
-                                  <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                                  <div className={`absolute left-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
                                     onClick={(e) => e.stopPropagation()}>
                                     <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
                                       <input type="text" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)}

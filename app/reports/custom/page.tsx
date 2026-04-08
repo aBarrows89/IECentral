@@ -333,7 +333,7 @@ export default function CustomReportPage() {
             </div>
           </header>
 
-          <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
             <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               {/* Source Type */}
               <div className="mb-5">
@@ -362,7 +362,7 @@ export default function CustomReportPage() {
                       <svg className={`w-3.5 h-3.5 cursor-help ${isDark ? "text-slate-500 hover:text-slate-300" : "text-gray-400 hover:text-gray-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <div className={`absolute left-0 bottom-full mb-2 w-72 p-3 rounded-lg border shadow-xl text-xs z-30 hidden group-hover:block ${isDark ? "bg-slate-800 border-slate-600 text-slate-300" : "bg-white border-gray-200 text-gray-700"}`}>
+                      <div className={`absolute left-0 bottom-full mb-2 w-[calc(100vw-2rem)] sm:w-72 p-3 rounded-lg border shadow-xl text-xs z-30 hidden group-hover:block ${isDark ? "bg-slate-800 border-slate-600 text-slate-300" : "bg-white border-gray-200 text-gray-700"}`}>
                         <p className="font-semibold mb-1">What is Fusion?</p>
                         <p className="mb-2">Combines two data sources by Item ID into one view. Example: fuse Inventory (OEIVAL) with Sales History (OEA07V) to see stock levels alongside sales trends.</p>
                         <p className="font-medium mb-1">Use cases:</p>
@@ -497,7 +497,7 @@ export default function CustomReportPage() {
                         {filterBrands.length === 0 ? "All brands" : `${filterBrands.length} selected`}
                       </button>
                       {brandSearchOpen && (
-                        <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-30 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                        <div className={`absolute left-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-56 rounded-lg border shadow-xl z-30 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
                           onClick={(e) => e.stopPropagation()}>
                           <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
                             <input type="text" value={brandSearch} onChange={(e) => setBrandSearch(e.target.value)}
@@ -650,7 +650,7 @@ export default function CustomReportPage() {
                                   ? uniqueVals.filter((v) => v.toLowerCase().includes(filterSearch.toLowerCase()))
                                   : uniqueVals;
                                 return (
-                                <div className={`absolute left-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
+                                <div className={`absolute left-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-56 rounded-lg border shadow-xl z-20 ${isDark ? "bg-slate-800 border-slate-600" : "bg-white border-gray-200"}`}
                                   onClick={(e) => e.stopPropagation()}>
                                   <div className={`px-2 pt-2 pb-1 border-b ${isDark ? "border-slate-700" : "border-gray-100"}`}>
                                     <input type="text" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)}

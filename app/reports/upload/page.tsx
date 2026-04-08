@@ -339,7 +339,7 @@ export default function ReportUploadPage() {
         <main className="flex-1 overflow-y-auto">
           <MobileHeader />
 
-          <header className={`sticky top-0 z-10 border-b px-6 py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
+          <header className={`sticky top-0 z-10 border-b px-4 sm:px-6 py-3 sm:py-4 ${isDark ? "bg-slate-900/95 backdrop-blur border-slate-700" : "bg-white/95 backdrop-blur border-gray-200"}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Link href="/reports" className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-gray-200 text-gray-500"}`}>
@@ -371,7 +371,7 @@ export default function ReportUploadPage() {
             </div>
           </header>
 
-          <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
             {/* FTP Tab */}
             {activeTab === "ftp" && (
               <div className="space-y-6">
@@ -459,7 +459,7 @@ export default function ReportUploadPage() {
 
                 {/* Existing FTP Connections */}
                 <div className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-                  <div className={`px-6 py-4 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                  <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                     <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Active Connections</h2>
                   </div>
                   {!ftpConnections || ftpConnections.length === 0 ? (
@@ -535,7 +535,7 @@ export default function ReportUploadPage() {
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                className={`border-2 border-dashed rounded-xl p-4 sm:p-8 text-center transition-colors ${
                   dragOver
                     ? isDark ? "border-cyan-500 bg-cyan-500/10" : "border-blue-400 bg-blue-50"
                     : files.length > 0
@@ -673,7 +673,7 @@ export default function ReportUploadPage() {
 
             {/* Upload History */}
             <div className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-              <div className={`px-6 py-4 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+              <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                 <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
                   {showFullHistory ? "Full Upload History" : "Recent Uploads"}
                 </h2>
