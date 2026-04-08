@@ -56,6 +56,17 @@ export default function AttachmentViewer({
 
   const saveToDocHub = useMutation(api.email.emails.saveAttachmentToDocHub);
 
+  // Determine file type for viewer (must be before useEffect)
+  const mimeType = attachment.mimeType.toLowerCase();
+  const isImage = mimeType.startsWith("image/");
+  const isPdf = mimeType.includes("pdf");
+  const isWord = mimeType.includes("word") || mimeType.includes("document") || mimeType.includes("msword");
+  const isExcel = mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("sheet");
+  const isPowerPoint = mimeType.includes("presentation") || mimeType.includes("powerpoint");
+  const isCsv = mimeType.includes("csv") || attachment.fileName.endsWith(".csv");
+  const isText = mimeType.startsWith("text/") && !isCsv;
+  const isOffice = isWord || isExcel || isPowerPoint;
+
   // Load CSV/text content for preview
   useEffect(() => {
     if ((isCsv || isText) && attachmentUrl && !csvContent) {
@@ -105,17 +116,6 @@ export default function AttachmentViewer({
       setIsFetching(false);
     }
   };
-
-  // Determine file type for viewer
-  const mimeType = attachment.mimeType.toLowerCase();
-  const isImage = mimeType.startsWith("image/");
-  const isPdf = mimeType.includes("pdf");
-  const isWord = mimeType.includes("word") || mimeType.includes("document") || mimeType.includes("msword");
-  const isExcel = mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("sheet");
-  const isPowerPoint = mimeType.includes("presentation") || mimeType.includes("powerpoint");
-  const isCsv = mimeType.includes("csv") || attachment.fileName.endsWith(".csv");
-  const isText = mimeType.startsWith("text/") && !isCsv;
-  const isOffice = isWord || isExcel || isPowerPoint;
 
   // Get viewer URL
   const getViewerUrl = () => {
