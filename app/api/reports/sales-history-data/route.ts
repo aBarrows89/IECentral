@@ -120,6 +120,10 @@ export async function GET(request: NextRequest) {
         const itemId = (row[0] || "").replace(/"/g, "").trim();
         if (!itemId) continue;
 
+        // Skip non-sale transactions (transfers, receives)
+        const transaction = (row[9] || "").replace(/"/g, "").trim();
+        if (transaction === "TrI" || transaction === "TrO" || transaction === "Rcv") continue;
+
         const qty = parseFloat(row[10] || "0") || 0;
         // Parse activity date to get the month (MM/DD/YY)
         const dateRaw = (row[18] || "").replace(/"/g, "").trim();
