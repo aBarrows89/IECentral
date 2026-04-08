@@ -237,6 +237,27 @@ export const markAsRead = mutation({
   },
 });
 
+export const markAllAsRead = mutation({
+  args: {
+    folderId: v.id("emailFolders"),
+  },
+  handler: async (ctx, args) => {
+    const unread = await ctx.db
+      .query("emails")
+      .withIndex("by_folder", (q) => q.eq("folderId", args.folderId))
+      .filter((q) => q.eq(q.field("isRead"), false))
+      .collect();
+
+    for (const email of unread) {
+      await ctx.db.patch(email._id, { isRead: true, updatedAt: Date.now() });
+    }
+
+    await ctx.db.patch(args.folderId, { unreadCount: 0, updatedAt: Date.now() });
+
+    return unread.length;
+  },
+});
+
 /**
  * Mark email as unread.
  */

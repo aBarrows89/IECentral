@@ -692,7 +692,7 @@ export default function Sidebar() {
                     )}
                     {showEmailBadge && (
                       <span className="min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold flex items-center justify-center rounded-full bg-blue-500 text-white">
-                        {unreadEmailCount > 99 ? "99+" : unreadEmailCount}
+                        {unreadEmailCount > 9 ? "9+" : unreadEmailCount}
                       </span>
                     )}
                   </Link>
