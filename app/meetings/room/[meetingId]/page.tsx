@@ -11,6 +11,7 @@ import { useMediaStream } from "@/lib/webrtc/useMediaStream";
 import { usePeerConnections } from "@/lib/webrtc/usePeerConnections";
 import { useRemoteControl } from "@/lib/webrtc/useRemoteControl";
 import { useMediaRecorder } from "@/lib/webrtc/useMediaRecorder";
+import { useVirtualBackground } from "@/lib/webrtc/useVirtualBackground";
 import VideoGrid from "@/components/meetings/VideoGrid";
 import MeetingControls from "@/components/meetings/MeetingControls";
 import { ControlRequestModal, ControlGrantedNotification } from "@/components/meetings/ControlRequestModal";
@@ -85,9 +86,26 @@ export default function MeetingRoomPage() {
     cleanup,
   } = useMediaStream();
 
+  // Virtual background
+  const virtualBg = useVirtualBackground();
+  const [bgStream, setBgStream] = useState<MediaStream | null>(null);
+
+  const handleToggleBackground = useCallback(async () => {
+    if (virtualBg.enabled) {
+      virtualBg.removeBackground();
+      setBgStream(null);
+    } else if (localStream) {
+      const processed = await virtualBg.applyBackground(localStream);
+      setBgStream(processed);
+    }
+  }, [virtualBg, localStream]);
+
+  // Use background stream if enabled, otherwise raw localStream
+  const activeStream = bgStream || localStream;
+
   // Peer connections — only initialize when we have the participant record
   const { remoteStreams, peerConnections } = usePeerConnections({
-    localStream,
+    localStream: activeStream,
     myParticipantId: (myParticipant?._id ?? null) as unknown as Id<"meetingParticipants">,
     meetingId: typedMeetingId,
     participants: (participants ?? []) as any[],
@@ -530,7 +548,7 @@ export default function MeetingRoomPage() {
       {/* Video area */}
       <div className="flex-1 min-h-0 p-2 sm:p-4 pb-20 sm:pb-24">
         <VideoGrid
-          localStream={localStream}
+          localStream={activeStream}
           remoteStreams={remoteStreams}
           participants={enrichedParticipants}
           myParticipantId={String(myParticipant?._id ?? "")}
@@ -1095,6 +1113,9 @@ export default function MeetingRoomPage() {
         onRequestControl={remoteControl.requestControl}
         onReleaseControl={remoteControl.releaseControl}
         onRevokeControl={remoteControl.revokeControl}
+        isBackgroundEnabled={virtualBg.enabled}
+        isBackgroundLoading={virtualBg.loading}
+        onToggleBackground={handleToggleBackground}
       />
 
       {/* Remote Control: Request modals for the screen sharer */}
