@@ -78,6 +78,13 @@ export default function EmailView({
   const [userSearch, setUserSearch] = useState("");
   const [isConverting, setIsConverting] = useState(false);
 
+  // Detect Zoom meeting link
+  const zoomLink = useMemo(() => {
+    const text = email.bodyText || email.bodyHtml?.replace(/<[^>]+>/g, " ") || "";
+    const match = text.match(/https:\/\/[\w.-]*zoom\.us\/j\/(\d+)(\?[^\s"<)]+)?/i);
+    return match ? match[0] : null;
+  }, [email.bodyText, email.bodyHtml]);
+
   // Calendar event state
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<DetectedDate | null>(null);
@@ -247,6 +254,8 @@ export default function EmailView({
         endTime,
         isAllDay,
         location: eventLocation || undefined,
+        meetingLink: zoomLink || undefined,
+        meetingType: zoomLink ? "zoom" : undefined,
         inviteeIds: [],
         userId,
       });
@@ -545,6 +554,50 @@ export default function EmailView({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Zoom Meeting Detected */}
+          {zoomLink && (
+            <div className={`mb-6 p-4 rounded-lg border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                    <svg className={`w-6 h-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className={`text-sm font-semibold ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>Zoom Meeting Detected</p>
+                    <p className={`text-xs ${isDark ? 'text-blue-400/70' : 'text-blue-600'}`}>
+                      {email.subject?.replace(/^(Re:|Fwd:|FW:|Invitation:)\s*/gi, "").trim() || "Zoom Meeting"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a href={zoomLink} target="_blank" rel="noopener noreferrer"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>
+                    Join
+                  </a>
+                  <button
+                    onClick={() => {
+                      setEventTitle(email.subject?.replace(/^(Re:|Fwd:|FW:|Invitation:)\s*/gi, "").trim() || "Zoom Meeting");
+                      const emailDate = new Date(email.date);
+                      setEventStartTime(formatDateTimeLocal(emailDate));
+                      const endDate = new Date(emailDate); endDate.setHours(endDate.getHours() + 1);
+                      setEventEndTime(formatDateTimeLocal(endDate));
+                      setIsAllDay(false);
+                      setEventLocation(zoomLink);
+                      const passcodeMatch = (email.bodyText || "").match(/passcode[:\s]*(\S+)/i);
+                      setEventDescription(`Zoom Meeting\nJoin: ${zoomLink}${passcodeMatch ? `\nPasscode: ${passcodeMatch[1]}` : ""}`);
+                      setShowCalendarModal(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Add to Calendar
+                  </button>
+                </div>
               </div>
             </div>
           )}
