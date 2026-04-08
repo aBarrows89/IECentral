@@ -850,3 +850,204 @@ button {
     transparent 2px
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PIP-BOY THEME — Vault-Tec Industries Terminal
+   ═══════════════════════════════════════════════════════════════ */
+
+.pipboy-theme {
+  --pip-green: #00ff41;
+  --pip-green-dim: #00cc33;
+  --pip-green-dark: #003300;
+  --pip-bg: #0a1a0a;
+  --pip-bg-panel: #0d200d;
+  --pip-border: #00ff4133;
+  --pip-glow: 0 0 10px rgba(0, 255, 65, 0.15);
+  position: relative;
+}
+
+/* Scan lines overlay */
+.pipboy-theme::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 255, 65, 0.03) 2px,
+    rgba(0, 255, 65, 0.03) 4px
+  );
+}
+
+/* Background */
+.pipboy-theme,
+.pipboy-theme .theme-bg-primary,
+.pipboy-theme main {
+  background-color: var(--pip-bg) !important;
+}
+
+/* All text goes green */
+.pipboy-theme * {
+  color: var(--pip-green) !important;
+  border-color: var(--pip-border) !important;
+}
+
+/* Dimmer text for secondary elements */
+.pipboy-theme .text-slate-400,
+.pipboy-theme .text-slate-500,
+.pipboy-theme .text-gray-400,
+.pipboy-theme .text-gray-500 {
+  color: #00cc3399 !important;
+}
+
+.pipboy-theme .text-slate-600,
+.pipboy-theme .text-slate-700,
+.pipboy-theme .text-gray-300 {
+  color: #00cc3366 !important;
+}
+
+/* Backgrounds */
+.pipboy-theme .bg-slate-800,
+.pipboy-theme .bg-slate-800\/50,
+.pipboy-theme .bg-slate-900,
+.pipboy-theme .bg-slate-900\/50,
+.pipboy-theme .bg-slate-900\/95,
+.pipboy-theme .bg-white,
+.pipboy-theme .bg-white\/95,
+.pipboy-theme .bg-gray-50,
+.pipboy-theme .bg-gray-100 {
+  background-color: var(--pip-bg-panel) !important;
+}
+
+/* Cards and panels */
+.pipboy-theme [class*="rounded-xl"],
+.pipboy-theme [class*="rounded-lg"] {
+  box-shadow: var(--pip-glow);
+}
+
+/* Buttons — green outline style */
+.pipboy-theme button,
+.pipboy-theme a[class*="rounded"] {
+  border-color: var(--pip-green) !important;
+}
+
+.pipboy-theme .bg-emerald-600,
+.pipboy-theme .bg-emerald-500,
+.pipboy-theme .bg-cyan-600,
+.pipboy-theme .bg-blue-600 {
+  background-color: transparent !important;
+  border: 1px solid var(--pip-green) !important;
+  color: var(--pip-green) !important;
+}
+
+.pipboy-theme .bg-emerald-600:hover,
+.pipboy-theme .bg-emerald-500:hover,
+.pipboy-theme .bg-cyan-600:hover,
+.pipboy-theme .bg-blue-600:hover {
+  background-color: rgba(0, 255, 65, 0.15) !important;
+}
+
+/* Active/selected states */
+.pipboy-theme .bg-cyan-500\/20,
+.pipboy-theme .bg-emerald-500\/20,
+.pipboy-theme .bg-blue-500\/20,
+.pipboy-theme .bg-blue-100,
+.pipboy-theme .bg-emerald-100 {
+  background-color: rgba(0, 255, 65, 0.1) !important;
+}
+
+/* Status colors — keep red for errors, amber goes green-dim */
+.pipboy-theme .text-red-400,
+.pipboy-theme .text-red-600,
+.pipboy-theme .bg-red-500 {
+  color: #ff4444 !important;
+}
+
+.pipboy-theme .text-amber-400,
+.pipboy-theme .text-amber-500,
+.pipboy-theme .bg-amber-500 {
+  color: #ccaa00 !important;
+}
+
+.pipboy-theme .text-emerald-400,
+.pipboy-theme .text-emerald-500,
+.pipboy-theme .text-emerald-600,
+.pipboy-theme .text-cyan-400,
+.pipboy-theme .text-blue-600,
+.pipboy-theme .text-blue-700 {
+  color: var(--pip-green) !important;
+}
+
+.pipboy-theme .bg-emerald-500,
+.pipboy-theme .bg-cyan-500 {
+  background-color: var(--pip-green) !important;
+  color: black !important;
+}
+
+/* Inputs */
+.pipboy-theme input,
+.pipboy-theme select,
+.pipboy-theme textarea {
+  background-color: rgba(0, 255, 65, 0.05) !important;
+  border-color: var(--pip-green) !important;
+  color: var(--pip-green) !important;
+}
+
+.pipboy-theme input::placeholder,
+.pipboy-theme textarea::placeholder {
+  color: #00cc3355 !important;
+}
+
+/* Tables */
+.pipboy-theme table th {
+  background-color: rgba(0, 255, 65, 0.08) !important;
+  color: var(--pip-green) !important;
+}
+
+.pipboy-theme table td {
+  border-color: rgba(0, 255, 65, 0.1) !important;
+}
+
+.pipboy-theme table tr:hover {
+  background-color: rgba(0, 255, 65, 0.05) !important;
+}
+
+/* Scrollbar */
+.pipboy-theme ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pipboy-theme ::-webkit-scrollbar-track {
+  background: var(--pip-bg);
+}
+
+.pipboy-theme ::-webkit-scrollbar-thumb {
+  background: var(--pip-green);
+  border-radius: 3px;
+}
+
+/* Sidebar */
+.pipboy-theme aside,
+.pipboy-theme nav {
+  background-color: var(--pip-bg) !important;
+  border-color: var(--pip-border) !important;
+}
+
+/* Charts/recharts */
+.pipboy-theme .recharts-text {
+  fill: var(--pip-green) !important;
+}
+
+/* Tags/badges */
+.pipboy-theme [class*="rounded-full"] {
+  border-color: var(--pip-green) !important;
+}
+
+/* Logo */
+.pipboy-theme img[alt*="logo" i],
+.pipboy-theme img[alt*="Logo" i] {
+  filter: sepia(1) saturate(5) hue-rotate(85deg) brightness(1.5);
+}

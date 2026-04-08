@@ -394,7 +394,7 @@ function SettingsContent() {
                   Choose how IE Central looks and feels
                 </p>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {/* Modern */}
                   <button
                     onClick={() => setAppearance("modern")}
@@ -494,6 +494,51 @@ function SettingsContent() {
                     {appearance === "jmk" && (
                       <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Pip-Boy */}
+                  <button
+                    onClick={() => setAppearance("pipboy")}
+                    className={`relative p-4 rounded-xl border-2 transition-all ${
+                      appearance === "pipboy"
+                        ? "border-green-400 ring-2 ring-green-400/20"
+                        : isDark ? "border-slate-600 hover:border-slate-500" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="aspect-[4/3] rounded-lg overflow-hidden mb-3 bg-[#0a1a0a] p-1.5 font-mono relative" style={{ boxShadow: "inset 0 0 20px rgba(0,255,65,0.1)" }}>
+                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.1) 2px, rgba(0,255,65,0.1) 4px)" }} />
+                      <p className="text-[#00ff41] text-[7px] leading-tight font-bold">VAULT-TEC INDUSTRIES</p>
+                      <p className="text-[#00ff41] text-[6px] leading-tight mt-0.5 opacity-70">IE CENTRAL v4.2.6</p>
+                      <div className="mt-1.5 space-y-0.5">
+                        <div className="flex items-center gap-1">
+                          <div className="w-1 h-1 rounded-full bg-[#00ff41]" />
+                          <p className="text-[#00ff41] text-[5px]">STAT</p>
+                          <div className="flex-1 h-[2px] bg-[#00ff41]/30 rounded">
+                            <div className="w-3/4 h-full bg-[#00ff41] rounded" />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-1 h-1 rounded-full bg-[#00ff41]" />
+                          <p className="text-[#00ff41] text-[5px]">DATA</p>
+                          <div className="flex-1 h-[2px] bg-[#00ff41]/30 rounded">
+                            <div className="w-1/2 h-full bg-[#00ff41] rounded" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-1 left-1.5 right-1.5 flex justify-between">
+                        <p className="text-[#00ff41]/50 text-[4px]">HP 100/100</p>
+                        <p className="text-[#00ff41]/50 text-[4px]">RADS 0</p>
+                      </div>
+                    </div>
+                    <p className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>Pip-Boy</p>
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>Vault-Tec terminal</p>
+                    {appearance === "pipboy" && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#00ff41] flex items-center justify-center">
+                        <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>

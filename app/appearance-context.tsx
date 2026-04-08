@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-export type Appearance = "modern" | "desktop" | "jmk";
+export type Appearance = "modern" | "desktop" | "jmk" | "pipboy";
 
 interface AppearanceContextType {
   appearance: Appearance;
@@ -18,7 +18,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem("appearance") as Appearance | null;
-    if (saved && ["modern", "desktop", "jmk"].includes(saved)) {
+    if (saved && ["modern", "desktop", "jmk", "pipboy"].includes(saved)) {
       setAppearanceState(saved);
     }
   }, []);

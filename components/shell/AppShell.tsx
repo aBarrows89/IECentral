@@ -33,6 +33,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return <DesktopShell>{children}</DesktopShell>;
     case "jmk":
       return <JMKShell>{children}</JMKShell>;
+    case "pipboy":
+      return <div className="pipboy-theme">{children}</div>;
     default:
       return <>{children}</>;
   }
