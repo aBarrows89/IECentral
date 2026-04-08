@@ -32,7 +32,13 @@ export async function GET() {
 
       for (const obj of res.Contents || []) {
         if (!obj.Key || !obj.Key.endsWith(".csv")) continue;
-        const downloadUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: obj.Key }), { expiresIn: 3600 });
+        const fileName = obj.Key.split("/").pop() || "report.csv";
+        const downloadUrl = await getSignedUrl(s3, new GetObjectCommand({
+          Bucket: BUCKET,
+          Key: obj.Key,
+          ResponseContentDisposition: `attachment; filename="${fileName}"`,
+          ResponseContentType: "text/csv",
+        }), { expiresIn: 3600 });
         reports.push({
           program: program === "falken" ? "Falken Fanatic" : "Milestar Momentum",
           fileName: obj.Key.split("/").pop() || obj.Key,
