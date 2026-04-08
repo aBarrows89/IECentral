@@ -190,7 +190,7 @@ function NotificationsContent() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
               </div>
             ) : filteredNotifications && filteredNotifications.length > 0 ? (
-              <div className="divide-y divide-slate-700/50">
+              <div className={`divide-y ${isDark ? "divide-slate-700/50" : "divide-gray-200"}`}>
                 {filteredNotifications.map((notification) => {
                   const colors = typeColors[notification.type] || typeColors.default;
                   const icon = typeIcons[notification.type] || typeIcons.default;

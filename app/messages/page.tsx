@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Protected from "../protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
+import { useTheme } from "../theme-context";
 import { useAuth } from "../auth-context";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -70,10 +71,12 @@ interface EnrichedMessage {
 function AttachmentItem({
   attachment,
   isOwn,
+  isDark,
   getAttachmentUrl,
 }: {
   attachment: MessageAttachment;
   isOwn: boolean;
+  isDark: boolean;
   getAttachmentUrl: (args: { storageId: Id<"_storage"> }) => Promise<string | null>;
 }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -112,7 +115,7 @@ function AttachmentItem({
       onClick={handleDownload}
       disabled={isLoading}
       className={`flex items-center gap-2 text-left w-full py-1 rounded transition-colors ${
-        isOwn ? "hover:bg-white/10" : "hover:bg-slate-700/50"
+        isOwn ? "hover:bg-white/10" : isDark ? "hover:bg-slate-700/50" : "hover:bg-gray-100"
       }`}
     >
       {isLoading ? (
@@ -129,7 +132,7 @@ function AttachmentItem({
         </svg>
       )}
       <span className="truncate text-sm flex-1">{attachment.fileName}</span>
-      <span className={`text-xs flex-shrink-0 ${isOwn ? "text-cyan-200" : "text-slate-400"}`}>
+      <span className={`text-xs flex-shrink-0 ${isOwn ? "text-cyan-200" : isDark ? "text-slate-400" : "text-gray-500"}`}>
         {formatFileSize(attachment.fileSize)}
       </span>
     </button>
@@ -137,6 +140,8 @@ function AttachmentItem({
 }
 
 function MessagesContent() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { user } = useAuth();
   const [selectedConversation, setSelectedConversation] =
     useState<EnrichedConversation | null>(null);
@@ -378,11 +383,16 @@ function MessagesContent() {
         : type === "document" ? `/documents`
         : `/personnel/${id}`;
 
-      const colors = {
+      const colors = isDark ? {
         project: "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30",
         application: "bg-green-500/20 text-green-300 hover:bg-green-500/30",
         personnel: "bg-blue-500/20 text-blue-300 hover:bg-blue-500/30",
         document: "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30",
+      } : {
+        project: "bg-purple-100 text-purple-700 hover:bg-purple-200",
+        application: "bg-green-100 text-green-700 hover:bg-green-200",
+        personnel: "bg-blue-100 text-blue-700 hover:bg-blue-200",
+        document: "bg-amber-100 text-amber-700 hover:bg-amber-200",
       };
 
       parts.push(
@@ -727,10 +737,10 @@ function MessagesContent() {
         <div className={`${showMobileChat ? "hidden md:flex" : "flex"} w-full md:w-80 border-r theme-border flex-col`}>
           <div className="p-4 border-b theme-border">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-lg sm:text-xl font-bold text-white">Messages</h1>
+              <h1 className={`text-lg sm:text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Messages</h1>
               <button
                 onClick={() => setShowNewConversation(true)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                className={`p-2 rounded-lg transition-colors ${isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
               >
                 <svg
                   className="w-5 h-5"
@@ -757,8 +767,10 @@ function MessagesContent() {
                   setSelectedConversation(conv);
                   setShowMobileChat(true);
                 }}
-                className={`w-full p-4 flex items-start gap-3 hover:bg-slate-800/50 transition-colors border-b border-slate-700/50 ${
-                  selectedConversation?._id === conv._id ? "bg-slate-800/50" : ""
+                className={`w-full p-4 flex items-start gap-3 transition-colors ${
+                  isDark ? "hover:bg-slate-800/50 border-b border-slate-700/50" : "hover:bg-gray-50 border-b border-gray-200"
+                } ${
+                  selectedConversation?._id === conv._id ? (isDark ? "bg-slate-800/50" : "bg-blue-50") : ""
                 }`}
               >
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0 ${
@@ -776,19 +788,19 @@ function MessagesContent() {
                 </div>
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center justify-between">
-                    <p className="text-white font-medium truncate flex items-center gap-1.5">
+                    <p className={`font-medium truncate flex items-center gap-1.5 ${isDark ? "text-white" : "text-gray-900"}`}>
                       {getConversationName(conv)}
                       {conv.type === "group" && (
-                        <span className="text-xs text-slate-500">({conv.participants.length})</span>
+                        <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>({conv.participants.length})</span>
                       )}
                     </p>
                     {conv.lastMessage && (
-                      <span className="text-xs text-slate-500">
+                      <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
                         {formatMessageTime(conv.lastMessage.createdAt)}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-400 truncate">
+                  <p className={`text-sm truncate ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     {conv.lastMessage?.content || "No messages yet"}
                   </p>
                 </div>
@@ -802,9 +814,9 @@ function MessagesContent() {
 
             {(!conversations || conversations.length === 0) && (
               <div className="p-8 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
+                <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
                   <svg
-                    className="w-8 h-8 text-slate-500"
+                    className={`w-8 h-8 ${isDark ? "text-slate-500" : "text-gray-400"}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -817,10 +829,10 @@ function MessagesContent() {
                     />
                   </svg>
                 </div>
-                <p className="text-slate-400">No conversations yet</p>
+                <p className={isDark ? "text-slate-400" : "text-gray-500"}>No conversations yet</p>
                 <button
                   onClick={() => setShowNewConversation(true)}
-                  className="mt-4 px-4 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 transition-colors"
+                  className={`mt-4 px-4 py-2 font-medium rounded-lg transition-colors ${isDark ? "bg-cyan-500 text-white hover:bg-cyan-600" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                 >
                   Start a conversation
                 </button>
@@ -838,7 +850,7 @@ function MessagesContent() {
                 {/* Back button for mobile */}
                 <button
                   onClick={() => setShowMobileChat(false)}
-                  className="md:hidden p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                  className={`md:hidden p-2 -ml-2 rounded-lg transition-colors ${isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -848,10 +860,10 @@ function MessagesContent() {
                   {getConversationAvatar(selectedConversation)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-white text-sm sm:text-base font-medium truncate">
+                  <h2 className={`text-sm sm:text-base font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`}>
                     {getConversationName(selectedConversation)}
                   </h2>
-                  <p className="text-[10px] sm:text-xs text-slate-400">
+                  <p className={`text-[10px] sm:text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     {selectedConversation.type === "project"
                       ? "Project Channel"
                       : "Direct Message"}
@@ -861,7 +873,7 @@ function MessagesContent() {
                 <button
                   onClick={handleStartVideoCall}
                   disabled={isStartingCall}
-                  className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`p-1.5 sm:p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
                   title="Start Video Call"
                 >
                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -874,7 +886,7 @@ function MessagesContent() {
                   className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                     isMuted
                       ? "text-red-400 hover:bg-red-500/20"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                      : isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                   }`}
                   title={isMuted ? "Unmute notifications" : "Mute notifications"}
                 >
@@ -909,7 +921,7 @@ function MessagesContent() {
                         }`}
                       >
                         {!isOwn && (
-                          <p className="text-xs text-slate-500 mb-1 ml-1">
+                          <p className={`text-xs mb-1 ml-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                             {msg.sender?.name || "Unknown"}
                           </p>
                         )}
@@ -920,8 +932,8 @@ function MessagesContent() {
                                 ? ""
                                 : `px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base ${
                                     isOwn
-                                      ? "bg-cyan-500 text-white"
-                                      : "bg-slate-800 text-white"
+                                      ? isDark ? "bg-cyan-500 text-white" : "bg-blue-600 text-white"
+                                      : isDark ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-900"
                                   }`
                             }`}
                           >
@@ -934,6 +946,7 @@ function MessagesContent() {
                                     key={idx}
                                     attachment={att}
                                     isOwn={isOwn}
+                                    isDark={isDark}
                                     getAttachmentUrl={getAttachmentUrl}
                                   />
                                 ))}
@@ -946,7 +959,7 @@ function MessagesContent() {
                             onClick={() => setReactionPickerMessageId(
                               reactionPickerMessageId === msg._id ? null : msg._id
                             )}
-                            className={`absolute ${isOwn ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white transition-all opacity-0 group-hover:opacity-100`}
+                            className={`absolute ${isOwn ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all opacity-0 group-hover:opacity-100 ${isDark ? "bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700"}`}
                             title="Add reaction"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -958,13 +971,13 @@ function MessagesContent() {
                           {reactionPickerMessageId === msg._id && (
                             <div
                               ref={reactionPickerRef}
-                              className={`absolute ${isOwn ? "right-0" : "left-0"} top-full mt-1 z-50 bg-slate-800 border border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 shadow-xl`}
+                              className={`absolute ${isOwn ? "right-0" : "left-0"} top-full mt-1 z-50 rounded-full px-2 py-1 flex items-center gap-1 shadow-xl ${isDark ? "bg-slate-800 border border-slate-700" : "bg-white border border-gray-200"}`}
                             >
                               {quickReactions.map((emoji) => (
                                 <button
                                   key={emoji}
                                   onClick={() => handleReactionClick(msg._id, emoji)}
-                                  className="p-1.5 hover:bg-slate-700 rounded-full transition-colors text-lg"
+                                  className={`p-1.5 rounded-full transition-colors text-lg ${isDark ? "hover:bg-slate-700" : "hover:bg-gray-100"}`}
                                 >
                                   {emoji}
                                 </button>
@@ -984,8 +997,8 @@ function MessagesContent() {
                                   onClick={() => handleReactionClick(msg._id, reaction.emoji)}
                                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                                     hasUserReacted
-                                      ? "bg-cyan-500/30 border border-cyan-500 text-cyan-300"
-                                      : "bg-slate-700/50 border border-slate-600 text-slate-300 hover:bg-slate-700"
+                                      ? isDark ? "bg-cyan-500/30 border border-cyan-500 text-cyan-300" : "bg-blue-100 border border-blue-400 text-blue-700"
+                                      : isDark ? "bg-slate-700/50 border border-slate-600 text-slate-300 hover:bg-slate-700" : "bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200"
                                   }`}
                                   title={`${reaction.count} reaction${reaction.count > 1 ? "s" : ""}`}
                                 >
@@ -1002,7 +1015,7 @@ function MessagesContent() {
                             isOwn ? "justify-end mr-1" : "ml-1"
                           }`}
                         >
-                          <span className="text-[10px] sm:text-xs text-slate-500">
+                          <span className={`text-[10px] sm:text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
                             {formatMessageTime(msg.createdAt)}
                           </span>
                           {/* Read receipt for sent messages */}
@@ -1020,7 +1033,7 @@ function MessagesContent() {
                                 </svg>
                               ) : (
                                 // Single check - message sent but not read
-                                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg className={`w-4 h-4 ${isDark ? "text-slate-500" : "text-gray-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               )}
@@ -1036,8 +1049,8 @@ function MessagesContent() {
 
               {/* Typing Indicator */}
               {typingUsers && typingUsers.length > 0 && (
-                <div className="px-4 py-2 border-t border-slate-700/50">
-                  <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <div className={`px-4 py-2 border-t ${isDark ? "border-slate-700/50" : "border-gray-200"}`}>
+                  <div className={`flex items-center gap-2 text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                     <div className="flex gap-1">
                       <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                       <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -1055,7 +1068,7 @@ function MessagesContent() {
               )}
 
               {/* Message Input */}
-              <div className="p-2 sm:p-4 border-t border-slate-700 relative safe-area-bottom">
+              <div className={`p-2 sm:p-4 border-t relative safe-area-bottom ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
                   <div
@@ -1073,9 +1086,9 @@ function MessagesContent() {
 
                 {/* # Link Picker */}
                 {showLinkPicker && (
-                  <div className="absolute bottom-full left-0 mb-2 z-50 w-full max-w-sm bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
-                    <div className="p-2 border-b border-slate-700">
-                      <span className="text-slate-400 text-xs">
+                  <div className={`absolute bottom-full left-0 mb-2 z-50 w-full max-w-sm rounded-xl overflow-hidden shadow-xl ${isDark ? "bg-slate-800 border border-slate-700" : "bg-white border border-gray-200"}`}>
+                    <div className={`p-2 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                      <span className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                         Type to search documents, projects, applicants, or personnel
                       </span>
                     </div>
@@ -1086,7 +1099,7 @@ function MessagesContent() {
                             key={`${item.type}-${item.id}`}
                             type="button"
                             onClick={() => handleLinkSelect(item)}
-                            className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/50 transition-colors text-left"
+                            className={`w-full p-3 flex items-center gap-3 transition-colors text-left ${isDark ? "hover:bg-slate-700/50" : "hover:bg-gray-50"}`}
                           >
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                               item.type === "project" ? "bg-purple-500/20 text-purple-400" :
@@ -1097,17 +1110,17 @@ function MessagesContent() {
                               {item.type === "project" ? "P" : item.type === "application" ? "A" : item.type === "document" ? "D" : "E"}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm font-medium truncate">{item.name}</p>
-                              <p className="text-slate-400 text-xs truncate">{item.subtitle}</p>
+                              <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`}>{item.name}</p>
+                              <p className={`text-xs truncate ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.subtitle}</p>
                             </div>
                           </button>
                         ))
                       ) : linkSearchQuery ? (
-                        <div className="p-4 text-center text-slate-400 text-sm">
+                        <div className={`p-4 text-center text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                           No results found for &quot;{linkSearchQuery}&quot;
                         </div>
                       ) : (
-                        <div className="p-4 text-center text-slate-400 text-sm">
+                        <div className={`p-4 text-center text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                           Start typing to search...
                         </div>
                       )}
@@ -1119,14 +1132,14 @@ function MessagesContent() {
                 {showGifPicker && (
                   <div
                     ref={gifPickerRef}
-                    className="absolute bottom-full left-0 mb-2 z-50 w-full max-w-md bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl"
+                    className={`absolute bottom-full left-0 mb-2 z-50 w-full max-w-md rounded-xl overflow-hidden shadow-xl ${isDark ? "bg-slate-800 border border-slate-700" : "bg-white border border-gray-200"}`}
                   >
-                    <div className="p-3 border-b border-slate-700">
+                    <div className={`p-3 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-medium text-sm">Search GIFs</span>
+                        <span className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>Search GIFs</span>
                         <button
                           onClick={() => setShowGifPicker(false)}
-                          className="text-slate-400 hover:text-white p-1"
+                          className={`p-1 ${isDark ? "text-slate-400 hover:text-white" : "text-gray-400 hover:text-gray-600"}`}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1138,7 +1151,7 @@ function MessagesContent() {
                         value={gifSearchQuery}
                         onChange={(e) => setGifSearchQuery(e.target.value)}
                         placeholder="Search GIPHY..."
-                        className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                        className={`w-full px-3 py-2 rounded-lg text-sm focus:outline-none ${isDark ? "bg-slate-900/50 border border-slate-600 text-white placeholder-slate-500 focus:border-cyan-500" : "bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500"}`}
                       />
                     </div>
                     <div className="h-64 overflow-y-auto p-2">
@@ -1154,8 +1167,8 @@ function MessagesContent() {
                         noLink={true}
                       />
                     </div>
-                    <div className="p-2 border-t border-slate-700 text-center">
-                      <span className="text-slate-500 text-xs">Powered by GIPHY</span>
+                    <div className={`p-2 border-t text-center ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                      <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>Powered by GIPHY</span>
                     </div>
                   </div>
                 )}
@@ -1166,17 +1179,17 @@ function MessagesContent() {
                     {pendingAttachments.map((att, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 ${isDark ? "bg-slate-800 border border-slate-700" : "bg-gray-100 border border-gray-200"}`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 ${isDark ? "text-slate-400" : "text-gray-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                         </svg>
-                        <span className="text-sm text-white truncate max-w-[150px]">{att.fileName}</span>
-                        <span className="text-xs text-slate-500">{formatFileSize(att.fileSize)}</span>
+                        <span className={`text-sm truncate max-w-[150px] ${isDark ? "text-white" : "text-gray-900"}`}>{att.fileName}</span>
+                        <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{formatFileSize(att.fileSize)}</span>
                         <button
                           type="button"
                           onClick={() => removePendingAttachment(index)}
-                          className="text-slate-400 hover:text-red-400"
+                          className={isDark ? "text-slate-400 hover:text-red-400" : "text-gray-400 hover:text-red-500"}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1207,8 +1220,8 @@ function MessagesContent() {
                     }}
                     className={`hidden sm:block p-2.5 rounded-xl transition-colors flex-shrink-0 ${
                       showEmojiPicker
-                        ? "bg-cyan-500 text-white"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                        ? isDark ? "bg-cyan-500 text-white" : "bg-blue-600 text-white"
+                        : isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                     }`}
                     title="Add emoji"
                   >
@@ -1226,8 +1239,8 @@ function MessagesContent() {
                     }}
                     className={`hidden sm:block px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0 font-bold text-xs ${
                       showGifPicker
-                        ? "bg-cyan-500 text-white"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-600"
+                        ? isDark ? "bg-cyan-500 text-white" : "bg-blue-600 text-white"
+                        : isDark ? "text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-600" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-gray-300"
                     }`}
                     title="Add GIF"
                   >
@@ -1241,8 +1254,8 @@ function MessagesContent() {
                     disabled={isUploading}
                     className={`p-2 sm:p-2.5 rounded-xl transition-colors flex-shrink-0 ${
                       isUploading
-                        ? "bg-slate-700 text-slate-500"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                        ? isDark ? "bg-slate-700 text-slate-500" : "bg-gray-200 text-gray-400"
+                        : isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                     }`}
                     title="Attach file"
                   >
@@ -1263,12 +1276,12 @@ function MessagesContent() {
                     value={newMessage}
                     onChange={handleMessageInputChange}
                     placeholder="Message..."
-                    className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-3 bg-slate-800 border border-slate-700 rounded-full sm:rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    className={`flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-3 rounded-full sm:rounded-xl text-sm focus:outline-none ${isDark ? "bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:border-cyan-500" : "bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500"}`}
                   />
                   <button
                     type="submit"
                     disabled={!newMessage.trim() && pendingAttachments.length === 0}
-                    className="p-2 sm:px-6 sm:py-3 bg-cyan-500 text-white font-medium rounded-full sm:rounded-xl hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className={`p-2 sm:px-6 sm:py-3 text-white font-medium rounded-full sm:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isDark ? "bg-cyan-500 hover:bg-cyan-600" : "bg-blue-600 hover:bg-blue-700"}`}
                   >
                     <svg
                       className="w-5 h-5"
@@ -1290,9 +1303,9 @@ function MessagesContent() {
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
+                <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
                   <svg
-                    className="w-10 h-10 text-slate-500"
+                    className={`w-10 h-10 ${isDark ? "text-slate-500" : "text-gray-400"}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1305,10 +1318,10 @@ function MessagesContent() {
                     />
                   </svg>
                 </div>
-                <h2 className="text-xl font-medium text-white mb-2">
+                <h2 className={`text-xl font-medium mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
                   Select a conversation
                 </h2>
-                <p className="text-slate-400">
+                <p className={isDark ? "text-slate-400" : "text-gray-500"}>
                   Choose from your existing conversations or start a new one
                 </p>
               </div>
@@ -1321,14 +1334,14 @@ function MessagesContent() {
       {/* New Conversation Modal */}
       {showNewConversation && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-t-xl sm:rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[80vh] sm:max-h-[70vh] flex flex-col">
+          <div className={`rounded-t-xl sm:rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[80vh] sm:max-h-[70vh] flex flex-col ${isDark ? "bg-slate-800 border border-slate-700" : "bg-white border border-gray-200 shadow-lg"}`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-white">
+              <h2 className={`text-lg sm:text-xl font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
                 {isCreatingGroup ? "New Group Chat" : "New Conversation"}
               </h2>
               <button
                 onClick={closeNewConversationModal}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
+                className={`p-2 transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-400 hover:text-gray-600"}`}
               >
                 <svg
                   className="w-5 h-5"
@@ -1356,8 +1369,8 @@ function MessagesContent() {
                 }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                   !isCreatingGroup
-                    ? "bg-cyan-500 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    ? isDark ? "bg-cyan-500 text-white" : "bg-blue-600 text-white"
+                    : isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
                 Direct Message
@@ -1366,8 +1379,8 @@ function MessagesContent() {
                 onClick={() => setIsCreatingGroup(true)}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                   isCreatingGroup
-                    ? "bg-cyan-500 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    ? isDark ? "bg-cyan-500 text-white" : "bg-blue-600 text-white"
+                    : isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
                 Group Chat
@@ -1382,7 +1395,7 @@ function MessagesContent() {
                   placeholder="Group name..."
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm sm:text-base placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base focus:outline-none ${isDark ? "bg-slate-900/50 border border-slate-600 text-white placeholder-slate-500 focus:border-cyan-500" : "bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500"}`}
                 />
               </div>
             )}
@@ -1390,17 +1403,17 @@ function MessagesContent() {
             {/* Selected members (only for group chat) */}
             {isCreatingGroup && selectedGroupMembers.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs text-slate-400 mb-2">Selected members ({selectedGroupMembers.length}):</p>
+                <p className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>Selected members ({selectedGroupMembers.length}):</p>
                 <div className="flex flex-wrap gap-2">
                   {selectedGroupMembers.map((member) => (
                     <span
                       key={member._id}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-full text-sm"
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm ${isDark ? "bg-cyan-500/20 text-cyan-400" : "bg-blue-100 text-blue-700"}`}
                     >
                       {member.name}
                       <button
                         onClick={() => toggleGroupMember(member)}
-                        className="hover:text-white"
+                        className={isDark ? "hover:text-white" : "hover:text-gray-900"}
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1418,7 +1431,7 @@ function MessagesContent() {
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm sm:text-base placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base focus:outline-none ${isDark ? "bg-slate-900/50 border border-slate-600 text-white placeholder-slate-500 focus:border-cyan-500" : "bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500"}`}
               />
             </div>
 
@@ -1437,16 +1450,16 @@ function MessagesContent() {
                     }}
                     className={`w-full p-3 flex items-center gap-3 rounded-lg transition-colors ${
                       isSelected
-                        ? "bg-cyan-500/20 border border-cyan-500/50"
-                        : "hover:bg-slate-700/50"
+                        ? isDark ? "bg-cyan-500/20 border border-cyan-500/50" : "bg-blue-50 border border-blue-300"
+                        : isDark ? "hover:bg-slate-700/50" : "hover:bg-gray-50"
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-medium flex-shrink-0">
                       {u.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="text-left min-w-0 flex-1">
-                      <p className="text-white font-medium truncate">{u.name}</p>
-                      <p className="text-sm text-slate-400 truncate">{u.email}</p>
+                      <p className={`font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`}>{u.name}</p>
+                      <p className={`text-sm truncate ${isDark ? "text-slate-400" : "text-gray-500"}`}>{u.email}</p>
                     </div>
                     {isCreatingGroup && isSelected && (
                       <svg className="w-5 h-5 text-cyan-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -1458,17 +1471,17 @@ function MessagesContent() {
               })}
 
               {filteredUsers?.length === 0 && (
-                <p className="text-center text-slate-400 py-4">No users found</p>
+                <p className={`text-center py-4 ${isDark ? "text-slate-400" : "text-gray-500"}`}>No users found</p>
               )}
             </div>
 
             {/* Create Group button (only for group chat) */}
             {isCreatingGroup && (
-              <div className="mt-4 pt-4 border-t border-slate-700">
+              <div className={`mt-4 pt-4 border-t ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                 <button
                   onClick={handleCreateGroupChat}
                   disabled={selectedGroupMembers.length < 1 || !groupName.trim()}
-                  className="w-full py-3 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full py-3 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "bg-cyan-500 hover:bg-cyan-600" : "bg-blue-600 hover:bg-blue-700"}`}
                 >
                   Create Group ({selectedGroupMembers.length + 1} members)
                 </button>

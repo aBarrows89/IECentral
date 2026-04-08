@@ -1448,7 +1448,7 @@ function DashboardContent() {
               </SortableContext>
             </DndContext>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+            <div className={`flex items-center justify-between pt-4 border-t ${isDark ? "border-slate-700" : "border-gray-200"}`}>
               <button
                 onClick={async () => {
                   if (user) {
@@ -1551,7 +1551,7 @@ function DashboardContent() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-700">
+            <div className={`mt-6 pt-4 border-t ${isDark ? "border-slate-700" : "border-gray-200"}`}>
               <button
                 onClick={() => setShowHelp(false)}
                 className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${isDark ? "bg-cyan-500 text-white hover:bg-cyan-600" : "bg-blue-500 text-white hover:bg-blue-600"}`}
@@ -1670,7 +1670,7 @@ function DashboardContent() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+            <div className={`flex items-center justify-end gap-3 mt-6 pt-4 border-t ${isDark ? "border-slate-700" : "border-gray-200"}`}>
               <button
                 onClick={() => setShowBroadcastModal(false)}
                 className={`px-4 py-2 rounded-lg transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-700"}`}
