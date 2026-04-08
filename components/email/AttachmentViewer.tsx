@@ -81,6 +81,8 @@ export default function AttachmentViewer({
   const isWord = mimeType.includes("word") || mimeType.includes("document") || mimeType.includes("msword");
   const isExcel = mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("sheet");
   const isPowerPoint = mimeType.includes("presentation") || mimeType.includes("powerpoint");
+  const isCsv = mimeType.includes("csv") || attachment.fileName.endsWith(".csv");
+  const isText = mimeType.startsWith("text/") && !isCsv;
   const isOffice = isWord || isExcel || isPowerPoint;
 
   // Get viewer URL
@@ -182,7 +184,7 @@ export default function AttachmentViewer({
             )}
             {fetchError && <span className="text-xs text-red-400">{fetchError}</span>}
             {/* Save to DocHub button */}
-            {attachment.storageId && (
+            {(attachment.storageId || attachmentUrl) && (
               <button
                 onClick={() => setShowSaveModal(true)}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -251,6 +253,13 @@ export default function AttachmentViewer({
                 )}
               </div>
             </div>
+          ) : (isCsv || isText) && attachmentUrl ? (
+            <iframe
+              src={attachmentUrl}
+              className="w-full h-full border-0 bg-white"
+              title={attachment.fileName}
+              style={{ fontFamily: "monospace" }}
+            />
           ) : isImage ? (
             <div className="h-full flex items-center justify-center p-4 overflow-auto">
               <img
