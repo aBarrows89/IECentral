@@ -470,7 +470,8 @@ export default function ReportUploadPage() {
                   ) : (
                     <div className="divide-y divide-slate-700/50">
                       {ftpConnections.map((conn) => (
-                        <div key={conn._id} className="px-6 py-4 flex items-center justify-between">
+                        <div key={conn._id}>
+                        <div className="px-6 py-4 flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full ${conn.isActive ? conn.lastSyncStatus === "failed" ? "bg-red-500" : "bg-emerald-500" : "bg-slate-500"}`} />
@@ -553,6 +554,7 @@ export default function ReportUploadPage() {
                             </div>
                           </div>
                         )}
+                        </div>
                       ))}
                     </div>
                   )}
