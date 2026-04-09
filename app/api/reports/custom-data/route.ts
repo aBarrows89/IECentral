@@ -1,6 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { brandCodeToName } from "@/lib/brandMapping";
+import { buildTireDescription } from "@/lib/tireDescriptions";
+
+/** Load tires catalog from S3 and build a lookup map by itemId */
+async function loadTireCatalogLookup(): Promise<Map<string, Record<string, string>>> {
+  const map = new Map<string, Record<string, string>>();
+  try {
+    const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: "jmk-uploads/tires/", MaxKeys: 100 }));
+    const files = (listRes.Contents || [])
+      .filter(o => o.Key?.toLowerCase().endsWith(".csv") && o.Key?.includes("tires-"))
+      .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+    if (files.length === 0) return map;
+
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: files[0].Key! }));
+    const text = await res.Body?.transformToString("utf-8") || "";
+    if (!text) return map;
+
+    const lines = text.replace(/^\uFEFF/, "").split("\n");
+    const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
+
+    // Find column indices
+    const find = (names: string[]) => headers.findIndex(h => names.some(n => h.includes(n)));
+    const cols = {
+      itemId: find(["item id", "itemid"]),
+      mfgName: find(["mfg name", "brand", "manufacturer"]),
+      model: find(["model"]),
+      size: find(["size", "tire size"]),
+      loadIndex: find(["load index"]),
+      speedRating: find(["speed rating"]),
+      sidewall: find(["sidewall"]),
+      xlrf: find(["xl/rf", "xlrf"]),
+      plyRating: find(["ply rating", "load range"]),
+    };
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(",").map(c => c.replace(/"/g, "").trim());
+      const itemId = cols.itemId >= 0 ? row[cols.itemId] : "";
+      if (!itemId) continue;
+
+      const tire: Record<string, string> = {};
+      if (cols.mfgName >= 0) tire.mfgName = row[cols.mfgName] || "";
+      if (cols.model >= 0) tire.model = row[cols.model] || "";
+      if (cols.size >= 0) tire.size = row[cols.size] || "";
+      if (cols.loadIndex >= 0) tire.loadIndex = row[cols.loadIndex] || "";
+      if (cols.speedRating >= 0) tire.speedRating = row[cols.speedRating] || "";
+      if (cols.sidewall >= 0) tire.sidewall = row[cols.sidewall] || "";
+      if (cols.xlrf >= 0) tire.xlrf = row[cols.xlrf] || "";
+      if (cols.plyRating >= 0) tire.plyRating = row[cols.plyRating] || "";
+      tire.computedDescription = buildTireDescription(tire);
+
+      // Store by itemId and stripped version
+      map.set(itemId, tire);
+      map.set(itemId.replace(/[.\^\[:\-~*#]$/, ""), tire);
+    }
+  } catch { /* catalog unavailable */ }
+  return map;
+}
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -431,6 +487,26 @@ export async function POST(request: NextRequest) {
 
     let finalRows = primaryData.rows;
     let finalColumns = primaryData.columns;
+
+    // Enrich OEA07V rows with tire catalog descriptions
+    if (reportType === "OEA07V" && finalRows.length > 0) {
+      try {
+        const tireLookup = await loadTireCatalogLookup();
+        if (tireLookup.size > 0) {
+          finalRows = finalRows.map((row) => {
+            const itemId = row.itemId || "";
+            const tire = tireLookup.get(itemId) || tireLookup.get(itemId.replace(/[.\^\[:\-~*#]$/, ""));
+            if (!tire) return row;
+            const enriched = { ...row };
+            // Replace description with computed tire description
+            if (tire.computedDescription) enriched.description = tire.computedDescription;
+            // Replace brand code with full name from catalog
+            if (tire.mfgName && enriched.brand) enriched.brand = tire.mfgName;
+            return enriched;
+          });
+        }
+      } catch { /* catalog enrichment is best-effort */ }
+    }
 
     // Fusion — fetch second source and join
     if (secondSource && fusionJoinKey) {
