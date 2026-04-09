@@ -11,10 +11,6 @@
     {
       "path": "/api/dunlop/run-monthly",
       "schedule": "0 14 1 * *"
-    },
-    {
-      "path": "/api/reports/ftp-sync",
-      "schedule": "15 8 * * *"
     }
   ]
 }
