@@ -90,9 +90,13 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        // Filter to only files newer than last sync
+        // Filter to new files — compare by filename + modification time
+        const lastSyncFileName = fullConn.lastSyncFileName || "";
         const lastSyncAt = fullConn.lastSyncAt ? new Date(fullConn.lastSyncAt) : new Date(0);
         const newFiles = matching.filter((f) => {
+          // If filename changed, it's new
+          if (f.name !== lastSyncFileName) return true;
+          // Same filename — check if modified since last sync
           const modTime = f.modifiedAt || new Date(0);
           return modTime > lastSyncAt;
         });
