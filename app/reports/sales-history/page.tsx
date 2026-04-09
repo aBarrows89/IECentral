@@ -123,10 +123,10 @@ export default function SalesHistoryReportPage() {
 
   const handleExportCSV = useCallback(() => {
     if (sorted.length === 0) return;
-    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total", "Available"];
+    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total"];
     const csv = [headers.join(","), ...sorted.map((r) => [
       `"${r.description}"`, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass,
-      ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? "",
+      ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total,
     ].join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `sales-history-${new Date().toISOString().split("T")[0]}.csv`; link.click();
@@ -136,8 +136,8 @@ export default function SalesHistoryReportPage() {
     if (sorted.length === 0) return;
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
-    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total", "Available"];
-    const data = [headers, ...sorted.map((r) => [r.description, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass, ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total, r.availableStock ?? ""])];
+    const headers = ["Description", "Brand", "Model", "Item ID", "Type", "D-Class", ...visibleMonths.map(fmtMonth), "Total"];
+    const data = [headers, ...sorted.map((r) => [r.description, r.manufacturerName, r.model, r.itemId, r.productType, r.dclass, ...visibleMonths.map((m) => r.monthlySales[m] || 0), r.total])];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Sales History");
     XLSX.writeFile(wb, `sales-history-${new Date().toISOString().split("T")[0]}.xlsx`);
   }, [sorted, visibleMonths]);
@@ -244,9 +244,8 @@ export default function SalesHistoryReportPage() {
                           { key: "dclass", label: "D-Class", filterable: true },
                           ...visibleMonths.map((m) => ({ key: `m_${m}`, label: fmtMonth(m), filterable: false })),
                           { key: "total", label: "Total", filterable: false },
-                          { key: "availableStock", label: "Avail", filterable: false },
                         ].map((col) => {
-                          const isNumCol = col.key.startsWith("m_") || col.key === "total" || col.key === "availableStock";
+                          const isNumCol = col.key.startsWith("m_") || col.key === "total";
                           const hasFilter = columnFilters[col.key]?.size > 0;
                           const isOpen = openFilterCol === col.key;
                           const uniqueVals = col.filterable ? [...new Set(filtered.map((r) => String((r as any)[col.key] || "")))].sort() : [];
