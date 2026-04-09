@@ -90,16 +90,12 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        // Filter to new files — compare by filename + modification time
+        // Filter to new files — only grab the latest file (most recent by name sort)
         const lastSyncFileName = fullConn.lastSyncFileName || "";
-        const lastSyncAt = fullConn.lastSyncAt ? new Date(fullConn.lastSyncAt) : new Date(0);
-        const newFiles = matching.filter((f) => {
-          // If filename changed, it's new
-          if (f.name !== lastSyncFileName) return true;
-          // Same filename — check if modified since last sync
-          const modTime = f.modifiedAt || new Date(0);
-          return modTime > lastSyncAt;
-        });
+        // Sort by filename descending (timestamps in filename = natural sort works)
+        matching.sort((a, b) => b.name.localeCompare(a.name));
+        const latestFile = matching[0];
+        const newFiles = latestFile && latestFile.name !== lastSyncFileName ? [latestFile] : [];
 
         if (newFiles.length === 0) {
           await convex.mutation(api.ftpConnections.updateSyncStatus, {
