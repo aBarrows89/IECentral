@@ -103,6 +103,31 @@ export const updateSyncStatus = mutation({
   },
 });
 
+export const update = mutation({
+  args: {
+    id: v.id("ftpConnections"),
+    name: v.optional(v.string()),
+    host: v.optional(v.string()),
+    port: v.optional(v.number()),
+    username: v.optional(v.string()),
+    password: v.optional(v.string()),
+    remotePath: v.optional(v.string()),
+    filePattern: v.optional(v.string()),
+    sourceType: v.optional(v.string()),
+    frequency: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    const clean: Record<string, any> = {};
+    for (const [k, v] of Object.entries(updates)) {
+      if (v !== undefined) clean[k] = v;
+    }
+    if (Object.keys(clean).length > 0) {
+      await ctx.db.patch(id, clean);
+    }
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("ftpConnections") },
   handler: async (ctx, args) => {

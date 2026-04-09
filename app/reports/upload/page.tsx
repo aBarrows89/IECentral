@@ -53,6 +53,9 @@ export default function ReportUploadPage() {
   const [ftpTesting, setFtpTesting] = useState(false);
   const [ftpTestResult, setFtpTestResult] = useState<{ connected: boolean; message: string; files?: string[] } | null>(null);
   const [savingFtp, setSavingFtp] = useState(false);
+  const [editingFtp, setEditingFtp] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ remotePath: "", filePattern: "", name: "", host: "", port: "21", username: "", sourceType: "", frequency: "" });
+  const updateFtp = useMutation(api.ftpConnections.update);
 
   const [reportType, setReportType] = useState("OEA07V");
   const month = getDefaultMonth(); // Auto-detected from current date
@@ -490,14 +493,20 @@ export default function ReportUploadPage() {
                               const fileList = (data.files || []).map((f: any) => `${f.type === "dir" ? "📁" : "📄"} ${f.name} (${f.type === "dir" ? "dir" : `${(f.size/1024).toFixed(0)}KB`}) ${f.modified ? new Date(f.modified).toLocaleString() : ""}`).join("\n");
                               alert(`📂 ${data.path}\n${data.total} items:\n\n${fileList}`);
                             }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                              Browse Files
+                              Browse
+                            </button>
+                            <button onClick={() => {
+                              setEditingFtp(editingFtp === conn._id ? null : conn._id);
+                              setEditForm({ name: conn.name, host: conn.host, port: String(conn.port), username: conn.username || "", remotePath: conn.remotePath, filePattern: conn.filePattern, sourceType: conn.sourceType, frequency: conn.frequency });
+                            }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-amber-100 text-amber-700 hover:bg-amber-200"}`}>
+                              Edit
                             </button>
                             <button onClick={async () => {
                               const res = await fetch("/api/reports/ftp-sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connectionId: conn._id }) });
                               const data = await res.json();
                               alert(JSON.stringify(data.results || data, null, 2));
                             }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
-                              Sync Now
+                              Sync
                             </button>
                             <button onClick={() => { if (confirm("Delete this connection?")) removeFtp({ id: conn._id }); }}
                               className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-red-100 text-red-700 hover:bg-red-200"}`}>
@@ -505,6 +514,45 @@ export default function ReportUploadPage() {
                             </button>
                           </div>
                         </div>
+                        {/* Inline Edit Form */}
+                        {editingFtp === conn._id && (
+                          <div className={`px-6 py-4 border-t ${isDark ? "border-slate-700 bg-slate-900/50" : "border-gray-200 bg-gray-50"}`}>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div>
+                                <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Name</label>
+                                <input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                  className={`w-full px-2 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                              </div>
+                              <div>
+                                <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Host</label>
+                                <input value={editForm.host} onChange={(e) => setEditForm({...editForm, host: e.target.value})}
+                                  className={`w-full px-2 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                              </div>
+                              <div>
+                                <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>Remote Path</label>
+                                <input value={editForm.remotePath} onChange={(e) => setEditForm({...editForm, remotePath: e.target.value})}
+                                  className={`w-full px-2 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                              </div>
+                              <div>
+                                <label className={`block text-[10px] mb-0.5 ${isDark ? "text-slate-500" : "text-gray-400"}`}>File Pattern</label>
+                                <input value={editForm.filePattern} onChange={(e) => setEditForm({...editForm, filePattern: e.target.value})}
+                                  className={`w-full px-2 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-gray-300"}`} />
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <button onClick={async () => {
+                                await updateFtp({ id: conn._id as any, name: editForm.name, host: editForm.host, port: parseInt(editForm.port) || 21, remotePath: editForm.remotePath, filePattern: editForm.filePattern, sourceType: editForm.sourceType, frequency: editForm.frequency });
+                                setEditingFtp(null);
+                              }} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
+                                Save
+                              </button>
+                              <button onClick={() => setEditingFtp(null)}
+                                className={`px-3 py-1.5 rounded-lg text-xs ${isDark ? "text-slate-400 hover:bg-slate-700" : "text-gray-500 hover:bg-gray-200"}`}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       ))}
                     </div>
                   )}
