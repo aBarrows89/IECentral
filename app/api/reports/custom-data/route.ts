@@ -354,19 +354,49 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[], mont
       const tiresRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: matches[0].Key! }));
       const text = await tiresRes.Body?.transformToString("utf-8") || "";
       const lines = text.replace(/^\uFEFF/, "").split("\n");
-      const headers = lines[0].split(",").map((h) => h.trim());
+      const rawHeaders = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
+
+      // Auto-detect columns by header name
+      const headerAliases: Record<string, string[]> = {
+        itemId: ["item id", "itemid", "sku", "part number", "part_number"],
+        mfgItemId: ["mfg item id", "manufacturer item id", "mfg's item id", "vendor part"],
+        mfgName: ["mfg name", "brand", "manufacturer", "vendor"],
+        model: ["model", "model name", "pattern"],
+        loadIndex: ["load index", "load", "load_index"],
+        speedRating: ["speed rating", "speed", "speed_rating"],
+        productType: ["product type", "type", "category"],
+        sidewall: ["sidewall", "construction"],
+        xlrf: ["xl/rf", "xlrf", "reinforced", "extra load"],
+        weight: ["weight", "tire weight"],
+        warrantyMiles: ["warranty miles", "warranty", "treadwear warranty"],
+        treadDepth: ["tread depth", "tread"],
+        size: ["size", "tire size"],
+        plyRating: ["ply rating", "ply", "load range"],
+      };
+
+      const lowerHeaders = rawHeaders.map(h => h.toLowerCase());
+      const colMap: Record<string, number> = {};
+      for (const [field, aliases] of Object.entries(headerAliases)) {
+        let idx = lowerHeaders.findIndex(h => aliases.some(a => h === a));
+        if (idx < 0) idx = lowerHeaders.findIndex(h => aliases.some(a => h.includes(a)));
+        if (idx >= 0) colMap[field] = idx;
+      }
+
       const rows: Record<string, string>[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(",").map((c) => c.trim());
-        if (cols.length < 5) continue;
+        const cols = lines[i].split(",").map((c) => c.replace(/"/g, "").trim());
+        if (cols.length < 3) continue;
         const record: Record<string, string> = {};
         for (const key of selectedColumns) {
-          const idx = headers.indexOf(key);
-          if (idx >= 0) record[key] = cols[idx] || "";
+          if (colMap[key] !== undefined) record[key] = cols[colMap[key]] || "";
         }
         rows.push(record);
       }
-      return { columns: selectedColumns.map((k) => ({ key: k, name: k })), rows };
+      return {
+        columns: selectedColumns.filter(k => colMap[k] !== undefined).map((k) => ({ key: k, name: k })),
+        rows,
+        _debug: { rawHeaders: rawHeaders.slice(0, 30), detectedColumns: colMap },
+      };
     }
   }
 
