@@ -168,25 +168,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Download and parse the CSV
-    const fileKey = matches[0].Key!;
-    const getRes = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: fileKey }));
-    const body = await getRes.Body?.transformToString("utf-8");
-    if (!body) throw new Error("Empty CSV file");
-
-    const allRows = parseCSV(body.replace(/^\uFEFF/, "").replace(/\0/g, ""));
-    const dataRows = allRows.slice(1); // Skip header
-
-    // Find ALL unique dates in the file — handles weekends (Fri+Sat+Sun uploaded Monday)
-    // and holidays where multiple days are uploaded at once
+    // Download and parse ALL OEA07V files (not just latest)
     const rowsByDate = new Map<string, string[][]>();
-    for (const row of dataRows) {
+    let totalFilesProcessed = 0;
+
+    for (const match of matches.filter(m => !(m as any).Size || (m as any).Size < 50 * 1024 * 1024)) { // Skip >50MB
+      const fileKey = match.Key!;
+      try {
+        const getRes = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: fileKey }));
+        const body = await getRes.Body?.transformToString("utf-8");
+        if (!body) continue;
+
+        const allRows = parseCSV(body.replace(/^\uFEFF/, "").replace(/\0/g, ""));
+        const dataRows = allRows.slice(1);
+        totalFilesProcessed++;
+
+        for (const row of dataRows) {
       if (row.length <= COL.ACTIVITY_DATE) continue;
       const d = parseActivityDate(row[COL.ACTIVITY_DATE]?.trim() || "");
       if (!d) continue;
       const dateKey = d.toISOString().split("T")[0];
       if (!rowsByDate.has(dateKey)) rowsByDate.set(dateKey, []);
       rowsByDate.get(dateKey)!.push(row);
+        }
+      } catch { /* skip unreadable files */ }
     }
 
     const uniqueDates = [...rowsByDate.keys()].sort();
@@ -310,8 +315,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       status: "success",
       dates: uniqueDates,
-      sourceFile: fileKey,
-      totalRowsInFile: dataRows.length,
+      filesProcessed: totalFilesProcessed,
       reportsGenerated: results.length,
       reports: results,
     });
