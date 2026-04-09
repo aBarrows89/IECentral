@@ -168,22 +168,65 @@ async function fetchSourceData(reportType: string, months: string[], selectedCol
     };
 }
 
+/**
+ * Scan an OEIVAL CSV's date columns to determine what year/period the data covers.
+ * Reads first 50 rows and checks "date last sale" (col 42) or "last purchase date" (col 36).
+ */
+async function detectFilePeriod(key: string): Promise<string | null> {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    // Only read first 20KB to check dates
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    const reader = res.Body as any;
+    if (!reader) return null;
+    const text = await res.Body?.transformToString("utf-8") || "";
+    const lines = text.slice(0, 30000).split("\n");
+    if (lines.length < 2) return null;
+
+    // Find date columns from header
+    const headers = lines[0].toLowerCase().split(",").map(h => h.replace(/"/g, "").trim());
+    const dateColIdx = headers.findIndex(h => h === "date last sale");
+    const purchDateIdx = headers.findIndex(h => h === "last purchase date");
+    const soldFromIdx = headers.findIndex(h => h.includes("sold from"));
+    const checkIdx = dateColIdx >= 0 ? dateColIdx : purchDateIdx >= 0 ? purchDateIdx : soldFromIdx;
+    if (checkIdx < 0) return null;
+
+    // Sample dates from first 50 data rows
+    const years = new Map<number, number>();
+    for (let i = 1; i < Math.min(lines.length, 50); i++) {
+      const cols = lines[i].split(",");
+      const val = (cols[checkIdx] || "").replace(/"/g, "").trim();
+      if (!val || val === "0") continue;
+      // Try YYMMDD format (common in JMK)
+      let year: number | null = null;
+      if (/^\d{6}$/.test(val)) {
+        year = parseInt(val.slice(0, 2));
+        if (year < 100) year += 2000;
+      } else {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) year = d.getFullYear();
+      }
+      if (year && year > 2000) years.set(year, (years.get(year) || 0) + 1);
+    }
+
+    if (years.size === 0) return null;
+    // Return the most common year as YYYY
+    const sorted = [...years.entries()].sort((a, b) => b[1] - a[1]);
+    return String(sorted[0][0]);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchXlsxData(reportType: string, selectedColumns: string[], months?: string[]) {
-  // For OEIVAL and similar sources, match files to the requested date range
+  // For OEIVAL and similar sources, find all candidate files
   const basePrefixes = reportType === "oeival" ? ["jmk-uploads/oeival/", "jmk-uploads/"] : ["jmk-uploads/oea07v-sales/", "jmk-uploads/"];
 
-  // Try month-specific folders first if months provided (e.g., jmk-uploads/oeival/202604/)
-  const prefixes: string[] = [];
-  if (months?.length) {
-    for (const m of months) {
-      for (const base of basePrefixes) {
-        prefixes.push(`${base}${m}/`);
-      }
-    }
-  }
-  prefixes.push(...basePrefixes); // Fallback to scanning all
+  // Requested year from months (e.g., months=["202604"] → year "2026")
+  const requestedYear = months?.[0]?.slice(0, 4) || String(new Date().getFullYear());
 
-  for (const prefix of prefixes) {
+  for (const prefix of basePrefixes) {
     const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
     const matches = (listRes.Contents || [])
       .filter((o) => {
@@ -192,12 +235,23 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[], mont
         if (reportType === "tires") return key.includes("tires") && key.endsWith(".csv");
         return false;
       })
-      .filter((o) => !o.Size || o.Size < 50 * 1024 * 1024) // Skip files > 50MB
       .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
 
     if (matches.length === 0) continue;
 
-    const fileKey = matches[0].Key!;
+    // For OEIVAL with multiple files, scan dates to pick the right one
+    let bestMatch = matches[0];
+    if (reportType === "oeival" && matches.length > 1) {
+      for (const candidate of matches) {
+        const period = await detectFilePeriod(candidate.Key!);
+        if (period === requestedYear) {
+          bestMatch = candidate;
+          break; // Found a match for the requested year
+        }
+      }
+    }
+
+    const fileKey = bestMatch.Key!;
     const fileKeyLower = fileKey.toLowerCase();
     const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fileKey }));
 
