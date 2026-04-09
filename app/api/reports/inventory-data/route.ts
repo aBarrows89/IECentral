@@ -11,7 +11,11 @@ const s3 = new S3Client({
 });
 
 function decodeDclass(raw: string): string {
-  const map: Record<string, string> = { Blank: "", Dash: "-", colon: ":", "Open Bracket": "[" };
+  const map: Record<string, string> = {
+    "Blank": "", "Dash": "Dash", "colon": "Colon", "Open Bracket": "Bracket",
+    ".": "Dot", "^": "Caret", "[": "Bracket", ":": "Colon", "-": "Dash",
+    "~": "Tilde", "*": "Star", "#": "Hash", "!": "Bang",
+  };
   return map[raw] ?? raw;
 }
 
@@ -159,7 +163,7 @@ export async function GET(request: NextRequest) {
         location: g(row, "location"),
         productType: g(row, "productType"),
         stockType: gn(row, "stockType"),
-        dclass: col.dclass !== undefined ? decodeDclass(g(row, "dclass") || "Blank") : (() => { const id = g(row, "itemId"); const last = id.slice(-1); return /[.\^\[:\-]/.test(last) ? last : ""; })(),
+        dclass: col.dclass !== undefined ? decodeDclass(g(row, "dclass") || "Blank") : (() => { const id = g(row, "itemId"); const last = id.slice(-1); const dm: Record<string,string> = {".":"Dot","^":"Caret","[":"Bracket",":":"Colon","-":"Dash","~":"Tilde","*":"Star","#":"Hash"}; return dm[last] || ""; })(),
         manufacturerCode: g(row, "manufacturerCode"),
         manufacturerName: g(row, "manufacturerName"),
         model: g(row, "model"),

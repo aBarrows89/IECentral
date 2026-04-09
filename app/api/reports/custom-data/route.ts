@@ -154,6 +154,11 @@ async function fetchSourceData(reportType: string, months: string[], selectedCol
       // Skip header
       for (let i = 1; i < csvRows.length; i++) {
         const row = csvRows[i];
+        // Filter OEA07V to tire product types only (starts with T, not T alone)
+        if (reportType === "OEA07V") {
+          const pt = (row[3] || "").replace(/"/g, "").trim();
+          if (!pt.startsWith("T") || pt === "T") continue;
+        }
         const record: Record<string, string> = {};
         for (const col of activeCols) {
           record[col.key] = (row[col.index] || "").replace(/"/g, "").trim();
