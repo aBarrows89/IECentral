@@ -179,13 +179,15 @@ export async function GET(request: NextRequest) {
           const lastChar = itemId.slice(-1);
           const dclassMap: Record<string, string> = { ".": "Dot", "^": "Caret", "[": "Bracket", ":": "Colon", "-": "Dash", "~": "Tilde", "*": "Star", "#": "Hash" };
           const dclass = dclassMap[lastChar] || "";
+          // Enrich from tire catalog if available
+          const tire = tireLookup.get(itemId) || tireLookup.get(itemId.replace(/[.\^\[:\-~*#]$/, ""));
           entry = {
             itemId,
-            description: (row[1] || "").replace(/"/g, "").trim(),
-            brand: brandCodeToName((row[4] || "").replace(/"/g, "").trim()),
+            description: tire?.desc || (row[1] || "").replace(/"/g, "").trim(),
+            brand: tire?.mfgName || brandCodeToName((row[4] || "").replace(/"/g, "").trim()),
             productType: (row[3] || "").replace(/"/g, "").trim(),
             dclass,
-            model: "",
+            model: tire?.model || "",
             mfgItemId: (row[5] || "").replace(/"/g, "").trim(),
             monthlySales: {},
           };
