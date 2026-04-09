@@ -26,8 +26,11 @@ export default function SalesHistoryReportPage() {
   const [brand, setBrand] = useState("");
   const [productType, setProductType] = useState("");
   const [dclass, setDclass] = useState("");
-  const [startMonth, setStartMonth] = useState("");
-  const [endMonth, setEndMonth] = useState("");
+  const [startMonth, setStartMonth] = useState(() => `${new Date().getFullYear()}-01`);
+  const [endMonth, setEndMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [showAllRows, setShowAllRows] = useState(false);
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
