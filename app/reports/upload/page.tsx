@@ -484,6 +484,15 @@ export default function ReportUploadPage() {
                           </div>
                           <div className="flex gap-2">
                             <button onClick={async () => {
+                              const res = await fetch("/api/reports/ftp-list", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connectionId: conn._id }) });
+                              const data = await res.json();
+                              if (data.error) { alert(`Error: ${data.error}`); return; }
+                              const fileList = (data.files || []).map((f: any) => `${f.type === "dir" ? "📁" : "📄"} ${f.name} (${f.type === "dir" ? "dir" : `${(f.size/1024).toFixed(0)}KB`}) ${f.modified ? new Date(f.modified).toLocaleString() : ""}`).join("\n");
+                              alert(`📂 ${data.path}\n${data.total} items:\n\n${fileList}`);
+                            }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                              Browse Files
+                            </button>
+                            <button onClick={async () => {
                               const res = await fetch("/api/reports/ftp-sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connectionId: conn._id }) });
                               const data = await res.json();
                               alert(JSON.stringify(data.results || data, null, 2));
