@@ -542,7 +542,7 @@ export default function ReportUploadPage() {
                             </div>
                             <div className="flex gap-2 mt-3">
                               <button onClick={async () => {
-                                await updateFtp({ id: conn._id as any, name: editForm.name, host: editForm.host, port: parseInt(editForm.port) || 21, remotePath: editForm.remotePath, filePattern: editForm.filePattern, sourceType: editForm.sourceType, frequency: editForm.frequency });
+                                await updateFtp({ id: conn._id as any, name: editForm.name, host: editForm.host, port: parseInt(editForm.port) || 21, remotePath: editForm.remotePath, filePattern: editForm.filePattern, frequency: editForm.frequency });
                                 setEditingFtp(null);
                               }} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${isDark ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
                                 Save
