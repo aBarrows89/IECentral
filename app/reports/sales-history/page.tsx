@@ -23,6 +23,7 @@ export default function SalesHistoryReportPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  const [showInfo, setShowInfo] = useState(false);
   const [brand, setBrand] = useState("");
   const [productType, setProductType] = useState("");
   const [dclass, setDclass] = useState("");
@@ -163,6 +164,9 @@ export default function SalesHistoryReportPage() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <button onClick={() => setShowInfo(true)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-gray-200 text-gray-500"}`} title="About this report">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
                 <button onClick={handleExportCSV} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"}`}>CSV</button>
                 <button onClick={handleExportExcel} disabled={sorted.length === 0} className={`px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 ${isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"}`}>Excel</button>
               </div>
@@ -354,6 +358,55 @@ export default function SalesHistoryReportPage() {
           </div>
         </main>
       </div>
+
+      {/* Info Modal */}
+      {showInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowInfo(false)}>
+          <div className={`w-full max-w-lg rounded-xl shadow-2xl ${isDark ? "bg-slate-800" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
+            <div className={`px-6 py-4 border-b flex items-center justify-between ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+              <h3 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>About Sales History</h3>
+              <button onClick={() => setShowInfo(false)} className={`p-1 rounded-lg ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-gray-100 text-gray-500"}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className={`px-6 py-5 space-y-4 text-sm ${isDark ? "text-slate-300" : "text-gray-600"}`}>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>What is this report?</h4>
+                <p>Monthly sales aggregation by item. Shows net quantity sold per month for each tire product, sorted by total volume.</p>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Data Source</h4>
+                <p>Aggregated from daily <strong>OEA07V</strong> reports uploaded by the PH team. Each daily file contains item-level sales and return transactions.</p>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Understanding the Numbers</h4>
+                <ul className="list-disc list-inside space-y-1">
+                  <li><strong className={isDark ? "text-emerald-400" : "text-emerald-600"}>Positive numbers</strong> = net units sold in that month</li>
+                  <li><strong className={isDark ? "text-red-400" : "text-red-600"}>Negative numbers</strong> = net returns exceeded sales (more came back than went out)</li>
+                  <li><strong>Total</strong> = sum across all visible months</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Descriptions & Brands</h4>
+                <p>Enriched from the <strong>Tires Catalog</strong> (FTP hourly sync). Brand codes are mapped to full manufacturer names. Descriptions include size, load index, speed rating, and sidewall from the catalog.</p>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Filters Applied</h4>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Tire products only (type starts with T, excludes T alone)</li>
+                  <li>Customer sales only (excludes warehouse transfers, internal accounts 700/7001/7002)</li>
+                  <li>Excludes non-sale transactions (transfers, receives)</li>
+                  <li>Non-product items filtered (descriptions starting with =, ~, $, *, #)</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>D-Class</h4>
+                <p>Extracted from the trailing character on the Item ID. Dot, Caret, Bracket, Colon, Dash, Tilde, Star, Hash.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Protected>
   );
 }
