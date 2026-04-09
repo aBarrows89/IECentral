@@ -185,17 +185,18 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
 
     if (matches.length === 0) continue;
 
-    const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: matches[0].Key! }));
-    const buffer = await getRes.Body?.transformToByteArray();
-    if (!buffer) continue;
+    const fileKey = matches[0].Key!.toLowerCase();
+    const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fileKey.endsWith(".csv") ? matches[0].Key! : matches[0].Key! }));
 
     if (reportType === "oeival") {
       let rawData: unknown[][];
-      const fileKey = matches[0].Key!.toLowerCase();
       if (fileKey.endsWith(".csv")) {
-        const text = new TextDecoder().decode(buffer);
+        const text = await getRes.Body?.transformToString("utf-8") || "";
+        if (!text) continue;
         rawData = parseCSV(text.replace(/^\uFEFF/, "").replace(/\0/g, ""));
       } else {
+        const buffer = await getRes.Body?.transformToByteArray();
+        if (!buffer) continue;
         const XLSX = await import("xlsx");
         const wb = XLSX.read(buffer, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
@@ -256,7 +257,8 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
     }
 
     if (reportType === "tires") {
-      const text = new TextDecoder().decode(buffer);
+      const tiresRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: matches[0].Key! }));
+      const text = await tiresRes.Body?.transformToString("utf-8") || "";
       const lines = text.replace(/^\uFEFF/, "").split("\n");
       const headers = lines[0].split(",").map((h) => h.trim());
       const rows: Record<string, string>[] = [];
@@ -305,12 +307,13 @@ export async function POST(request: NextRequest) {
     // Fusion — fetch second source and join
     if (secondSource && fusionJoinKey) {
       let secondData;
+      // Only fetch needed columns: join key + selected fusion columns + mfgItemId for auto-join
+      const neededKeys = new Set(["mfgItemId", "itemId", fusionJoinKey, ...(fusionColumns as string[] || [])]);
       if (["oeival", "tires"].includes(secondSource)) {
-        // Get all columns from second source for fusion
-        const secondCols = COLUMN_DEFS[secondSource] || [];
+        const secondCols = (COLUMN_DEFS[secondSource] || []).filter((c) => neededKeys.has(c.key) || !fusionColumns);
         secondData = await fetchXlsxData(secondSource, secondCols.map((c) => c.key));
       } else {
-        const secondCols = COLUMN_DEFS[secondSource] || [];
+        const secondCols = (COLUMN_DEFS[secondSource] || []).filter((c) => neededKeys.has(c.key) || !fusionColumns);
         secondData = await fetchSourceData(secondSource, months, secondCols.map((c) => c.key));
       }
 
