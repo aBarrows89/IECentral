@@ -39,7 +39,7 @@ export default function SalesHistoryReportPage() {
   const [filterSearch, setFilterSearch] = useState("");
   const hideSpecial = true; // Always filter non-product items
   const [sortCol, setSortCol] = useState("total");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [loading, setLoading] = useState(true);
@@ -334,7 +334,6 @@ export default function SalesHistoryReportPage() {
                             );
                           })}
                           <td className={`px-3 py-1.5 text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{item.total}</td>
-                          <td className={`px-3 py-1.5 text-right ${isDark ? "text-cyan-400" : "text-blue-600"}`}>{item.availableStock ?? "—"}</td>
                         </tr>
                       ))}
                     </tbody>
