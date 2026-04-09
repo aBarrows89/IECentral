@@ -72,12 +72,12 @@ export async function GET(request: NextRequest) {
         // List files in remote path
         const listing = await client.list(fullConn.remotePath || "/");
 
-        // Find latest file matching pattern
+        // Find all files matching pattern
         const pattern = fullConn.filePattern.replace(/\*/g, ".*");
         const regex = new RegExp(pattern, "i");
         const matching = listing
           .filter((f) => regex.test(f.name) && f.type !== 2) // type 2 = directory
-          .sort((a, b) => (b.modifiedAt?.getTime() ?? 0) - (a.modifiedAt?.getTime() ?? 0));
+          .sort((a, b) => (a.modifiedAt?.getTime() ?? 0) - (b.modifiedAt?.getTime() ?? 0)); // oldest first
 
         if (matching.length === 0) {
           await convex.mutation(api.ftpConnections.updateSyncStatus, {
@@ -90,65 +90,69 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const latestFile = matching[0];
-        const remotePath = `${fullConn.remotePath || "/"}/${latestFile.name}`.replace("//", "/");
+        // Filter to only files newer than last sync
+        const lastSyncAt = fullConn.lastSyncAt ? new Date(fullConn.lastSyncAt) : new Date(0);
+        const newFiles = matching.filter((f) => {
+          const modTime = f.modifiedAt || new Date(0);
+          return modTime > lastSyncAt;
+        });
 
-        // Skip if same file as last sync
-        if (fullConn.lastSyncFileName === latestFile.name) {
+        if (newFiles.length === 0) {
           await convex.mutation(api.ftpConnections.updateSyncStatus, {
             id: conn._id as Id<"ftpConnections">,
             lastSyncStatus: "success",
           });
-          results.push({ name: conn.name, status: "skipped", message: "File unchanged" });
+          results.push({ name: conn.name, status: "skipped", message: "No new files since last sync" });
           client.close();
           continue;
         }
 
-        // Download file to memory
-        const chunks: Buffer[] = [];
-        const writable = new Writable({
-          write(chunk, _encoding, callback) {
-            chunks.push(Buffer.from(chunk));
-            callback();
-          },
-        });
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
+        let totalRows = 0;
+        let lastFileName = "";
 
-        await client.downloadTo(writable, remotePath);
+        // Download and process each new file
+        for (const file of newFiles) {
+          const remotePath = `${fullConn.remotePath || "/"}/${file.name}`.replace("//", "/");
+
+          const chunks: Buffer[] = [];
+          const writable = new Writable({
+            write(chunk, _encoding, callback) {
+              chunks.push(Buffer.from(chunk));
+              callback();
+            },
+          });
+
+          await client.downloadTo(writable, remotePath);
+          const fileBuffer = Buffer.concat(chunks);
+
+          // Upload to S3 via upload-url
+          const now = new Date();
+          const month = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const urlRes = await fetch(`${APP_URL}/api/reports/upload-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportType: fullConn.sourceType, month, filename: file.name }),
+          });
+          const { url, key } = await urlRes.json();
+
+          if (url) {
+            const contentType = file.name.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+            await fetch(url, { method: "PUT", body: fileBuffer, headers: { "Content-Type": contentType } });
+            totalRows++;
+            lastFileName = file.name;
+          }
+        }
+
         client.close();
 
-        const fileBuffer = Buffer.concat(chunks);
-
-        // Send to ingest endpoint
-        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
-        const formData = new FormData();
-        const blob = new Blob([fileBuffer], { type: "text/csv" });
-        formData.append("file", blob, latestFile.name);
-        formData.append("sourceType", fullConn.sourceType);
-        formData.append("userName", "FTP Auto-Sync");
-        if (fullConn.warehouse) formData.append("warehouse", fullConn.warehouse);
-
-        const ingestRes = await fetch(`${APP_URL}/api/reports/ingest`, {
-          method: "POST",
-          body: formData,
+        await convex.mutation(api.ftpConnections.updateSyncStatus, {
+          id: conn._id as Id<"ftpConnections">,
+          lastSyncStatus: "success",
+          lastSyncFileName: lastFileName,
+          lastSyncRowCount: totalRows,
         });
-        const ingestData = await ingestRes.json();
-
-        if (ingestRes.ok) {
-          await convex.mutation(api.ftpConnections.updateSyncStatus, {
-            id: conn._id as Id<"ftpConnections">,
-            lastSyncStatus: "success",
-            lastSyncFileName: latestFile.name,
-            lastSyncRowCount: ingestData.rowCount,
-          });
-          results.push({ name: conn.name, status: "success", message: `${ingestData.rowCount} rows from ${latestFile.name}` });
-        } else {
-          await convex.mutation(api.ftpConnections.updateSyncStatus, {
-            id: conn._id as Id<"ftpConnections">,
-            lastSyncStatus: "failed",
-            lastSyncError: ingestData.error,
-          });
-          results.push({ name: conn.name, status: "failed", message: ingestData.error });
-        }
+        results.push({ name: conn.name, status: "success", message: `${newFiles.length} files synced (latest: ${lastFileName})` });
       } catch (err) {
         client.close();
         const msg = err instanceof Error ? err.message : "Unknown error";
