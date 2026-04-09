@@ -95,7 +95,7 @@ export default function InventoryReportPage() {
       const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [items, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir]);
 
   const paged = useMemo(() => sorted.slice(page * pageSize, (page + 1) * pageSize), [sorted, page, pageSize]);
   const totalPages = Math.ceil(sorted.length / pageSize);

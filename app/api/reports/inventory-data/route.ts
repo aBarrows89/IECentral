@@ -207,7 +207,6 @@ export async function GET(request: NextRequest) {
       fileDate,
       fileName: fileKey.split("/").pop(),
       totalRows: items.length,
-      _debug: { headerRow, detectedColumns: col, hasHeaders },
     });
   } catch (err) {
     console.error("Inventory data error:", err);

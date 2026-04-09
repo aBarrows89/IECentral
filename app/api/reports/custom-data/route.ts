@@ -455,7 +455,6 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[], mont
       return {
         columns: selectedColumns.filter(k => colMap[k] !== undefined).map((k) => ({ key: k, name: k })),
         rows,
-        _debug: { rawHeaders: rawHeaders.slice(0, 30), detectedColumns: colMap },
       };
     }
   }
@@ -598,7 +597,6 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("Custom data error:", err);
     const msg = err instanceof Error ? err.message : "Unknown error";
-    const stack = err instanceof Error ? err.stack?.split("\n").slice(0, 3).join(" | ") : "";
-    return NextResponse.json({ error: msg, detail: stack }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
