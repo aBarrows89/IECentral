@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
     for (const prefix of ["jmk-uploads/oeival/", "jmk-uploads/"]) {
       const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
       const found = (listRes.Contents || [])
-        .filter((o) => o.Key?.toLowerCase().includes("oeival") && (o.Key?.endsWith(".xlsx") || o.Key?.endsWith(".csv")));
+        .filter((o) => o.Key?.toLowerCase().includes("oeival") && (o.Key?.endsWith(".xlsx") || o.Key?.endsWith(".csv")))
+        .filter((o) => !o.Size || o.Size < 20 * 1024 * 1024); // Skip files > 20MB
       if (found.length > 0) { oeivalFiles = found; break; }
     }
     oeivalFiles.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));

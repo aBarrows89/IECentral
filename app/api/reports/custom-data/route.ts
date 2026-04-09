@@ -181,6 +181,7 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
         if (reportType === "tires") return key.includes("tires") && key.endsWith(".csv");
         return false;
       })
+      .filter((o) => !o.Size || o.Size < 20 * 1024 * 1024) // Skip files > 20MB
       .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
 
     if (matches.length === 0) continue;
