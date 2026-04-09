@@ -168,9 +168,20 @@ async function fetchSourceData(reportType: string, months: string[], selectedCol
     };
 }
 
-async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
-  // For OEIVAL and similar XLSX sources, find latest file in organized folders
-  const prefixes = reportType === "oeival" ? ["jmk-uploads/oeival/", "jmk-uploads/"] : ["jmk-uploads/oea07v-sales/", "jmk-uploads/"];
+async function fetchXlsxData(reportType: string, selectedColumns: string[], months?: string[]) {
+  // For OEIVAL and similar sources, match files to the requested date range
+  const basePrefixes = reportType === "oeival" ? ["jmk-uploads/oeival/", "jmk-uploads/"] : ["jmk-uploads/oea07v-sales/", "jmk-uploads/"];
+
+  // Try month-specific folders first if months provided (e.g., jmk-uploads/oeival/202604/)
+  const prefixes: string[] = [];
+  if (months?.length) {
+    for (const m of months) {
+      for (const base of basePrefixes) {
+        prefixes.push(`${base}${m}/`);
+      }
+    }
+  }
+  prefixes.push(...basePrefixes); // Fallback to scanning all
 
   for (const prefix of prefixes) {
     const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
@@ -181,7 +192,7 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
         if (reportType === "tires") return key.includes("tires") && key.endsWith(".csv");
         return false;
       })
-      .filter((o) => !o.Size || o.Size < 20 * 1024 * 1024) // Skip files > 20MB
+      .filter((o) => !o.Size || o.Size < 50 * 1024 * 1024) // Skip files > 50MB
       .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
 
     if (matches.length === 0) continue;
@@ -298,7 +309,7 @@ export async function POST(request: NextRequest) {
     // Fetch primary source
     let primaryData;
     if (["oeival", "tires"].includes(reportType)) {
-      primaryData = await fetchXlsxData(reportType, primaryColumns);
+      primaryData = await fetchXlsxData(reportType, primaryColumns, months);
     } else {
       primaryData = await fetchSourceData(reportType, months, primaryColumns);
     }
@@ -313,7 +324,7 @@ export async function POST(request: NextRequest) {
       const neededKeys = new Set(["mfgItemId", "itemId", fusionJoinKey, ...(fusionColumns as string[] || [])]);
       if (["oeival", "tires"].includes(secondSource)) {
         const secondCols = (COLUMN_DEFS[secondSource] || []).filter((c) => neededKeys.has(c.key) || !fusionColumns);
-        secondData = await fetchXlsxData(secondSource, secondCols.map((c) => c.key));
+        secondData = await fetchXlsxData(secondSource, secondCols.map((c) => c.key), months);
       } else {
         const secondCols = (COLUMN_DEFS[secondSource] || []).filter((c) => neededKeys.has(c.key) || !fusionColumns);
         secondData = await fetchSourceData(secondSource, months, secondCols.map((c) => c.key));
