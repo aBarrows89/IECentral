@@ -262,8 +262,10 @@ function UploadTab({ isDark, userId }: { isDark: boolean; userId?: Id<"users"> }
       const allRows = parsePositionalCSV(text);
       if (allRows.length === 0) { setFileError("File is empty or could not be parsed."); return; }
 
-      // Filter to only FAL and MIL brands
+      // Filter to tire types (starts with T, not T alone) + FAL/MIL brands
       const brandRows = allRows.filter(cols => {
+        const pt = (cols[COL.PRODUCT_TYPE] ?? "").trim();
+        if (!pt.startsWith("T") || pt === "T") return false;
         const brand = (cols[COL.MFG_ID] ?? "").trim().toUpperCase();
         return brand === "FAL" || brand === "MIL";
       });

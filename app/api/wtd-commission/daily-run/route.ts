@@ -217,6 +217,10 @@ export async function GET(request: NextRequest) {
 
           if (accountId.toUpperCase() !== config.customerNumber.toUpperCase()) return false;
 
+          // Only tire product types (starts with T but not T alone)
+          const pt = row[COL.PRODUCT_TYPE]?.replace(/"/g, "").trim() || "";
+          if (!pt.startsWith("T") || pt === "T") return false;
+
           if (config.qualifyingDclasses.length > 0) {
             if (!config.qualifyingDclasses.some(suffix => itemId.endsWith(suffix))) return false;
           }

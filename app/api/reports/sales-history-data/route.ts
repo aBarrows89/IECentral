@@ -124,6 +124,10 @@ export async function GET(request: NextRequest) {
         const transaction = (row[9] || "").replace(/"/g, "").trim();
         if (transaction === "TrI" || transaction === "TrO" || transaction === "Rcv") continue;
 
+        // Only include tire product types (starts with T but not T alone)
+        const productType = (row[3] || "").replace(/"/g, "").trim();
+        if (!productType.startsWith("T") || productType === "T") continue;
+
         const qty = parseFloat(row[10] || "0") || 0;
         // Parse activity date to get the month (MM/DD/YY)
         const dateRaw = (row[18] || "").replace(/"/g, "").trim();
