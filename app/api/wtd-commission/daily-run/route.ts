@@ -168,8 +168,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Download and parse ALL OEA07V files (not just latest)
+    // Download and parse ALL OEA07V files (not just latest), deduplicating rows
     const rowsByDate = new Map<string, string[][]>();
+    const seenRows = new Set<string>();
     let totalFilesProcessed = 0;
 
     for (const match of matches.filter(m => !(m as any).Size || (m as any).Size < 50 * 1024 * 1024)) { // Skip >50MB
@@ -184,12 +185,18 @@ export async function GET(request: NextRequest) {
         totalFilesProcessed++;
 
         for (const row of dataRows) {
-      if (row.length <= COL.ACTIVITY_DATE) continue;
-      const d = parseActivityDate(row[COL.ACTIVITY_DATE]?.trim() || "");
-      if (!d) continue;
-      const dateKey = d.toISOString().split("T")[0];
-      if (!rowsByDate.has(dateKey)) rowsByDate.set(dateKey, []);
-      rowsByDate.get(dateKey)!.push(row);
+          if (row.length <= COL.ACTIVITY_DATE) continue;
+          const d = parseActivityDate(row[COL.ACTIVITY_DATE]?.trim() || "");
+          if (!d) continue;
+          const dateKey = d.toISOString().split("T")[0];
+
+          // Deduplicate: same date + invoice + item + qty = same transaction
+          const dedupKey = `${dateKey}|${(row[COL.INV_ID] || "").trim()}|${(row[COL.ITEM_ID] || "").trim()}|${(row[COL.QTY] || "").trim()}`;
+          if (!seenRows.has(dedupKey)) {
+            seenRows.add(dedupKey);
+            if (!rowsByDate.has(dateKey)) rowsByDate.set(dateKey, []);
+            rowsByDate.get(dateKey)!.push(row);
+          }
         }
       } catch { /* skip unreadable files */ }
     }
