@@ -148,7 +148,12 @@ export default function CustomReportPage() {
 
   const handleSourceChange = useCallback((code: string) => {
     setSourceType(code);
-    setSelectedColumns((COLUMN_OPTIONS[code] || []).filter((c) => c.defaultOn).map((c) => c.key));
+    const defaults = (COLUMN_OPTIONS[code] || []).filter((c) => c.defaultOn).map((c) => c.key);
+    // Always include mfgItemId for fusion support
+    if (!defaults.includes("mfgItemId") && (COLUMN_OPTIONS[code] || []).some((c) => c.key === "mfgItemId")) {
+      defaults.push("mfgItemId");
+    }
+    setSelectedColumns(defaults);
     setSecondSource("");
     setSelectedFusionColumns([]);
     setRows([]);
@@ -160,8 +165,10 @@ export default function CustomReportPage() {
   ) : [];
 
   const toggleColumn = useCallback((key: string) => {
+    // Don't allow deselecting mfgItemId when fusion is active
+    if (key === "mfgItemId" && secondSource) return;
     setSelectedColumns((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
-  }, []);
+  }, [secondSource]);
 
   // Derive months from date range
   function getMonthsFromRange(start: string, end: string): string[] {
@@ -375,6 +382,10 @@ export default function CustomReportPage() {
                     </div>
                     <select value={secondSource} onChange={(e) => {
                       setSecondSource(e.target.value);
+                      // Ensure mfgItemId is selected when fusion is active
+                      if (e.target.value && !selectedColumns.includes("mfgItemId")) {
+                        setSelectedColumns((prev) => [...prev, "mfgItemId"]);
+                      }
                       // Auto-select all fusion columns from second source (excluding overlapping + join key)
                       const opts = (COLUMN_OPTIONS[e.target.value] || []).filter((c) => c.key !== fusionJoinKey && !selectedColumns.includes(c.key));
                       setSelectedFusionColumns(opts.filter((c) => c.defaultOn).map((c) => c.key));

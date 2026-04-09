@@ -387,6 +387,9 @@ export async function POST(request: NextRequest) {
       truncated: finalRows.length > 50000,
     });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    console.error("Custom data error:", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    const stack = err instanceof Error ? err.stack?.split("\n").slice(0, 3).join(" | ") : "";
+    return NextResponse.json({ error: msg, detail: stack }, { status: 500 });
   }
 }
