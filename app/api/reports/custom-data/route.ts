@@ -185,12 +185,13 @@ async function fetchXlsxData(reportType: string, selectedColumns: string[]) {
 
     if (matches.length === 0) continue;
 
-    const fileKey = matches[0].Key!.toLowerCase();
-    const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fileKey.endsWith(".csv") ? matches[0].Key! : matches[0].Key! }));
+    const fileKey = matches[0].Key!;
+    const fileKeyLower = fileKey.toLowerCase();
+    const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fileKey }));
 
     if (reportType === "oeival") {
       let rawData: unknown[][];
-      if (fileKey.endsWith(".csv")) {
+      if (fileKeyLower.endsWith(".csv")) {
         const text = await getRes.Body?.transformToString("utf-8") || "";
         if (!text) continue;
         rawData = parseCSV(text.replace(/^\uFEFF/, "").replace(/\0/g, ""));
