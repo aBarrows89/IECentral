@@ -36,7 +36,7 @@ export default function SalesHistoryReportPage() {
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
   const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
   const [filterSearch, setFilterSearch] = useState("");
-  const [hideSpecial, setHideSpecial] = useState(true);
+  const hideSpecial = true; // Always filter non-product items
   const [sortCol, setSortCol] = useState("total");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
@@ -204,12 +204,8 @@ export default function SalesHistoryReportPage() {
                 </select>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <label className={`flex items-center gap-1.5 text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                  <input type="checkbox" checked={hideSpecial} onChange={(e) => { setHideSpecial(e.target.checked); setPage(0); }} className="rounded" />
-                  Hide non-product items (=, ~, $, *, #)
-                </label>
-                {(brand || productType || dclass || startMonth || endMonth || search || !hideSpecial) && (
-                  <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setStartMonth(""); setEndMonth(""); setSearch(""); setHideSpecial(true); setPage(0); }}
+                {(brand || productType || dclass || search) && (
+                  <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setSearch(""); setPage(0); }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Clear All</button>
                 )}
                 {filtered.length !== items.length && (
