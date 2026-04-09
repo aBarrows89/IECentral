@@ -124,9 +124,14 @@ export async function GET(request: NextRequest) {
         const transaction = (row[9] || "").replace(/"/g, "").trim();
         if (transaction === "TrI" || transaction === "TrO" || transaction === "Rcv") continue;
 
-        // Only include tire product types (starts with T but not T alone)
+        // Standard filters: tire types only, no warehouse transfers, no internal accounts
         const productType = (row[3] || "").replace(/"/g, "").trim();
         if (!productType.startsWith("T") || productType === "T") continue;
+        const acct = (row[15] || "").replace(/"/g, "").trim().toUpperCase();
+        if (["700", "7001", "7002"].includes(acct)) continue;
+        if (/^[WR]\d{2}[WR]\d{2}$/i.test(acct)) continue;
+        if (/^[WR]\d{2}$/i.test(acct)) continue;
+        if (acct.startsWith("INV") || acct.startsWith("99-")) continue;
 
         const qty = parseFloat(row[10] || "0") || 0;
         // Parse activity date to get the month (MM/DD/YY)

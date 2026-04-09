@@ -86,7 +86,12 @@ export async function POST(request: NextRequest) {
     // Filter to tire product types only
     const tireRows = dataRows.filter(cols => {
       const pt = (cols[COL.PRODUCT_TYPE] || "").trim().toUpperCase();
-      return pt.startsWith("T") && pt !== "T";
+      if (!pt.startsWith("T") || pt === "T") return false;
+      const acct = (cols[COL.ACCOUNT_ID] || "").trim().toUpperCase();
+      if (["700", "7001", "7002"].includes(acct)) return false;
+      if (/^[WR]\d{2}[WR]\d{2}$/i.test(acct)) return false;
+      if (/^[WR]\d{2}$/i.test(acct)) return false;
+      return true;
     });
 
     // 2. Load dealers from Convex

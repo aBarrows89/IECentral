@@ -221,6 +221,11 @@ export async function GET(request: NextRequest) {
           const pt = row[COL.PRODUCT_TYPE]?.replace(/"/g, "").trim() || "";
           if (!pt.startsWith("T") || pt === "T") return false;
 
+          // Exclude warehouse transfers and internal accounts
+          if (["700", "7001", "7002"].includes(accountId.toUpperCase())) return false;
+          if (/^[WR]\d{2}[WR]\d{2}$/i.test(accountId)) return false;
+          if (/^[WR]\d{2}$/i.test(accountId)) return false;
+
           if (config.qualifyingDclasses.length > 0) {
             if (!config.qualifyingDclasses.some(suffix => itemId.endsWith(suffix))) return false;
           }

@@ -3,6 +3,31 @@ import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/clien
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
+/**
+ * Standard OEA07V row filter — excludes non-tire types, warehouse transfers, and internal accounts.
+ * Row must have: product type col at index 3, account ID at index 15.
+ */
+function isValidOEA07VRow(row: string[]): boolean {
+  // Product type must start with T but not be T alone
+  const pt = (row[3] || "").replace(/"/g, "").trim();
+  if (!pt.startsWith("T") || pt === "T") return false;
+
+  // Exclude internal accounts
+  const acct = (row[15] || "").replace(/"/g, "").trim().toUpperCase();
+  if (["700", "7001", "7002"].includes(acct)) return false;
+
+  // Exclude warehouse transfers — two location codes joined (W##W##, R##W##, W##R##, R##R##)
+  if (/^[WR]\d{2}[WR]\d{2}$/i.test(acct)) return false;
+
+  // Exclude standalone warehouse/store codes used as account (W07, W08, W09, R10-R35)
+  if (/^[WR]\d{2}$/i.test(acct)) return false;
+
+  // Exclude inventory/adjustment accounts
+  if (acct.startsWith("INV") || acct.startsWith("99-")) return false;
+
+  return true;
+}
+
 const s3 = new S3Client({
   region: process.env.S3_REGION || "us-east-1",
   ...(process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
@@ -154,11 +179,8 @@ async function fetchSourceData(reportType: string, months: string[], selectedCol
       // Skip header
       for (let i = 1; i < csvRows.length; i++) {
         const row = csvRows[i];
-        // Filter OEA07V to tire product types only (starts with T, not T alone)
-        if (reportType === "OEA07V") {
-          const pt = (row[3] || "").replace(/"/g, "").trim();
-          if (!pt.startsWith("T") || pt === "T") continue;
-        }
+        // Standard OEA07V filters: tire types only, no warehouse transfers
+        if (reportType === "OEA07V" && !isValidOEA07VRow(row)) continue;
         const record: Record<string, string> = {};
         for (const col of activeCols) {
           record[col.key] = (row[col.index] || "").replace(/"/g, "").trim();
