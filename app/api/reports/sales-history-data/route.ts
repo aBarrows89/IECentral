@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { brandCodeToName } from "@/lib/brandMapping";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
           entry = {
             itemId,
             description: (row[1] || "").replace(/"/g, "").trim(),
-            brand: (row[4] || "").replace(/"/g, "").trim(),
+            brand: brandCodeToName((row[4] || "").replace(/"/g, "").trim()),
             productType: (row[3] || "").replace(/"/g, "").trim(),
             dclass,
             model: "",

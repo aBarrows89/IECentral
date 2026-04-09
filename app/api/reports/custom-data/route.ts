@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { brandCodeToName } from "@/lib/brandMapping";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -183,7 +184,10 @@ async function fetchSourceData(reportType: string, months: string[], selectedCol
         if (reportType === "OEA07V" && !isValidOEA07VRow(row)) continue;
         const record: Record<string, string> = {};
         for (const col of activeCols) {
-          record[col.key] = (row[col.index] || "").replace(/"/g, "").trim();
+          let val = (row[col.index] || "").replace(/"/g, "").trim();
+          // Map brand codes to full names
+          if (col.key === "brand" && reportType === "OEA07V") val = brandCodeToName(val);
+          record[col.key] = val;
         }
         allRows.push(record);
       }
