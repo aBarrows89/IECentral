@@ -110,7 +110,8 @@ export async function GET(request: NextRequest) {
         const tireText = await tireRes.Body?.transformToString("utf-8") || "";
         const tireLines = tireText.replace(/^\uFEFF/, "").split("\n");
         const th = tireLines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
-        const ti = { itemId: th.findIndex(h => h.includes("item id")), mfgName: th.findIndex(h => h.includes("brand") || h.includes("mfg name") || h.includes("manufacturer")), model: th.findIndex(h => h === "model"), size: th.findIndex(h => h.includes("size")), li: th.findIndex(h => h.includes("load index")), sr: th.findIndex(h => h.includes("speed rating")), sw: th.findIndex(h => h.includes("sidewall")), xl: th.findIndex(h => h.includes("xl/rf") || h.includes("xlrf")), ply: th.findIndex(h => h.includes("ply rating") || h.includes("load range")) };
+        console.log("Tire CSV headers:", th.slice(0, 15));
+        const ti = { itemId: th.findIndex(h => h.includes("item id") || h.includes("itemid") || h === "sku"), mfgName: th.findIndex(h => h.includes("brand") || h.includes("mfg name") || h.includes("manufacturer")), model: th.findIndex(h => h === "model"), size: th.findIndex(h => h.includes("size")), li: th.findIndex(h => h.includes("load index")), sr: th.findIndex(h => h.includes("speed rating")), sw: th.findIndex(h => h.includes("sidewall")), xl: th.findIndex(h => h.includes("xl/rf") || h.includes("xlrf")), ply: th.findIndex(h => h.includes("ply rating") || h.includes("load range")) };
         for (let i = 1; i < tireLines.length; i++) {
           const c = tireLines[i].split(",").map(v => v.replace(/"/g, "").trim());
           const id = ti.itemId >= 0 ? c[ti.itemId] : "";
@@ -121,7 +122,8 @@ export async function GET(request: NextRequest) {
           tireLookup.set(id.replace(/[.\^\[:\-~*#]$/, ""), { mfgName: tire.mfgName, model: tire.model, desc });
         }
       }
-    } catch { /* best effort */ }
+    } catch (err) { console.error("Tire catalog load error:", err); }
+    console.log(`Tire lookup: ${tireLookup.size} entries`);
 
     let latestFileDate: string | null = null;
 
