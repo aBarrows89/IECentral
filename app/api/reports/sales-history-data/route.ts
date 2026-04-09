@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { brandCodeToName } from "@/lib/brandMapping";
+import { buildTireDescription } from "@/lib/tireDescriptions";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -98,6 +99,29 @@ export async function GET(request: NextRequest) {
       dclass: string; model: string; mfgItemId: string;
       monthlySales: Record<string, number>;
     }>();
+
+    // Load tires catalog for description/model enrichment
+    const tireLookup = new Map<string, { mfgName: string; model: string; desc: string }>();
+    try {
+      const tireList = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: "jmk-uploads/tires/", MaxKeys: 100 }));
+      const tireFiles = (tireList.Contents || []).filter(o => o.Key?.includes("tires-") && o.Key?.endsWith(".csv")).sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+      if (tireFiles.length > 0) {
+        const tireRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: tireFiles[0].Key! }));
+        const tireText = await tireRes.Body?.transformToString("utf-8") || "";
+        const tireLines = tireText.replace(/^\uFEFF/, "").split("\n");
+        const th = tireLines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
+        const ti = { itemId: th.findIndex(h => h.includes("item id")), mfgName: th.findIndex(h => h.includes("brand") || h.includes("mfg name") || h.includes("manufacturer")), model: th.findIndex(h => h === "model"), size: th.findIndex(h => h.includes("size")), li: th.findIndex(h => h.includes("load index")), sr: th.findIndex(h => h.includes("speed rating")), sw: th.findIndex(h => h.includes("sidewall")), xl: th.findIndex(h => h.includes("xl/rf") || h.includes("xlrf")), ply: th.findIndex(h => h.includes("ply rating") || h.includes("load range")) };
+        for (let i = 1; i < tireLines.length; i++) {
+          const c = tireLines[i].split(",").map(v => v.replace(/"/g, "").trim());
+          const id = ti.itemId >= 0 ? c[ti.itemId] : "";
+          if (!id) continue;
+          const tire = { mfgName: ti.mfgName >= 0 ? c[ti.mfgName] : "", model: ti.model >= 0 ? c[ti.model] : "", size: ti.size >= 0 ? c[ti.size] : "", loadIndex: ti.li >= 0 ? c[ti.li] : "", speedRating: ti.sr >= 0 ? c[ti.sr] : "", sidewall: ti.sw >= 0 ? c[ti.sw] : "", xlrf: ti.xl >= 0 ? c[ti.xl] : "", plyRating: ti.ply >= 0 ? c[ti.ply] : "" };
+          const desc = buildTireDescription(tire);
+          tireLookup.set(id, { mfgName: tire.mfgName, model: tire.model, desc });
+          tireLookup.set(id.replace(/[.\^\[:\-~*#]$/, ""), { mfgName: tire.mfgName, model: tire.model, desc });
+        }
+      }
+    } catch { /* best effort */ }
 
     let latestFileDate: string | null = null;
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { brandCodeToName } from "@/lib/brandMapping";
 
 const BUCKET = "ietires-dunlop-jmk-uploads";
 
@@ -165,7 +166,7 @@ export async function GET(request: NextRequest) {
         stockType: gn(row, "stockType"),
         dclass: col.dclass !== undefined ? decodeDclass(g(row, "dclass") || "Blank") : (() => { const id = g(row, "itemId"); const last = id.slice(-1); const dm: Record<string,string> = {".":"Dot","^":"Caret","[":"Bracket",":":"Colon","-":"Dash","~":"Tilde","*":"Star","#":"Hash"}; return dm[last] || ""; })(),
         manufacturerCode: g(row, "manufacturerCode"),
-        manufacturerName: g(row, "manufacturerName"),
+        manufacturerName: brandCodeToName(g(row, "manufacturerName")),
         model: g(row, "model"),
         itemId: g(row, "itemId"),
         mfgItemId: g(row, "mfgItemId"),

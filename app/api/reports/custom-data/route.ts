@@ -502,6 +502,8 @@ export async function POST(request: NextRequest) {
             if (tire.computedDescription) enriched.description = tire.computedDescription;
             // Replace brand code with full name from catalog
             if (tire.mfgName && enriched.brand) enriched.brand = tire.mfgName;
+            // Populate model from catalog
+            if (tire.model && !enriched.model) enriched.model = tire.model;
             return enriched;
           });
         }
