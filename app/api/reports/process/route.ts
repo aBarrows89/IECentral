@@ -25,81 +25,49 @@ export async function POST(request: NextRequest) {
 
     // Process based on report type triggers
     if (reportType === "OEA07V") {
-      // Trigger 1: Sales data refresh
-      try {
-        const salesRes = await fetch(`${APP_URL}/api/sales/refresh`, {
+      // Run all 3 triggers in parallel
+      const [salesResult, wtdResult, rebateResult] = await Promise.allSettled([
+        // Trigger 1: Sales refresh
+        fetch(`${APP_URL}/api/sales/refresh`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET || ""}` },
-        });
-        const salesData = await salesRes.json();
-        results.push({
-          trigger: "sales-refresh",
-          status: salesRes.ok ? "success" : "failed",
-          message: salesRes.ok ? `Processed ${salesData.rowCount || 0} rows` : salesData.error,
-          completedAt: Date.now(),
-        });
-      } catch (err) {
-        results.push({
-          trigger: "sales-refresh",
-          status: "failed",
-          message: err instanceof Error ? err.message : "Unknown error",
-          completedAt: Date.now(),
-        });
-      }
+        }).then(async (r) => ({ ok: r.ok, data: await r.json() })),
 
-      // Trigger 2: WTD Commission daily run
-      try {
-        const wtdRes = await fetch(`${APP_URL}/api/wtd-commission/daily-run`, {
+        // Trigger 2: WTD Commission
+        fetch(`${APP_URL}/api/wtd-commission/daily-run`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET || ""}` },
-        });
-        const wtdData = await wtdRes.json();
-        results.push({
-          trigger: "wtd-commission",
-          status: wtdRes.ok ? "success" : "failed",
-          message: wtdRes.ok ? `Generated ${wtdData.reportsGenerated || 0} reports` : wtdData.error,
-          completedAt: Date.now(),
-        });
-      } catch (err) {
-        results.push({
-          trigger: "wtd-commission",
-          status: "failed",
-          message: err instanceof Error ? err.message : "Unknown error",
-          completedAt: Date.now(),
-        });
-      }
+        }).then(async (r) => ({ ok: r.ok, data: await r.json() })),
 
-      // Trigger 3: Dealer Rebates (Falken/Milestar) — auto-process from OEA07V
-      try {
-        const rebateRes = await fetch(`${APP_URL}/api/dealer-rebates/auto-process`, {
+        // Trigger 3: Dealer Rebates
+        fetch(`${APP_URL}/api/dealer-rebates/auto-process`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ s3Key }),
-        });
-        const rebateData = await rebateRes.json();
-        if (rebateRes.ok) {
-          const summary = (rebateData.results || [])
-            .map((r: any) => `${r.type}: ${r.rows} rows, ${r.dealers} dealers`)
-            .join("; ");
-          results.push({
-            trigger: "dealer-rebates",
-            status: "success",
-            message: summary || "No qualifying transactions",
-            completedAt: Date.now(),
-          });
-        } else {
-          results.push({
-            trigger: "dealer-rebates",
-            status: "failed",
-            message: rebateData.error || "Processing failed",
-            completedAt: Date.now(),
-          });
-        }
-      } catch (err) {
-        results.push({
-          trigger: "dealer-rebates",
-          status: "failed",
-          message: err instanceof Error ? err.message : "Unknown error",
-          completedAt: Date.now(),
-        });
+        }).then(async (r) => ({ ok: r.ok, data: await r.json() })),
+      ]);
+
+      // Sales refresh result
+      if (salesResult.status === "fulfilled") {
+        const { ok, data } = salesResult.value;
+        results.push({ trigger: "sales-refresh", status: ok ? "success" : "failed", message: ok ? `Processed ${data.rowCount || 0} rows` : data.error, completedAt: Date.now() });
+      } else {
+        results.push({ trigger: "sales-refresh", status: "failed", message: salesResult.reason?.message || "Failed", completedAt: Date.now() });
+      }
+
+      // WTD Commission result
+      if (wtdResult.status === "fulfilled") {
+        const { ok, data } = wtdResult.value;
+        results.push({ trigger: "wtd-commission", status: ok ? "success" : "failed", message: ok ? `Generated ${data.reportsGenerated || 0} reports` : data.error, completedAt: Date.now() });
+      } else {
+        results.push({ trigger: "wtd-commission", status: "failed", message: wtdResult.reason?.message || "Failed", completedAt: Date.now() });
+      }
+
+      // Dealer Rebates result
+      if (rebateResult.status === "fulfilled") {
+        const { ok, data } = rebateResult.value;
+        const summary = ok ? (data.results || []).map((r: any) => `${r.type}: ${r.rows} rows, ${r.dealers} dealers`).join("; ") : data.error;
+        results.push({ trigger: "dealer-rebates", status: ok ? "success" : "failed", message: summary || "No qualifying transactions", completedAt: Date.now() });
+      } else {
+        results.push({ trigger: "dealer-rebates", status: "failed", message: rebateResult.reason?.message || "Failed", completedAt: Date.now() });
       }
     }
 
