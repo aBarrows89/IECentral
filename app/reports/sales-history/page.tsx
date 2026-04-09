@@ -257,8 +257,8 @@ export default function SalesHistoryReportPage() {
                           return (
                             <th key={col.key} className={`relative px-3 py-2.5 font-semibold whitespace-nowrap ${isNumCol ? "text-right" : "text-left"} ${isDark ? "text-slate-300 border-b border-slate-700" : "text-gray-600 border-b border-gray-200"}`}>
                               <div className="flex items-center gap-1">
-                                <span className={`${!isNumCol ? "cursor-pointer select-none" : ""}`}
-                                  onClick={() => !isNumCol && handleSort(col.key)}>
+                                <span className={`${!col.key.startsWith("m_") ? "cursor-pointer select-none" : ""}`}
+                                  onClick={() => !col.key.startsWith("m_") && handleSort(col.key)}>
                                   {col.label}{sortCol === col.key && <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>}
                                 </span>
                                 {col.filterable && (
