@@ -106,7 +106,6 @@ export const BRAND_MAP: Record<string, string> = {
   VLCTY: "VELOCITY",
   WDT: "WANDA",
   TH: "TIRE HANDLER",
-  RBP: "RBP",
   TOYO: "TOYO",
   SIG: "SIGMA",
   TRA: "TRAC GARD",
