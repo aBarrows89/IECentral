@@ -387,34 +387,38 @@ export const performFullSync = internalAction({
                 bodyHtml = parsed.html?.substring(0, 100000); // Limit to 100KB
               }
 
-              // Detect attachments from parsed source (more reliable than bodyStructure)
-              let attachmentNodes: { fileName: string; mimeType: string; size: number; contentId?: string }[] = [];
-              if (msg.source) {
+              // Detect attachments from bodyStructure
+              const findAtt = (nodes: any[]): any[] => {
+                const found: any[] = [];
+                for (const node of nodes || []) {
+                  if (node.disposition === "attachment" || node.dispositionParameters?.filename ||
+                      (node.type && !["text", "multipart"].includes(node.type))) {
+                    found.push({ fileName: node.dispositionParameters?.filename || `attachment.${node.subtype || "bin"}`, mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                  }
+                  if (node.childNodes) found.push(...findAtt(node.childNodes));
+                }
+                return found;
+              };
+              let attachmentNodes = findAtt(msg.bodyStructure?.childNodes || []);
+
+              // If bodyStructure found nothing but old check detected attachments, fetch full source
+              const oldHasAtt = msg.bodyStructure?.childNodes?.some(
+                (node: { disposition?: string }) => node.disposition === "attachment"
+              ) || false;
+              if (attachmentNodes.length === 0 && oldHasAtt) {
                 try {
-                  const parsedForAtt = await simpleParser(msg.source);
-                  if (parsedForAtt.attachments && parsedForAtt.attachments.length > 0) {
-                    attachmentNodes = parsedForAtt.attachments.map(a => ({
-                      fileName: a.filename || `attachment.${(a.contentType || "application/octet-stream").split("/")[1] || "bin"}`,
-                      mimeType: a.contentType || "application/octet-stream",
-                      size: a.size || 0,
-                      contentId: a.contentId || undefined,
-                    }));
-                  }
-                } catch { /* fallback to bodyStructure */ }
-              }
-              // Fallback to bodyStructure if source parsing found nothing
-              if (attachmentNodes.length === 0) {
-                const findAtt = (nodes: any[]): any[] => {
-                  const found: any[] = [];
-                  for (const node of nodes || []) {
-                    if (node.disposition === "attachment" || node.dispositionParameters?.filename) {
-                      found.push({ fileName: node.dispositionParameters?.filename || "attachment", mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                  const fullMsg = await client.fetchOne(String(msg.uid), { source: true }, { uid: true });
+                  if (fullMsg && (fullMsg as any).source) {
+                    const parsedFull = await simpleParser((fullMsg as any).source);
+                    if (parsedFull.attachments?.length > 0) {
+                      attachmentNodes = parsedFull.attachments.map(a => ({
+                        fileName: a.filename || `attachment.${(a.contentType || "").split("/")[1] || "bin"}`,
+                        mimeType: a.contentType || "application/octet-stream",
+                        size: a.size || 0,
+                      }));
                     }
-                    if (node.childNodes) found.push(...findAtt(node.childNodes));
                   }
-                  return found;
-                };
-                attachmentNodes = findAtt(msg.bodyStructure?.childNodes || []);
+                } catch {}
               }
               const hasAttachments = attachmentNodes.length > 0;
 
