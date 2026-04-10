@@ -705,6 +705,13 @@ export const getAttachmentInternal = internalQuery({
   handler: async (ctx, args) => ctx.db.get(args.attachmentId),
 });
 
+export const getAttachmentsByEmail = internalQuery({
+  args: { emailId: v.id("emails") },
+  handler: async (ctx, args) => {
+    return await ctx.db.query("emailAttachments").withIndex("by_email", (q) => q.eq("emailId", args.emailId)).collect();
+  },
+});
+
 export const getInternal = internalQuery({
   args: { emailId: v.id("emails") },
   handler: async (ctx, args) => ctx.db.get(args.emailId),

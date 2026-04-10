@@ -370,7 +370,7 @@ export const performFullSync = internalAction({
               bodyStructure: true,
               flags: true,
               labels: true,
-              source: { start: 0, maxLength: 50000 }, // First 50KB
+              source: { start: 0, maxLength: 200000 }, // First 200KB — enough for attachment headers
             });
 
             for await (const msg of messages) {
@@ -387,20 +387,35 @@ export const performFullSync = internalAction({
                 bodyHtml = parsed.html?.substring(0, 100000); // Limit to 100KB
               }
 
-              // Check for attachments — check all childNodes recursively
-              const findAttachments = (nodes: any[]): any[] => {
-                const found: any[] = [];
-                for (const node of nodes || []) {
-                  if (node.disposition === "attachment" ||
-                      (node.dispositionParameters?.filename) ||
-                      (node.type && node.type !== "text" && node.type !== "multipart")) {
-                    found.push(node);
+              // Detect attachments from parsed source (more reliable than bodyStructure)
+              let attachmentNodes: { fileName: string; mimeType: string; size: number; contentId?: string }[] = [];
+              if (msg.source) {
+                try {
+                  const parsedForAtt = await simpleParser(msg.source);
+                  if (parsedForAtt.attachments && parsedForAtt.attachments.length > 0) {
+                    attachmentNodes = parsedForAtt.attachments.map(a => ({
+                      fileName: a.filename || `attachment.${(a.contentType || "application/octet-stream").split("/")[1] || "bin"}`,
+                      mimeType: a.contentType || "application/octet-stream",
+                      size: a.size || 0,
+                      contentId: a.contentId || undefined,
+                    }));
                   }
-                  if (node.childNodes) found.push(...findAttachments(node.childNodes));
-                }
-                return found;
-              };
-              const attachmentNodes = findAttachments(msg.bodyStructure?.childNodes || []);
+                } catch { /* fallback to bodyStructure */ }
+              }
+              // Fallback to bodyStructure if source parsing found nothing
+              if (attachmentNodes.length === 0) {
+                const findAtt = (nodes: any[]): any[] => {
+                  const found: any[] = [];
+                  for (const node of nodes || []) {
+                    if (node.disposition === "attachment" || node.dispositionParameters?.filename) {
+                      found.push({ fileName: node.dispositionParameters?.filename || "attachment", mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                    }
+                    if (node.childNodes) found.push(...findAtt(node.childNodes));
+                  }
+                  return found;
+                };
+                attachmentNodes = findAtt(msg.bodyStructure?.childNodes || []);
+              }
               const hasAttachments = attachmentNodes.length > 0;
 
               // Determine flags
@@ -441,18 +456,19 @@ export const performFullSync = internalAction({
 
               // Create attachment records
               if (hasAttachments && emailId) {
-                for (const node of attachmentNodes) {
-                  const n = node as { disposition?: string; type?: string; subtype?: string; size?: number; dispositionParameters?: { filename?: string }; id?: string };
-                  const fileName = n.dispositionParameters?.filename || `attachment.${n.subtype || "bin"}`;
-                  const mimeType = `${n.type || "application"}/${n.subtype || "octet-stream"}`;
-                  await ctx.runMutation(internal.email.emails.createAttachment, {
-                    emailId: emailId as Id<"emails">,
-                    fileName,
-                    mimeType,
-                    size: n.size || 0,
-                    contentId: n.id || undefined,
-                    isInline: false,
-                  });
+                // Check if attachments already exist for this email
+                const existingAtts = await ctx.runQuery(internal.email.emails.getAttachmentsByEmail, { emailId: emailId as Id<"emails"> });
+                if (!existingAtts || existingAtts.length === 0) {
+                  for (const att of attachmentNodes) {
+                    await ctx.runMutation(internal.email.emails.createAttachment, {
+                      emailId: emailId as Id<"emails">,
+                      fileName: att.fileName,
+                      mimeType: att.mimeType,
+                      size: att.size,
+                      contentId: att.contentId || undefined,
+                      isInline: false,
+                    });
+                  }
                 }
               }
 
