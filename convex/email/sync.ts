@@ -387,10 +387,20 @@ export const performFullSync = internalAction({
                 bodyHtml = parsed.html?.substring(0, 100000); // Limit to 100KB
               }
 
-              // Check for attachments
-              const attachmentNodes = (msg.bodyStructure?.childNodes || []).filter(
-                (node: { disposition?: string }) => node.disposition === "attachment"
-              );
+              // Check for attachments — check all childNodes recursively
+              const findAttachments = (nodes: any[]): any[] => {
+                const found: any[] = [];
+                for (const node of nodes || []) {
+                  if (node.disposition === "attachment" ||
+                      (node.dispositionParameters?.filename) ||
+                      (node.type && node.type !== "text" && node.type !== "multipart")) {
+                    found.push(node);
+                  }
+                  if (node.childNodes) found.push(...findAttachments(node.childNodes));
+                }
+                return found;
+              };
+              const attachmentNodes = findAttachments(msg.bodyStructure?.childNodes || []);
               const hasAttachments = attachmentNodes.length > 0;
 
               // Determine flags
