@@ -652,3 +652,34 @@ export const getTypingUsers = query({
     return typingUsers.filter(Boolean);
   },
 });
+
+export const deleteConversation = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const conv = await ctx.db.get(args.conversationId);
+    if (!conv) throw new Error("Conversation not found");
+
+    // Delete all messages in this conversation
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
+      .collect();
+    for (const msg of messages) {
+      // Delete message attachments from storage
+      if (msg.attachments) {
+        for (const att of msg.attachments as any[]) {
+          if (att.storageId) {
+            try { await ctx.storage.delete(att.storageId); } catch {}
+          }
+        }
+      }
+      await ctx.db.delete(msg._id);
+    }
+
+    // Delete the conversation
+    await ctx.db.delete(args.conversationId);
+  },
+});

@@ -445,6 +445,7 @@ function MessagesContent() {
   const markAsRead = useMutation(api.messages.markAsRead);
   const toggleReaction = useMutation(api.messages.toggleReaction);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
+  const deleteConversationMut = useMutation(api.messages.deleteConversation);
   const getAttachmentUrl = useAction(api.messages.getAttachmentUrl);
   const setTyping = useMutation(api.messages.setTyping);
   const clearTyping = useMutation(api.messages.clearTyping);
@@ -900,6 +901,25 @@ function MessagesContent() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                     </svg>
                   )}
+                </button>
+                {/* Delete Conversation */}
+                <button
+                  onClick={async () => {
+                    if (!confirm("Delete this entire conversation? This cannot be undone.")) return;
+                    if (!selectedConversation || !user?._id) return;
+                    try {
+                      await deleteConversationMut({ conversationId: selectedConversation._id, userId: user._id });
+                      setSelectedConversation(null);
+                    } catch (err) {
+                      alert("Failed to delete conversation");
+                    }
+                  }}
+                  className={`p-1.5 sm:p-2 rounded-lg transition-colors ${isDark ? "text-slate-400 hover:text-red-400 hover:bg-red-500/20" : "text-gray-500 hover:text-red-600 hover:bg-red-50"}`}
+                  title="Delete conversation"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
 
