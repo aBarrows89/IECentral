@@ -45,6 +45,10 @@ export default function FilteredInventoryReportPage() {
 
   const latestUpload = useQuery(api.jmkUploads.getLatestByType, { reportType: "oeival" });
   const reportDate = latestUpload?.reportDate ?? null;
+  const uploadedAt = latestUpload?.createdAt ?? null;
+  const uploadedAtLabel = uploadedAt
+    ? new Date(uploadedAt).toLocaleString(undefined, { month: "2-digit", day: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : null;
 
   useEffect(() => {
     if (!location) {
@@ -195,6 +199,11 @@ export default function FilteredInventoryReportPage() {
                   {reportDate
                     ? `Snapshot date: ${formatReportDateMMDDYY(reportDate)}`
                     : "No OEIVAL upload found — upload one to set the snapshot date"}
+                  {uploadedAtLabel && (
+                    <span className={`ml-2 ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                      · Last uploaded: {uploadedAtLabel}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
