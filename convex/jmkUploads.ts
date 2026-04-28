@@ -63,6 +63,7 @@ export const recordUpload = mutation({
     fileSize: v.number(),
     s3Key: v.string(),
     reportingMonth: v.string(),
+    reportDate: v.optional(v.string()),
     rowCount: v.optional(v.number()),
     dateRangeStart: v.optional(v.string()),
     dateRangeEnd: v.optional(v.string()),
@@ -130,6 +131,18 @@ export const getUpload = query({
   args: { uploadId: v.id("jmkUploadHistory") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.uploadId);
+  },
+});
+
+export const getLatestByType = query({
+  args: { reportType: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("jmkUploadHistory")
+      .withIndex("by_created")
+      .order("desc")
+      .collect();
+    return all.find((r) => r.reportType === args.reportType) ?? null;
   },
 });
 

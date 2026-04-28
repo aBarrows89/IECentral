@@ -10,6 +10,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
+import { computeInventoryReportDate, INVENTORY_SCHEDULE_NOTE } from "@/lib/inventoryReportDate";
 
 type UploadState = "idle" | "validating" | "uploading" | "processing" | "complete" | "error";
 
@@ -197,6 +198,7 @@ export default function ReportUploadPage() {
             fileSize: currentFile.size,
             s3Key: key,
             reportingMonth: month,
+            reportDate: sourceType === "oeival" ? computeInventoryReportDate() : undefined,
             validationStatus: "valid",
             uploadedBy: user._id,
             uploadedByName: user.name || "Unknown",
@@ -568,7 +570,18 @@ export default function ReportUploadPage() {
             <div className={`rounded-xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 <div>
-                  <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Type</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className={`block text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`}>Report Type</label>
+                    {reportType === "oeival" && (
+                      <span
+                        title={INVENTORY_SCHEDULE_NOTE}
+                        aria-label="Inventory date schedule"
+                        className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold cursor-help ${isDark ? "bg-slate-700 text-cyan-400" : "bg-gray-200 text-blue-600"}`}
+                      >
+                        i
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={reportType}
                     onChange={(e) => { setReportType(e.target.value); setValidation(null); }}
@@ -578,6 +591,11 @@ export default function ReportUploadPage() {
                       <option key={t.code} value={t.code}>{t.label}</option>
                     ))}
                   </select>
+                  {reportType === "oeival" && (
+                    <p className={`text-[10px] mt-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
+                      Snapshot date auto-stamped — hover ⓘ for schedule
+                    </p>
+                  )}
                 </div>
                 {!isDataSource && (
                   <div>

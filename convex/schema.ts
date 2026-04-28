@@ -3152,6 +3152,7 @@ export default defineSchema({
     fileSize: v.number(),
     s3Key: v.string(),
     reportingMonth: v.string(),   // "202604"
+    reportDate: v.optional(v.string()), // YYYY-MM-DD — business date the snapshot represents (oeival)
     rowCount: v.optional(v.number()),
     dateRangeStart: v.optional(v.string()), // earliest date in file, e.g. "04/01/26"
     dateRangeEnd: v.optional(v.string()),   // latest date in file, e.g. "04/05/26"
