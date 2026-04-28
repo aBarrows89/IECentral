@@ -417,7 +417,17 @@ export function DocHubProvider({ children }: { children: ReactNode }) {
       const url = await getFileDownloadUrl({ documentId: doc._id });
       if (!url) { setError("Could not get download URL"); return; }
       await incrementDownload({ documentId: doc._id });
-      window.open(url, "_blank");
+      // Force download via fetch + blob to avoid browser opening the file
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = doc.fileName || doc.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
     }

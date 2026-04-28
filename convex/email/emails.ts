@@ -539,6 +539,20 @@ export const create = internalMutation({
 /**
  * Create attachment record.
  */
+export const createAttachmentPublic = mutation({
+  args: {
+    emailId: v.id("emails"),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+    contentId: v.optional(v.string()),
+    isInline: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("emailAttachments", { ...args, createdAt: Date.now() });
+  },
+});
+
 export const createAttachment = internalMutation({
   args: {
     emailId: v.id("emails"),

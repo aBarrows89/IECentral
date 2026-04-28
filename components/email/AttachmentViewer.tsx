@@ -155,14 +155,23 @@ export default function AttachmentViewer({
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (attachmentUrl) {
-      const a = document.createElement("a");
-      a.href = attachmentUrl;
-      a.download = attachment.fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      try {
+        const res = await fetch(attachmentUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = attachment.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch {
+        // Fallback: open in new tab
+        window.open(attachmentUrl, "_blank");
+      }
     }
   };
 
@@ -323,12 +332,29 @@ export default function AttachmentViewer({
                 className="max-w-full max-h-full object-contain"
               />
             </div>
+          ) : isPdf && viewerUrl ? (
+            <object data={viewerUrl} type="application/pdf" className="w-full h-full">
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <span className="text-6xl mb-4 block">📄</span>
+                  <p className="text-gray-500 mb-4">PDF preview not available in this browser</p>
+                  <div className="flex gap-3 justify-center">
+                    <a href={viewerUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium">
+                      Open in New Tab
+                    </a>
+                    <button onClick={handleDownload} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+                      Download
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </object>
           ) : viewerUrl ? (
             <iframe
               src={viewerUrl}
               className="w-full h-full border-0"
               title={attachment.fileName}
-              sandbox={isPdf ? undefined : "allow-scripts allow-same-origin allow-forms"}
+              sandbox="allow-scripts allow-same-origin allow-forms"
             />
           ) : (
             <div className="h-full flex items-center justify-center">

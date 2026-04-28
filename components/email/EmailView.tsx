@@ -1105,10 +1105,10 @@ export default function EmailView({
           accountId={email.accountId}
           onClose={() => setSelectedAttachment(null)}
           onFetched={() => {
-            // Re-select to refresh the URL query
+            // Re-select to refresh the URL query — give Convex time to update
             const a = selectedAttachment;
             setSelectedAttachment(null);
-            setTimeout(() => setSelectedAttachment(a), 100);
+            setTimeout(() => setSelectedAttachment(a), 500);
           }}
         />
       )}

@@ -370,7 +370,7 @@ export const performFullSync = internalAction({
               bodyStructure: true,
               flags: true,
               labels: true,
-              source: { start: 0, maxLength: 200000 }, // First 200KB — enough for attachment headers
+              source: { start: 0, maxLength: 50000 }, // First 50KB for body text
             });
 
             for await (const msg of messages) {
@@ -405,21 +405,6 @@ export const performFullSync = internalAction({
               const oldHasAtt = msg.bodyStructure?.childNodes?.some(
                 (node: { disposition?: string }) => node.disposition === "attachment"
               ) || false;
-              if (attachmentNodes.length === 0 && oldHasAtt) {
-                try {
-                  const fullMsg = await client.fetchOne(String(msg.uid), { source: true }, { uid: true });
-                  if (fullMsg && (fullMsg as any).source) {
-                    const parsedFull = await simpleParser((fullMsg as any).source);
-                    if (parsedFull.attachments?.length > 0) {
-                      attachmentNodes = parsedFull.attachments.map(a => ({
-                        fileName: a.filename || `attachment.${(a.contentType || "").split("/")[1] || "bin"}`,
-                        mimeType: a.contentType || "application/octet-stream",
-                        size: a.size || 0,
-                      }));
-                    }
-                  }
-                } catch {}
-              }
               const hasAttachments = attachmentNodes.length > 0;
 
               // Determine flags
@@ -698,15 +683,24 @@ export const performIncrementalSync = internalAction({
               bodyHtml = parsed.html?.substring(0, 100000);
             }
 
-            const hasAttachments =
-              msg.bodyStructure?.childNodes?.some(
-                (node: { disposition?: string }) =>
-                  node.disposition === "attachment"
-              ) || false;
+            // Detect attachments from bodyStructure (recursive)
+            const findAttInc = (nodes: any[]): any[] => {
+              const found: any[] = [];
+              for (const node of nodes || []) {
+                if (node.disposition === "attachment" || node.dispositionParameters?.filename ||
+                    (node.type && !["text", "multipart"].includes(node.type))) {
+                  found.push({ fileName: node.dispositionParameters?.filename || `attachment.${node.subtype || "bin"}`, mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                }
+                if (node.childNodes) found.push(...findAttInc(node.childNodes));
+              }
+              return found;
+            };
+            const attachmentNodes = findAttInc(msg.bodyStructure?.childNodes || []);
+            const hasAttachments = attachmentNodes.length > 0;
 
             const flags = msg.flags || new Set();
 
-            await ctx.runMutation(internal.email.emails.create, {
+            const emailId = await ctx.runMutation(internal.email.emails.create, {
               accountId: args.accountId,
               folderId: inboxFolder._id,
               messageId: envelope.messageId || `${msg.uid}@inbox`,
@@ -734,6 +728,23 @@ export const performIncrementalSync = internalAction({
               hasAttachments,
               labels: msg.labels ? Array.from(msg.labels) : undefined,
             });
+
+            // Create attachment records
+            if (hasAttachments && emailId) {
+              const existingAtts = await ctx.runQuery(internal.email.emails.getAttachmentsByEmail, { emailId: emailId as Id<"emails"> });
+              if (!existingAtts || existingAtts.length === 0) {
+                for (const att of attachmentNodes) {
+                  await ctx.runMutation(internal.email.emails.createAttachment, {
+                    emailId: emailId as Id<"emails">,
+                    fileName: att.fileName,
+                    mimeType: att.mimeType,
+                    size: att.size,
+                    contentId: undefined,
+                    isInline: false,
+                  });
+                }
+              }
+            }
 
             totalEmails++;
           }
@@ -798,15 +809,24 @@ export const performIncrementalSync = internalAction({
                   bodyHtml = parsed.html?.substring(0, 100000);
                 }
 
-                const hasAttachments =
-                  msg.bodyStructure?.childNodes?.some(
-                    (node: { disposition?: string }) =>
-                      node.disposition === "attachment"
-                  ) || false;
+                // Detect attachments from bodyStructure (recursive)
+                const findAttMissed = (nodes: any[]): any[] => {
+                  const found: any[] = [];
+                  for (const node of nodes || []) {
+                    if (node.disposition === "attachment" || node.dispositionParameters?.filename ||
+                        (node.type && !["text", "multipart"].includes(node.type))) {
+                      found.push({ fileName: node.dispositionParameters?.filename || `attachment.${node.subtype || "bin"}`, mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                    }
+                    if (node.childNodes) found.push(...findAttMissed(node.childNodes));
+                  }
+                  return found;
+                };
+                const attachmentNodes = findAttMissed(msg.bodyStructure?.childNodes || []);
+                const hasAttachments = attachmentNodes.length > 0;
 
                 const flags = msg.flags || new Set();
 
-                await ctx.runMutation(internal.email.emails.create, {
+                const emailId = await ctx.runMutation(internal.email.emails.create, {
                   accountId: args.accountId,
                   folderId: inboxFolder._id,
                   messageId: envelope.messageId || `${msg.uid}@inbox`,
@@ -834,6 +854,23 @@ export const performIncrementalSync = internalAction({
                   hasAttachments,
                   labels: msg.labels ? Array.from(msg.labels) : undefined,
                 });
+
+                // Create attachment records
+                if (hasAttachments && emailId) {
+                  const existingAtts = await ctx.runQuery(internal.email.emails.getAttachmentsByEmail, { emailId: emailId as Id<"emails"> });
+                  if (!existingAtts || existingAtts.length === 0) {
+                    for (const att of attachmentNodes) {
+                      await ctx.runMutation(internal.email.emails.createAttachment, {
+                        emailId: emailId as Id<"emails">,
+                        fileName: att.fileName,
+                        mimeType: att.mimeType,
+                        size: att.size,
+                        contentId: undefined,
+                        isInline: false,
+                      });
+                    }
+                  }
+                }
 
                 totalEmails++;
                 console.log(`[SYNC] Recovered missed email: ${envelope.subject}`);
@@ -895,15 +932,24 @@ export const performIncrementalSync = internalAction({
                   bodyHtml = parsed.html?.substring(0, 100000);
                 }
 
-                const hasAttachments =
-                  msg.bodyStructure?.childNodes?.some(
-                    (node: { disposition?: string }) =>
-                      node.disposition === "attachment"
-                  ) || false;
+                // Detect attachments from bodyStructure (recursive)
+                const findAttSent = (nodes: any[]): any[] => {
+                  const found: any[] = [];
+                  for (const node of nodes || []) {
+                    if (node.disposition === "attachment" || node.dispositionParameters?.filename ||
+                        (node.type && !["text", "multipart"].includes(node.type))) {
+                      found.push({ fileName: node.dispositionParameters?.filename || `attachment.${node.subtype || "bin"}`, mimeType: `${node.type || "application"}/${node.subtype || "octet-stream"}`, size: node.size || 0 });
+                    }
+                    if (node.childNodes) found.push(...findAttSent(node.childNodes));
+                  }
+                  return found;
+                };
+                const attachmentNodes = findAttSent(msg.bodyStructure?.childNodes || []);
+                const hasAttachments = attachmentNodes.length > 0;
 
                 const flags = msg.flags || new Set();
 
-                await ctx.runMutation(internal.email.emails.create, {
+                const emailId = await ctx.runMutation(internal.email.emails.create, {
                   accountId: args.accountId,
                   folderId: sentFolder._id,
                   messageId: envelope.messageId || `${msg.uid}@sent`,
@@ -931,6 +977,23 @@ export const performIncrementalSync = internalAction({
                   hasAttachments,
                   labels: msg.labels ? Array.from(msg.labels) : undefined,
                 });
+
+                // Create attachment records
+                if (hasAttachments && emailId) {
+                  const existingAtts = await ctx.runQuery(internal.email.emails.getAttachmentsByEmail, { emailId: emailId as Id<"emails"> });
+                  if (!existingAtts || existingAtts.length === 0) {
+                    for (const att of attachmentNodes) {
+                      await ctx.runMutation(internal.email.emails.createAttachment, {
+                        emailId: emailId as Id<"emails">,
+                        fileName: att.fileName,
+                        mimeType: att.mimeType,
+                        size: att.size,
+                        contentId: undefined,
+                        isInline: false,
+                      });
+                    }
+                  }
+                }
 
                 totalEmails++;
               }
@@ -1045,6 +1108,118 @@ export const triggerSync = action({
 /**
  * Fetch an email attachment from IMAP and cache it in Convex storage.
  */
+/**
+ * Backfill attachment records for emails that have hasAttachments=true
+ * but no emailAttachments records. Uses stored IMAP credentials.
+ */
+export const backfillAttachments = action({
+  args: {
+    accountId: v.id("emailAccounts"),
+  },
+  handler: async (ctx, args) => {
+    let client: InstanceType<typeof ImapFlow> | null = null;
+    try {
+      const account = await ctx.runQuery(internal.email.accounts.getInternal, { accountId: args.accountId });
+      if (!account) return { success: false, error: "Account not found" };
+
+      const credentials = getImapCredentials(account);
+
+      // Get all folders
+      const folders = await ctx.runQuery(api.email.folders.listByAccount, { accountId: args.accountId });
+
+      // Find emails with hasAttachments but no records
+      const emailsToFix: Array<{ _id: any; uid: number; subject: string; folderId: any }> = [];
+      for (const folder of folders as any[]) {
+        const result = await ctx.runQuery(api.email.emails.listByFolder, { folderId: folder._id, limit: 200 });
+        const emails = result?.emails || [];
+        for (const email of emails) {
+          if (email.hasAttachments) {
+            const atts = await ctx.runQuery(internal.email.emails.getAttachmentsByEmail, { emailId: email._id });
+            if (!atts || atts.length === 0) {
+              emailsToFix.push({ _id: email._id, uid: email.uid, subject: email.subject, folderId: folder._id });
+            }
+          }
+        }
+      }
+
+      if (emailsToFix.length === 0) {
+        return { success: true, message: "No emails need backfill", fixed: 0 };
+      }
+
+      // Connect to IMAP
+      client = new ImapFlow({
+        host: credentials.host,
+        port: credentials.port,
+        secure: credentials.secure,
+        auth: { user: credentials.user, pass: credentials.pass },
+        logger: false,
+      });
+      await client.connect();
+
+      const results: Array<{ subject: string; attachments: string[]; status: string }> = [];
+
+      // Group by folder
+      const byFolder = new Map<string, typeof emailsToFix>();
+      for (const e of emailsToFix) {
+        const key = String(e.folderId);
+        if (!byFolder.has(key)) byFolder.set(key, []);
+        byFolder.get(key)!.push(e);
+      }
+
+      for (const [folderId, emails] of byFolder) {
+        const folder = await ctx.runQuery(internal.email.folders.getInternal, { folderId: folderId as any });
+        const folderPath = folder?.path || "INBOX";
+        const lock = await client.getMailboxLock(folderPath);
+
+        try {
+          for (const email of emails) {
+            try {
+              const msg = await client.fetchOne(String(email.uid), { source: true }, { uid: true });
+              if (!msg || !(msg as any).source) {
+                results.push({ subject: email.subject, attachments: [], status: "no source" });
+                continue;
+              }
+
+              const parsed = await simpleParser((msg as any).source);
+              if (!parsed.attachments || parsed.attachments.length === 0) {
+                results.push({ subject: email.subject, attachments: [], status: "no attachments in source" });
+                continue;
+              }
+
+              for (const att of parsed.attachments) {
+                await ctx.runMutation(internal.email.emails.createAttachment, {
+                  emailId: email._id,
+                  fileName: att.filename || `attachment.${(att.contentType || "").split("/")[1] || "bin"}`,
+                  mimeType: att.contentType || "application/octet-stream",
+                  size: att.size || 0,
+                  contentId: att.contentId || undefined,
+                  isInline: false,
+                });
+              }
+
+              results.push({
+                subject: email.subject,
+                attachments: parsed.attachments.map(a => a.filename || "unnamed"),
+                status: "created",
+              });
+            } catch (err) {
+              results.push({ subject: email.subject, attachments: [], status: `error: ${err instanceof Error ? err.message : "unknown"}` });
+            }
+          }
+        } finally {
+          lock.release();
+        }
+      }
+
+      return { success: true, fixed: results.filter(r => r.status === "created").length, results };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Backfill failed" };
+    } finally {
+      if (client) try { await client.logout(); } catch {}
+    }
+  },
+});
+
 export const fetchAttachment = action({
   args: {
     attachmentId: v.id("emailAttachments"),
