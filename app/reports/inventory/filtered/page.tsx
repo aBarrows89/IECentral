@@ -198,7 +198,7 @@ export default function FilteredInventoryReportPage() {
                 <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
                   {reportDate
                     ? `Snapshot date: ${formatReportDateMMDDYY(reportDate)}`
-                    : "No OEIVAL upload found — upload one to set the snapshot date"}
+                    : "No OEAVAL 77 upload found — upload one to set the snapshot date"}
                   {uploadedAtLabel && (
                     <span className={`ml-2 font-medium ${isDark ? "text-cyan-300" : "text-blue-700"}`}>
                       · Last uploaded: {uploadedAtLabel}

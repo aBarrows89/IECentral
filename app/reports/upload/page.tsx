@@ -16,7 +16,7 @@ type UploadState = "idle" | "validating" | "uploading" | "processing" | "complet
 
 const REPORT_TYPES = [
   { code: "OEA07V", label: "OEA07V — Daily Sales (CSV)", description: "Daily item-level sales/returns — fuels WTD Commission and Dunlop", accept: ".csv,.xlsx" },
-  { code: "oeival", label: "OEIVAL — Inventory Snapshot", description: "Inventory quantities, costs, pricing by warehouse", accept: ".csv,.xlsx" },
+  { code: "oeival", label: "OEAVAL 77 — Inventory Snapshot", description: "Inventory quantities, costs, pricing by warehouse", accept: ".csv,.xlsx" },
 ];
 
 function getDefaultMonth(): string {
@@ -394,7 +394,7 @@ export default function ReportUploadPage() {
                       <select value={ftpForm.sourceType} onChange={(e) => setFtpForm({ ...ftpForm, sourceType: e.target.value })}
                         className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
                         <option value="tires">Tires Catalog</option>
-                        <option value="oeival">Inventory (OEIVAL)</option>
+                        <option value="oeival">Inventory (OEAVAL 77)</option>
                         <option value="oea07v">Sales History (OEA07V)</option>
                       </select>
                     </div>

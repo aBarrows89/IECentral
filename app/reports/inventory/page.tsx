@@ -151,7 +151,7 @@ export default function InventoryReportPage() {
                 <div>
                   <h1 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Inventory Report</h1>
                   <p className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
-                    {fileDate ? `Data from ${new Date(fileDate).toLocaleDateString()}` : loading ? "Loading..." : "No data — upload an OEIVAL report"}
+                    {fileDate ? `Data from ${new Date(fileDate).toLocaleDateString()}` : loading ? "Loading..." : "No data — upload an OEAVAL 77 report"}
                     {sorted.length > 0 && ` — ${sorted.length} items`}
                   </p>
                 </div>
@@ -237,7 +237,7 @@ export default function InventoryReportPage() {
                   </svg>
                   <p className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>No inventory data available</p>
                   <p className={`text-xs text-center max-w-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                    Upload an OEIVAL inventory snapshot (.xlsx) through{" "}
+                    Upload an OEAVAL 77 inventory snapshot (.xlsx) through{" "}
                     <Link href="/reports/upload" className={`underline ${isDark ? "text-cyan-400" : "text-blue-600"}`}>Upload Reports</Link>{" "}
                     to populate this report.
                   </p>
