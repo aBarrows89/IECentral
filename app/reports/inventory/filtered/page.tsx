@@ -113,6 +113,10 @@ export default function FilteredInventoryReportPage() {
       const abbrs = sortedBrands.map(brandAbbr).join("/");
       const title = `${storeName} - Inventory (${abbrs})`;
       const dateStr = formatReportDateMMDDYY(reportDate);
+      const now = new Date();
+      const ranDate = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getFullYear()).slice(2)}`;
+      const ranTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const ranStr = `Ran: ${ranDate} ${ranTime}`;
       const footerLeft = `${storeName} Filtered - ${dateStr}`;
 
       const head = [["Manufacturer", "Mfg Number", "Description", "Qty On Hand", "Qty Committed", "Qty Available"]];
@@ -128,8 +132,8 @@ export default function FilteredInventoryReportPage() {
       autoTable(doc, {
         head,
         body,
-        startY: 60,
-        margin: { top: 60, bottom: 50, left: 36, right: 36 },
+        startY: 72,
+        margin: { top: 72, bottom: 50, left: 36, right: 36 },
         styles: { fontSize: 9, cellPadding: 4 },
         headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
         columnStyles: {
@@ -146,6 +150,7 @@ export default function FilteredInventoryReportPage() {
           doc.text(title, pageWidth / 2, 36, { align: "center" });
           doc.setFontSize(9);
           doc.setFont("helvetica", "normal");
+          doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
           const pageNum = doc.getNumberOfPages();
           const pageLabel = `Page ${doc.getCurrentPageInfo().pageNumber} of ${pageNum}`;
           doc.text(footerLeft, 36, pageHeight - 24);
