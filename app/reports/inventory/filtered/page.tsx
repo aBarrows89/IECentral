@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { LOCATION_LABELS, locationLabel } from "@/lib/locationLabels";
 import { tireSortKey } from "@/lib/tireSize";
+import { isReportableBrand } from "@/lib/brandFilter";
 
 interface InventoryItem {
   location: string;
@@ -66,7 +67,7 @@ export default function FilteredInventoryReportPage() {
   }, [location]);
 
   const brandsAtLocation = useMemo(() => {
-    return [...new Set(items.map((i) => i.manufacturerName).filter(Boolean))].sort();
+    return [...new Set(items.map((i) => i.manufacturerName).filter(isReportableBrand))].sort();
   }, [items]);
 
   const toggleBrand = useCallback((brand: string) => {
@@ -151,10 +152,7 @@ export default function FilteredInventoryReportPage() {
           doc.setFontSize(9);
           doc.setFont("helvetica", "normal");
           doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
-          const pageNum = doc.getNumberOfPages();
-          const pageLabel = `Page ${doc.getCurrentPageInfo().pageNumber} of ${pageNum}`;
           doc.text(footerLeft, 36, pageHeight - 24);
-          doc.text(pageLabel, pageWidth - 36, pageHeight - 24, { align: "right" });
         },
       });
 
