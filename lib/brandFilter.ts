@@ -3,10 +3,10 @@
 // Add patterns here as new junk entries surface.
 
 const EXCLUDE_PATTERNS: RegExp[] = [
-  /^iet\b/i,           // "IET PART", "IET G/L TYPE ENTRY", etc.
-  /\bmisc\s+wheel\b/i, // "TRD MISC WHEEL"
-  /^g\/?l\b/i,         // "G/L ..." or "GL ..."
-  /\btype\s+entry\b/i, // catch-all for "... TYPE ENTRY"
+  /^(iet|trd)\b/i,   // internal-account prefixes: "IET PART", "TRD MISC WHEEL", etc.
+  /\bg\/?l\b/i,      // anything containing "G/L" or "GL " (account-ledger entries)
+  /\bmisc\b/i,       // "MISC WHEEL", "MISC TIRE", etc. — never a real brand
+  /\bentry\b/i,      // catch-all for "... ENTRY" account labels
 ];
 
 export function isReportableBrand(name: string | null | undefined): boolean {
