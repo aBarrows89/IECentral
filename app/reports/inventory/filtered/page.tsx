@@ -14,7 +14,7 @@ import { isReportableBrand } from "@/lib/brandFilter";
 interface InventoryItem {
   location: string;
   manufacturerName: string;
-  mfgItemId: string;
+  itemId: string;
   description: string;
   qtyOnHand: number;
   qtyCommitted: number;
@@ -124,10 +124,10 @@ export default function FilteredInventoryReportPage() {
       const ranStr = `Ran: ${ranDate} ${ranTime}`;
       const footerLeft = `${storeName} Filtered - ${dateStr}`;
 
-      const head = [["Manufacturer", "Mfg Number", "Description", "Qty On Hand", "Qty Committed", "Qty Available"]];
+      const head = [["Manufacturer", "Item ID", "Description", "Qty On Hand", "Qty Committed", "Qty Available"]];
       const body = filteredRows.map((r) => [
         r.manufacturerName,
-        r.mfgItemId,
+        r.itemId,
         r.description,
         String(r.qtyOnHand),
         String(r.qtyCommitted),
