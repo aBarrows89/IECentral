@@ -11,10 +11,10 @@ import { Id } from "../_generated/dataModel";
 // Super admin role has automatic email access
 const SUPER_ADMIN_ROLE = "super_admin";
 
-// Helper to check if user has email access
+// Helper to check if user has email access — default-on; admins disable per user.
 function userHasEmailAccess(user: { hasEmailAccess?: boolean; role?: string } | null): boolean {
   if (!user) return false;
-  return user.hasEmailAccess === true || user.role === SUPER_ADMIN_ROLE;
+  return user.hasEmailAccess !== false || user.role === SUPER_ADMIN_ROLE;
 }
 
 // Email address object validator
