@@ -97,6 +97,7 @@ import type * as reports from "../reports.js";
 import type * as safetyChecklist from "../safetyChecklist.js";
 import type * as savedReports from "../savedReports.js";
 import type * as scannerMdm from "../scannerMdm.js";
+import type * as scratchpad from "../scratchpad.js";
 import type * as search from "../search.js";
 import type * as shiftTemplates from "../shiftTemplates.js";
 import type * as shifts from "../shifts.js";
@@ -209,6 +210,7 @@ declare const fullApi: ApiFromModules<{
   safetyChecklist: typeof safetyChecklist;
   savedReports: typeof savedReports;
   scannerMdm: typeof scannerMdm;
+  scratchpad: typeof scratchpad;
   search: typeof search;
   shiftTemplates: typeof shiftTemplates;
   shifts: typeof shifts;

@@ -3179,6 +3179,18 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // ============ SCRATCHPAD (code-shared clipboard between devices) ============
+  scratchpadCodes: defineTable({
+    code: v.string(),                 // 4-digit "0000"-"9999"
+    content: v.string(),
+    createdBy: v.optional(v.id("users")),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_expires", ["expiresAt"]),
+
   // ============ FTP CONNECTIONS ============
   ftpConnections: defineTable({
     name: v.string(),              // "JMK Tires Catalog"
