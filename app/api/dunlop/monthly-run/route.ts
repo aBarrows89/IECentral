@@ -60,18 +60,81 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Calculate prior month
+    // Calculate prior month, plus the current month folder where a monthly
+    // upload may have landed if /reports/upload bucketed by today's date.
     const now = new Date();
     const priorMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const monthStr = `${priorMonth.getFullYear()}${String(priorMonth.getMonth() + 1).padStart(2, "0")}`;
+    const currentMonthStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
     const monthLabel = `${priorMonth.getFullYear()}-${String(priorMonth.getMonth() + 1).padStart(2, "0")}`;
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"];
+    const priorMonthName = monthNames[priorMonth.getMonth()];
+    const priorMonthAbbr = priorMonthName.slice(0, 3);
 
-    // 1. Find all OEA07V files in the prior month folder
+    // 0. Look in both folders for an explicit monthly file (filename mentions the
+    //    prior month name/abbr/key). If found, use it directly and skip the
+    //    daily-combine step.
+    let monthlyFileKey: string | null = null;
+    for (const prefix of [`jmk-uploads/${monthStr}/`, `jmk-uploads/${currentMonthStr}/`]) {
+      const list = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
+      const hit = (list.Contents || [])
+        .filter((o) => {
+          if (!o.Key) return false;
+          const k = o.Key.toLowerCase();
+          if (!k.includes("iet-oea07v") || !k.endsWith(".csv")) return false;
+          if (k.includes("monthly-combined")) return true;
+          return k.includes(priorMonthName.toLowerCase()) ||
+                 k.includes(priorMonthAbbr.toLowerCase()) ||
+                 k.includes(monthStr);
+        })
+        .sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0))[0];
+      if (hit?.Key) { monthlyFileKey = hit.Key; break; }
+    }
+
+    // 1. Find all OEA07V files in the prior month folder (used either as the
+    //    daily-combine input, or — if a monthlyFileKey was found above — only
+    //    so we can report how many dailies existed).
     const prefix = `jmk-uploads/${monthStr}/`;
     const listRes = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, MaxKeys: 1000 }));
     const oea07vFiles = (listRes.Contents || [])
       .filter(o => o.Key?.toLowerCase().includes("iet-oea07v") && o.Key?.toLowerCase().endsWith(".csv"))
       .sort((a, b) => (a.LastModified?.getTime() ?? 0) - (b.LastModified?.getTime() ?? 0));
+
+    // If we found an explicit monthly file, skip the combine step and use it directly.
+    if (monthlyFileKey) {
+      let fanaticJmks: string[] = [];
+      try {
+        const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud");
+        const dealers = await convex.query(api.dealerRebates.listDealers, { program: "falken", activeOnly: true });
+        fanaticJmks = (dealers as any[])
+          .filter((d) => d.fanaticId)
+          .map((d) => d.jmk.toLowerCase().trim())
+          .filter((jmk) => jmk && jmk !== "0");
+      } catch { /* proceed without exclusions */ }
+
+      let dunlopResult: any = null;
+      try {
+        const res = await fetch(`${API_GATEWAY_URL}/dunlop/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            s3_key: monthlyFileKey, month: monthLabel, env: "prod",
+            runBy: "Monthly Auto-Run (explicit monthly file)", fanaticJmks,
+          }),
+        });
+        dunlopResult = await res.json();
+      } catch (err) {
+        dunlopResult = { error: err instanceof Error ? err.message : "Lambda call failed" };
+      }
+      return NextResponse.json({
+        status: "success",
+        month: monthLabel,
+        usedExplicitMonthly: monthlyFileKey,
+        dailiesAvailable: oea07vFiles.length,
+        dunlopResult,
+      });
+    }
 
     if (oea07vFiles.length === 0) {
       return NextResponse.json({

@@ -65,7 +65,7 @@ export default function ReportUploadPage() {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0); // For multi-file: current index
-  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number; dateRangeStart?: string; dateRangeEnd?: string } | null>(null);
+  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number; dateRangeStart?: string; dateRangeEnd?: string; dataMonth?: string } | null>(null);
   const [processingResults, setProcessingResults] = useState<{ trigger: string; status: string; message?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -119,6 +119,7 @@ export default function ReportUploadPage() {
       // Scan for date range in OEA07V files (Activity Date format MM/DD/YY)
       let dateRangeStart: string | undefined;
       let dateRangeEnd: string | undefined;
+      let dataMonth: string | undefined;
       if (reportType === "OEA07V" && data.valid) {
         const dates: Date[] = [];
         // Scan each line for MM/DD/YY date patterns (handles quoted CSV fields)
@@ -145,10 +146,18 @@ export default function ReportUploadPage() {
           dates.sort((a, b) => a.getTime() - b.getTime());
           dateRangeStart = dates[0].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
           dateRangeEnd = dates[dates.length - 1].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          // Bucket the file under the month most rows fall in, so a monthly upload on
+          // the 1st of the next month doesn't land in the wrong S3 prefix.
+          const monthCounts = new Map<string, number>();
+          for (const d of dates) {
+            const key = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+            monthCounts.set(key, (monthCounts.get(key) || 0) + 1);
+          }
+          dataMonth = [...monthCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
         }
       }
 
-      setValidation({ ...data, dateRangeStart, dateRangeEnd });
+      setValidation({ ...data, dateRangeStart, dateRangeEnd, dataMonth });
       setUploadState(data.valid ? "idle" : "error");
       if (!data.valid) setErrorMsg("Validation failed — check column errors below");
     } catch (err) {
@@ -176,13 +185,17 @@ export default function ReportUploadPage() {
         const fileLabel = files.length > 1 ? `(${i + 1}/${files.length}) ` : "";
         setUploadProgress(i);
 
+        // Prefer the month most rows fall in (from validation) over today's calendar
+        // month — prevents an end-of-month upload from landing in the wrong S3 prefix.
+        const effectiveMonth = validation?.dataMonth || month;
+
         if (isDataSource) {
           const sourceType = reportType === "oea07v-sales" ? "oea07v-sales" : reportType;
           setStatusMsg(`${fileLabel}Getting upload URL for ${currentFile.name}...`);
           const urlRes = await fetch("/api/reports/upload-url", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reportType: sourceType, month, filename: currentFile.name }),
+            body: JSON.stringify({ reportType: sourceType, month: effectiveMonth, filename: currentFile.name }),
           });
           const { url, key } = await urlRes.json();
           if (!url) throw new Error(`Failed to get upload URL for ${currentFile.name}`);
@@ -197,7 +210,7 @@ export default function ReportUploadPage() {
             fileName: currentFile.name,
             fileSize: currentFile.size,
             s3Key: key,
-            reportingMonth: month,
+            reportingMonth: effectiveMonth,
             reportDate: sourceType === "oeival" ? computeInventoryReportDate() : undefined,
             validationStatus: "valid",
             uploadedBy: user._id,
@@ -214,7 +227,7 @@ export default function ReportUploadPage() {
           const urlRes = await fetch("/api/reports/upload-url", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reportType, month, filename: currentFile.name }),
+            body: JSON.stringify({ reportType, month: effectiveMonth, filename: currentFile.name }),
           });
           const { url, key } = await urlRes.json();
           if (!url) throw new Error(`Failed to get upload URL for ${currentFile.name}`);
@@ -230,7 +243,7 @@ export default function ReportUploadPage() {
             fileName: currentFile.name,
             fileSize: currentFile.size,
             s3Key: key,
-            reportingMonth: month,
+            reportingMonth: effectiveMonth,
             rowCount: validation?.rowCount,
             dateRangeStart: validation?.dateRangeStart,
             dateRangeEnd: validation?.dateRangeEnd,
@@ -247,7 +260,7 @@ export default function ReportUploadPage() {
             const processRes = await fetch("/api/reports/process", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ uploadId, reportType, s3Key: key, month }),
+              body: JSON.stringify({ uploadId, reportType, s3Key: key, month: effectiveMonth }),
             });
             const processData = await processRes.json();
             allResults.push(...(processData.results || []));
