@@ -211,6 +211,30 @@ export const getReport = query({
   },
 });
 
+export const updateReportLineItems = mutation({
+  args: {
+    reportId: v.id("wtdCommissionReports"),
+    lineItems: v.array(
+      v.object({
+        orderNo: v.string(),
+        brand: v.string(),
+        mfgItemId: v.string(),
+        description: v.string(),
+        qty: v.number(),
+        unitCost: v.number(),
+        commissionAmount: v.number(),
+      })
+    ),
+    grandTotal: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.reportId, {
+      lineItems: args.lineItems,
+      grandTotal: args.grandTotal,
+    });
+  },
+});
+
 export const deleteReport = mutation({
   args: { id: v.id("wtdCommissionReports") },
   handler: async (ctx, args) => {

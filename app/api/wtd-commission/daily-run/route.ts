@@ -291,6 +291,16 @@ export async function GET(request: NextRequest) {
             commissionAmount = qty * config.commissionValue;
           }
 
+          // $2.50 per-line minimum charge. Applied symmetrically — a return that
+          // calculates below the floor (e.g., -$1.20) is bumped to -$2.50 so the
+          // clawback mirrors the floored sale that originally booked $2.50.
+          const MIN_COMMISSION = 2.5;
+          if (commissionAmount > 0 && commissionAmount < MIN_COMMISSION) {
+            commissionAmount = MIN_COMMISSION;
+          } else if (commissionAmount < 0 && commissionAmount > -MIN_COMMISSION) {
+            commissionAmount = -MIN_COMMISSION;
+          }
+
           const itemId = row[COL.ITEM_ID]?.replace(/"/g, "").trim() || "";
           const tire = tireLookup.get(itemId) || tireLookup.get(itemId.replace(/[.\^\[:\-~*#]$/, ""));
           const rawBrand = row[COL.BRAND]?.replace(/"/g, "").trim() || "";
