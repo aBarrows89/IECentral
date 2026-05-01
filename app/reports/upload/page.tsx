@@ -65,7 +65,7 @@ export default function ReportUploadPage() {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0); // For multi-file: current index
-  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number; dateRangeStart?: string; dateRangeEnd?: string; dataMonth?: string } | null>(null);
+  const [validation, setValidation] = useState<{ valid: boolean; errors?: string[]; detectedColumns?: number; rowCount?: number; dateRangeStart?: string; dateRangeEnd?: string; dataMonth?: string; isMonthlyData?: boolean } | null>(null);
   const [processingResults, setProcessingResults] = useState<{ trigger: string; status: string; message?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -120,6 +120,7 @@ export default function ReportUploadPage() {
       let dateRangeStart: string | undefined;
       let dateRangeEnd: string | undefined;
       let dataMonth: string | undefined;
+      let isMonthlyData = false;
       if (reportType === "OEA07V" && data.valid) {
         const dates: Date[] = [];
         // Scan each line for MM/DD/YY date patterns (handles quoted CSV fields)
@@ -144,8 +145,10 @@ export default function ReportUploadPage() {
         }
         if (dates.length > 0) {
           dates.sort((a, b) => a.getTime() - b.getTime());
-          dateRangeStart = dates[0].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-          dateRangeEnd = dates[dates.length - 1].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          const first = dates[0];
+          const last = dates[dates.length - 1];
+          dateRangeStart = first.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          dateRangeEnd = last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
           // Bucket the file under the month most rows fall in, so a monthly upload on
           // the 1st of the next month doesn't land in the wrong S3 prefix.
           const monthCounts = new Map<string, number>();
@@ -154,10 +157,16 @@ export default function ReportUploadPage() {
             monthCounts.set(key, (monthCounts.get(key) || 0) + 1);
           }
           dataMonth = [...monthCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+          // "Monthly" if the data sits in one calendar month and spans most of it
+          // (first date in the month's first 5 days, last date in the last 5 days).
+          // Used to auto-trigger the Dunlop SFTP run after upload.
+          const sameMonth = first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth();
+          const lastDayOfMonth = new Date(last.getFullYear(), last.getMonth() + 1, 0).getDate();
+          isMonthlyData = sameMonth && first.getDate() <= 5 && last.getDate() >= lastDayOfMonth - 4;
         }
       }
 
-      setValidation({ ...data, dateRangeStart, dateRangeEnd, dataMonth });
+      setValidation({ ...data, dateRangeStart, dateRangeEnd, dataMonth, isMonthlyData });
       setUploadState(data.valid ? "idle" : "error");
       if (!data.valid) setErrorMsg("Validation failed — check column errors below");
     } catch (err) {
@@ -264,6 +273,45 @@ export default function ReportUploadPage() {
             });
             const processData = await processRes.json();
             allResults.push(...(processData.results || []));
+
+            // Auto-trigger Dunlop SFTP run when an OEA07V file covers a full month.
+            // Saves a manual trip to /dunlop-reporting and prevents the upload from
+            // being missed because it landed after the monthly cron fired.
+            if (reportType === "OEA07V" && validation?.isMonthlyData) {
+              setStatusMsg(`${fileLabel}Sending to Dunlop SFTP...`);
+              try {
+                const dunlopRes = await fetch("/api/dunlop/run", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    s3_key: key,
+                    month: effectiveMonth,
+                    env: "prod",
+                    runBy: `${user.name || "Unknown"} (auto on upload)`,
+                  }),
+                });
+                const dunlopData = await dunlopRes.json();
+                if (dunlopRes.ok && dunlopData.sftpStatus === "success") {
+                  allResults.push({
+                    trigger: "dunlop-sftp",
+                    status: "success",
+                    message: `Sent ${dunlopData.rows} rows to Dunlop (${dunlopData.outputFile})`,
+                  });
+                } else {
+                  allResults.push({
+                    trigger: "dunlop-sftp",
+                    status: "failed",
+                    message: dunlopData.error || dunlopData.sftpStatus || "Unknown Dunlop error",
+                  });
+                }
+              } catch (dunlopErr) {
+                allResults.push({
+                  trigger: "dunlop-sftp",
+                  status: "failed",
+                  message: dunlopErr instanceof Error ? dunlopErr.message : "Dunlop call failed",
+                });
+              }
+            }
           } else {
             allResults.push({
               trigger: "s3-upload",
