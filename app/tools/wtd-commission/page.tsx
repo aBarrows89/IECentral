@@ -53,6 +53,9 @@ export default function WTDCommissionReportPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+  // Once availableMonths arrives, snap viewMonth to the most recent month with
+  // data — but only the first time, so manual selection doesn't get overridden.
+  const [defaultedToLatest, setDefaultedToLatest] = useState(false);
 
   // Fetch reports from S3
   useEffect(() => {
@@ -62,10 +65,14 @@ export default function WTDCommissionReportPage() {
       .then((data) => {
         setReportHistory(data.reports || []);
         setAvailableMonths(data.months || []);
+        if (!defaultedToLatest && (data.months || []).length > 0 && !(data.months || []).includes(viewMonth)) {
+          setDefaultedToLatest(true);
+          setViewMonth(data.months[0]);
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingReports(false));
-  }, [viewMonth]);
+  }, [viewMonth, defaultedToLatest]);
 
   // Fetch individual report from S3
   useEffect(() => {

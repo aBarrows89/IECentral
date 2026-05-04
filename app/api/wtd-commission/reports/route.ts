@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
         const fileName = parts[1];
         const date = fileName.split("_")[0]; // YYYY-MM-DD
 
-        // Filter by month if requested
-        if (filterMonth && !date.startsWith(filterMonth)) continue;
-
-        // Read the file to get report details
+        // Read the file to get report details. Note: we don't filter by month
+        // here — the months picker on the client must always see every month
+        // we have data for, even when the user is currently viewing a different
+        // (or empty) month.
         try {
           const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: obj.Key }));
           const body = await getRes.Body?.transformToString("utf-8");
@@ -78,10 +78,14 @@ export async function GET(request: NextRequest) {
     // Sort by date descending
     reports.sort((a, b) => b.date.localeCompare(a.date));
 
-    // Available months
+    // Available months — derived from ALL reports, before any filter is applied,
+    // so the client month picker always shows every month with data.
     const months = [...new Set(reports.map((r) => r.date.slice(0, 7)))].sort().reverse();
 
-    return NextResponse.json({ reports, months });
+    // Now apply the month filter to the reports array we return.
+    const filtered = filterMonth ? reports.filter((r) => r.date.startsWith(filterMonth)) : reports;
+
+    return NextResponse.json({ reports: filtered, months });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to list reports" }, { status: 500 });
   }
