@@ -205,8 +205,8 @@ export async function GET(request: NextRequest) {
 
     const uniqueDates = [...rowsByDate.keys()].sort();
 
-    // Load tire catalog for enriched descriptions
-    const tireLookup = new Map<string, { mfgName: string; model: string; desc: string }>();
+    // Load tire catalog for enriched descriptions + per-unit FET
+    const tireLookup = new Map<string, { mfgName: string; model: string; desc: string; fet: number }>();
     try {
       const tireList = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: "jmk-uploads/tires/", MaxKeys: 100 }));
       const tireFiles = (tireList.Contents || []).filter(o => o.Key?.includes("tires-") && o.Key?.endsWith(".csv")).sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
@@ -215,15 +215,16 @@ export async function GET(request: NextRequest) {
         const tireText = await tireRes.Body?.transformToString("utf-8") || "";
         const tireLines = tireText.replace(/^\uFEFF/, "").split("\n");
         const th = tireLines[0].split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
-        const ti = { itemId: th.findIndex(h => h.includes("item id") || h.includes("itemid") || h === "sku"), mfgName: th.findIndex(h => h.includes("brand") || h.includes("mfg name") || h.includes("manufacturer")), model: th.findIndex(h => h === "model"), size: th.findIndex(h => h.includes("size")), li: th.findIndex(h => h.includes("load index")), sr: th.findIndex(h => h.includes("speed rating")), sw: th.findIndex(h => h.includes("sidewall")), xl: th.findIndex(h => h.includes("xl/rf") || h.includes("xlrf")), ply: th.findIndex(h => h.includes("ply rating") || h.includes("load range")) };
+        const ti = { itemId: th.findIndex(h => h.includes("item id") || h.includes("itemid") || h === "sku"), mfgName: th.findIndex(h => h.includes("brand") || h.includes("mfg name") || h.includes("manufacturer")), model: th.findIndex(h => h === "model"), size: th.findIndex(h => h.includes("size")), li: th.findIndex(h => h.includes("load index")), sr: th.findIndex(h => h.includes("speed rating")), sw: th.findIndex(h => h.includes("sidewall")), xl: th.findIndex(h => h.includes("xl/rf") || h.includes("xlrf")), ply: th.findIndex(h => h.includes("ply rating") || h.includes("load range")), fet: th.findIndex(h => h === "fet") };
         for (let i = 1; i < tireLines.length; i++) {
           const c = tireLines[i].split(",").map(v => v.replace(/"/g, "").trim());
           const id = ti.itemId >= 0 ? c[ti.itemId] : "";
           if (!id) continue;
           const tire = { mfgName: ti.mfgName >= 0 ? c[ti.mfgName] : "", model: ti.model >= 0 ? c[ti.model] : "", size: ti.size >= 0 ? c[ti.size] : "", loadIndex: ti.li >= 0 ? c[ti.li] : "", speedRating: ti.sr >= 0 ? c[ti.sr] : "", sidewall: ti.sw >= 0 ? c[ti.sw] : "", xlrf: ti.xl >= 0 ? c[ti.xl] : "", plyRating: ti.ply >= 0 ? c[ti.ply] : "" };
+          const fet = ti.fet >= 0 ? (parseFloat(c[ti.fet]) || 0) : 0;
           const desc = buildTireDescription(tire);
-          tireLookup.set(id, { mfgName: tire.mfgName, model: tire.model, desc });
-          tireLookup.set(id.replace(/[.\^\[:\-~*#]$/, ""), { mfgName: tire.mfgName, model: tire.model, desc });
+          tireLookup.set(id, { mfgName: tire.mfgName, model: tire.model, desc, fet });
+          tireLookup.set(id.replace(/[.\^\[:\-~*#]$/, ""), { mfgName: tire.mfgName, model: tire.model, desc, fet });
         }
       }
     } catch { /* best effort */ }
@@ -284,9 +285,18 @@ export async function GET(request: NextRequest) {
           const qty = -rawQty;           // Negate: sold=-8 → display 8, return=2 → display -2
           const extCost = -rawExtCost;   // Negate: sold=-1202 → 1202, return=80 → -80
 
+          // OEA07V cost columns are FET-included (header literally says "FET In").
+          // Look up per-unit FET from the tire catalog and back it out before the
+          // commission calc, so we don't pay commission on tax. Items not in the
+          // catalog default to fet=0 (no adjustment).
+          const itemIdForFet = row[COL.ITEM_ID]?.replace(/"/g, "").trim() || "";
+          const tireForFet = tireLookup.get(itemIdForFet) || tireLookup.get(itemIdForFet.replace(/[.\^\[:\-~*#]$/, ""));
+          const perUnitFet = tireForFet?.fet ?? 0;
+          const extCostExFet = extCost - perUnitFet * qty;
+
           let commissionAmount: number;
           if (config.commissionType === "percentage") {
-            commissionAmount = extCost * (config.commissionValue / 100);
+            commissionAmount = extCostExFet * (config.commissionValue / 100);
           } else {
             commissionAmount = qty * config.commissionValue;
           }
