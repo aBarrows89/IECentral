@@ -291,9 +291,10 @@ export async function GET(request: NextRequest) {
             commissionAmount = qty * config.commissionValue;
           }
 
-          // $2.50 per-line minimum charge. Applied symmetrically — a return that
-          // calculates below the floor (e.g., -$1.20) is bumped to -$2.50 so the
-          // clawback mirrors the floored sale that originally booked $2.50.
+          // $2.50 per-line minimum charge. Symmetric: a sale that calculates
+          // below the floor is bumped to $2.50, and the matching return claws
+          // back $2.50 too — so the return matches exactly what was credited
+          // when the item was sold under the new rule.
           const MIN_COMMISSION = 2.5;
           if (commissionAmount > 0 && commissionAmount < MIN_COMMISSION) {
             commissionAmount = MIN_COMMISSION;
