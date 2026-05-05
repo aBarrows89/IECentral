@@ -71,6 +71,12 @@ export default function FilteredInventoryReportPage() {
   const [adjError, setAdjError] = useState("");
   const [adjGenerating, setAdjGenerating] = useState(false);
 
+  // Adjustments log filters
+  const [adjSearch, setAdjSearch] = useState("");
+  const [adjRange, setAdjRange] = useState<"thisMonth" | "lastMonth" | "last90" | "all">("thisMonth");
+  const [adjPage, setAdjPage] = useState(0);
+  const [adjPageSize, setAdjPageSize] = useState(50);
+
   const addAdjustment = useMutation(api.inventoryAdjustments.add);
   const removeAdjustment = useMutation(api.inventoryAdjustments.remove);
   const adjustments = useQuery(
@@ -120,6 +126,42 @@ export default function FilteredInventoryReportPage() {
     const key = adjItemId.trim().toUpperCase();
     return key ? itemLookup.get(key) : undefined;
   }, [adjItemId, itemLookup]);
+
+  // Date-range bounds (ms since epoch). thisMonth/lastMonth use calendar month.
+  const adjRangeBounds = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = (y: number, m: number) => new Date(y, m, 1).getTime();
+    if (adjRange === "thisMonth") {
+      return { start: startOfMonth(now.getFullYear(), now.getMonth()), end: Infinity };
+    }
+    if (adjRange === "lastMonth") {
+      return { start: startOfMonth(now.getFullYear(), now.getMonth() - 1), end: startOfMonth(now.getFullYear(), now.getMonth()) };
+    }
+    if (adjRange === "last90") {
+      return { start: now.getTime() - 90 * 86_400_000, end: Infinity };
+    }
+    return { start: 0, end: Infinity };
+  }, [adjRange]);
+
+  // Filter and paginate the log.
+  const filteredAdjustments = useMemo(() => {
+    const list = adjustments ?? [];
+    const q = adjSearch.trim().toLowerCase();
+    return list.filter((a) => {
+      if (a.createdAt < adjRangeBounds.start || a.createdAt >= adjRangeBounds.end) return false;
+      if (q) {
+        const hay = `${a.itemId} ${a.manufacturerName ?? ""} ${a.description ?? ""} ${a.notes ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [adjustments, adjSearch, adjRangeBounds]);
+
+  // Reset page on filter change.
+  useEffect(() => { setAdjPage(0); }, [adjSearch, adjRange, adjPageSize]);
+
+  const adjTotalPages = Math.max(1, Math.ceil(filteredAdjustments.length / adjPageSize));
+  const adjPaged = useMemo(() => filteredAdjustments.slice(adjPage * adjPageSize, (adjPage + 1) * adjPageSize), [filteredAdjustments, adjPage, adjPageSize]);
 
   // Aggregate stats over the location's adjustments — MoM count, per-item MoM,
   // repeat flags. All client-side from the adjustments query result.
@@ -276,12 +318,23 @@ export default function FilteredInventoryReportPage() {
       const pageHeight = doc.internal.pageSize.getHeight();
 
       const storeName = locationLabel(location);
-      const title = `${storeName} - Inventory Adjustments`;
+      const fullStore = `${location} - ${storeName}`;
+      const title = `${fullStore} - Inventory Adjustments`;
       const now = new Date();
-      const ranStr = `Ran: ${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")}/${String(now.getFullYear()).slice(2)} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-      const footerLeft = `${storeName} Adjustments`;
+      const ranDate = `${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")}/${String(now.getFullYear()).slice(2)}`;
+      const ranTime = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+      const ranStr = `Ran: ${ranDate} ${ranTime}`;
+      const footerLeft = `${fullStore} Adjustments - ${ranDate}`;
 
-      // Section 1 — full chronological log
+      const drawHeaderFooter = () => {
+        doc.setFontSize(11); doc.setFont("helvetica", "bold");
+        doc.text(title, pageWidth / 2, 36, { align: "center" });
+        doc.setFontSize(9); doc.setFont("helvetica", "normal");
+        doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
+        doc.text(footerLeft, 36, pageHeight - 24);
+      };
+
+      // Section 1 — full chronological log (newest first)
       const sorted = [...adjustments].sort((a, b) => b.createdAt - a.createdAt);
       const logBody = sorted.map((a) => [
         new Date(a.createdAt).toLocaleString(undefined, { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
@@ -298,50 +351,40 @@ export default function FilteredInventoryReportPage() {
         body: logBody,
         startY: 72,
         margin: { top: 72, bottom: 50, left: 36, right: 36 },
-        styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak" },
+        styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
         headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
         columnStyles: {
           0: { cellWidth: 70 },
-          1: { cellWidth: 70 },
-          2: { cellWidth: 60 },
+          1: { cellWidth: 75 },
+          2: { cellWidth: 65 },
           3: { cellWidth: 140 },
           4: { halign: "center", cellWidth: 35 },
-          5: { cellWidth: 100 },
-          6: { cellWidth: 60 },
+          5: { cellWidth: 90 },
+          6: { cellWidth: 65 },
         },
-        didDrawPage: () => {
-          doc.setFontSize(11); doc.setFont("helvetica", "bold");
-          doc.text(title, pageWidth / 2, 36, { align: "center" });
-          doc.setFontSize(9); doc.setFont("helvetica", "normal");
-          doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
-          doc.text(footerLeft, 36, pageHeight - 24);
-        },
+        didDrawPage: drawHeaderFooter,
       });
 
       // Section 2 — monthly counts
       doc.addPage();
+      drawHeaderFooter();
       doc.setFontSize(13); doc.setFont("helvetica", "bold");
-      doc.text("Monthly Activity", 36, 60);
+      doc.text("Monthly Activity", 36, 80);
       autoTable(doc, {
         head: [["Month", "Adjustments"]],
         body: adjStats.countByYm.map(([ym, n]) => [ymLabel(ym), String(n)]),
-        startY: 70,
-        margin: { left: 36, right: 36, bottom: 50 },
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [37, 99, 154], textColor: 255 },
-        didDrawPage: () => {
-          doc.setFontSize(11); doc.setFont("helvetica", "bold");
-          doc.text(title, pageWidth / 2, 36, { align: "center" });
-          doc.setFontSize(9); doc.setFont("helvetica", "normal");
-          doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
-          doc.text(footerLeft, 36, pageHeight - 24);
-        },
+        startY: 90,
+        margin: { top: 72, left: 36, right: 36, bottom: 50 },
+        styles: { fontSize: 9, cellPadding: 4 },
+        headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
+        columnStyles: { 1: { halign: "center" } },
+        didDrawPage: drawHeaderFooter,
       });
 
       // Section 3 — per-item MoM
       if (adjStats.perItemMoM.length > 0) {
-        doc.setFontSize(13); doc.setFont("helvetica", "bold");
         const yAfter = (doc as any).lastAutoTable?.finalY ?? 100;
+        doc.setFontSize(13); doc.setFont("helvetica", "bold");
         doc.text(`Per-Item MoM (${ymLabel(adjStats.priorYm)} vs ${ymLabel(adjStats.currentYm)})`, 36, yAfter + 28);
         autoTable(doc, {
           head: [["Item ID", "Mfg", "Description", ymLabel(adjStats.priorYm), ymLabel(adjStats.currentYm), "Δ"]],
@@ -352,22 +395,18 @@ export default function FilteredInventoryReportPage() {
             ((r.current - r.prior) > 0 ? "+" : "") + String(r.current - r.prior),
           ]),
           startY: yAfter + 36,
-          margin: { left: 36, right: 36, bottom: 50 },
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [37, 99, 154], textColor: 255 },
+          margin: { top: 72, left: 36, right: 36, bottom: 50 },
+          styles: { fontSize: 9, cellPadding: 4 },
+          headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
           columnStyles: { 3: { halign: "center" }, 4: { halign: "center" }, 5: { halign: "center", fontStyle: "bold" } },
+          didDrawPage: drawHeaderFooter,
         });
       }
 
       // Section 4 — flags
       if (adjStats.repeatedThisMonth.length > 0 || adjStats.consecutiveMultiMonth.length > 0) {
         doc.addPage();
-        doc.setFontSize(11); doc.setFont("helvetica", "bold");
-        doc.text(title, pageWidth / 2, 36, { align: "center" });
-        doc.setFontSize(9); doc.setFont("helvetica", "normal");
-        doc.text(ranStr, pageWidth / 2, 52, { align: "center" });
-        doc.text(footerLeft, 36, pageHeight - 24);
-
+        drawHeaderFooter();
         doc.setFontSize(13); doc.setFont("helvetica", "bold");
         doc.text("Repeated this month (≥ 2 entries)", 36, 80);
         if (adjStats.repeatedThisMonth.length > 0) {
@@ -375,9 +414,11 @@ export default function FilteredInventoryReportPage() {
             head: [["Item ID", "Mfg", "Description", "Count"]],
             body: adjStats.repeatedThisMonth.map((r) => [r.itemId, r.meta.manufacturerName, r.meta.description, String(r.count)]),
             startY: 90,
-            margin: { left: 36, right: 36, bottom: 50 },
-            styles: { fontSize: 9 },
-            headStyles: { fillColor: [37, 99, 154], textColor: 255 },
+            margin: { top: 72, left: 36, right: 36, bottom: 50 },
+            styles: { fontSize: 9, cellPadding: 4 },
+            headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
+            columnStyles: { 3: { halign: "center" } },
+            didDrawPage: drawHeaderFooter,
           });
         } else {
           doc.setFontSize(9); doc.setFont("helvetica", "italic");
@@ -392,9 +433,10 @@ export default function FilteredInventoryReportPage() {
             head: [["Item ID", "Mfg", "Description", "Months"]],
             body: adjStats.consecutiveMultiMonth.map((r) => [r.itemId, r.meta.manufacturerName, r.meta.description, r.months.map(ymLabel).join(", ")]),
             startY: yAfter2 + 36,
-            margin: { left: 36, right: 36, bottom: 50 },
-            styles: { fontSize: 9 },
-            headStyles: { fillColor: [37, 99, 154], textColor: 255 },
+            margin: { top: 72, left: 36, right: 36, bottom: 50 },
+            styles: { fontSize: 9, cellPadding: 4 },
+            headStyles: { fillColor: [37, 99, 154], textColor: 255, fontStyle: "bold", halign: "center" },
+            didDrawPage: drawHeaderFooter,
           });
         }
       }
@@ -407,8 +449,8 @@ export default function FilteredInventoryReportPage() {
         doc.text(`Page ${i} of ${total}`, pageWidth - 36, pageHeight - 24, { align: "right" });
       }
 
-      const fileSlug = storeName.replace(/[^A-Za-z0-9]+/g, "_");
-      doc.save(`${fileSlug}_adjustments_${ranStr.split(" ")[1].replace(/\//g,"")}.pdf`);
+      const fileSlug = `${location}_${storeName.replace(/[^A-Za-z0-9]+/g, "_")}`;
+      doc.save(`${fileSlug}_adjustments_${ranDate.replace(/\//g,"")}.pdf`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF generation failed");
     } finally {
@@ -641,7 +683,7 @@ export default function FilteredInventoryReportPage() {
                 {/* Entry form */}
                 <div className={`rounded-xl border p-5 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
                   <h2 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>
-                    Log adjustment — {locationLabel(location)}
+                    Log adjustment — {location} · {locationLabel(location)}
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                     <div className="sm:col-span-3">
@@ -717,10 +759,30 @@ export default function FilteredInventoryReportPage() {
                   ))}
                 </div>
 
-                {/* Recent log + flags + Print */}
+                {/* Recent log + filters + Print */}
                 <div className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
-                  <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                  <div className={`flex flex-wrap items-center gap-3 px-4 py-3 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                     <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Adjustment log</h2>
+                    <input
+                      type="text"
+                      value={adjSearch}
+                      onChange={(e) => setAdjSearch(e.target.value)}
+                      placeholder="Search item ID, description, notes…"
+                      className={`flex-1 min-w-[180px] px-3 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`}
+                    />
+                    <select
+                      value={adjRange}
+                      onChange={(e) => setAdjRange(e.target.value as any)}
+                      className={`px-2 py-1.5 rounded-lg border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}
+                    >
+                      <option value="thisMonth">This month</option>
+                      <option value="lastMonth">Last month</option>
+                      <option value="last90">Last 90 days</option>
+                      <option value="all">All time</option>
+                    </select>
+                    <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-500"}`}>
+                      {filteredAdjustments.length} of {adjustments?.length ?? 0}
+                    </span>
                     <button
                       onClick={handleGenerateAdjustmentsPDF}
                       disabled={adjGenerating || !adjustments || adjustments.length === 0}
@@ -733,34 +795,51 @@ export default function FilteredInventoryReportPage() {
                     <p className={`p-4 text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>Loading…</p>
                   ) : adjustments.length === 0 ? (
                     <p className={`p-4 text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>No adjustments logged for this location yet.</p>
+                  ) : filteredAdjustments.length === 0 ? (
+                    <p className={`p-4 text-sm ${isDark ? "text-slate-500" : "text-gray-400"}`}>No adjustments match the current filter.</p>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead className={isDark ? "bg-slate-900/50 text-slate-400" : "bg-gray-50 text-gray-600"}>
-                          <tr>
-                            {["Date", "Item ID", "Mfg", "Description", "Qty", "Notes", "By", ""].map((h) => (
-                              <th key={h} className="text-left px-3 py-2 font-semibold">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {adjustments.map((a) => (
-                            <tr key={a._id} className={`border-t ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
-                              <td className={`px-3 py-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{new Date(a.createdAt).toLocaleString(undefined, { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                              <td className={`px-3 py-2 font-mono ${isDark ? "text-slate-300" : "text-gray-800"}`}>{a.itemId}</td>
-                              <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{a.manufacturerName || "—"}</td>
-                              <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{a.description || "—"}</td>
-                              <td className={`px-3 py-2 text-right font-mono font-semibold ${a.qtyChange > 0 ? (isDark ? "text-emerald-400" : "text-emerald-700") : (isDark ? "text-red-400" : "text-red-700")}`}>{a.qtyChange > 0 ? "+" : ""}{a.qtyChange}</td>
-                              <td className={`px-3 py-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>{a.notes || ""}</td>
-                              <td className={`px-3 py-2 ${isDark ? "text-slate-500" : "text-gray-500"}`}>{a.enteredByName}</td>
-                              <td className="px-3 py-2 text-right">
-                                <button onClick={() => handleDeleteAdjustment(a._id)} className={`text-[10px] px-2 py-1 rounded ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Delete</button>
-                              </td>
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className={isDark ? "bg-slate-900/50 text-slate-400" : "bg-gray-50 text-gray-600"}>
+                            <tr>
+                              {["Date", "Item ID", "Mfg", "Description", "Qty", "Notes", "By", ""].map((h) => (
+                                <th key={h} className="text-left px-3 py-2 font-semibold">{h}</th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {adjPaged.map((a) => (
+                              <tr key={a._id} className={`border-t ${isDark ? "border-slate-700/50" : "border-gray-100"}`}>
+                                <td className={`px-3 py-2 ${isDark ? "text-slate-400" : "text-gray-500"}`}>{new Date(a.createdAt).toLocaleString(undefined, { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                                <td className={`px-3 py-2 font-mono ${isDark ? "text-slate-300" : "text-gray-800"}`}>{a.itemId}</td>
+                                <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{a.manufacturerName || "—"}</td>
+                                <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-gray-700"}`}>{a.description || "—"}</td>
+                                <td className={`px-3 py-2 text-right font-mono font-semibold ${a.qtyChange > 0 ? (isDark ? "text-emerald-400" : "text-emerald-700") : (isDark ? "text-red-400" : "text-red-700")}`}>{a.qtyChange > 0 ? "+" : ""}{a.qtyChange}</td>
+                                <td className={`px-3 py-2 ${isDark ? "text-slate-400" : "text-gray-600"}`}>{a.notes || ""}</td>
+                                <td className={`px-3 py-2 ${isDark ? "text-slate-500" : "text-gray-500"}`}>{a.enteredByName}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <button onClick={() => handleDeleteAdjustment(a._id)} className={`text-[10px] px-2 py-1 rounded ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Delete</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className={`flex items-center justify-between px-4 py-3 border-t ${isDark ? "bg-slate-900/40 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
+                        <span className={`text-xs ${isDark ? "text-slate-400" : "text-gray-500"}`}>
+                          Showing {adjPage * adjPageSize + 1}–{Math.min((adjPage + 1) * adjPageSize, filteredAdjustments.length)} of {filteredAdjustments.length}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <select value={adjPageSize} onChange={(e) => setAdjPageSize(Number(e.target.value))} className={`px-2 py-1 rounded border text-xs ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                            {[25, 50, 100].map((s) => <option key={s} value={s}>{s}/page</option>)}
+                          </select>
+                          <button disabled={adjPage === 0} onClick={() => setAdjPage((p) => p - 1)} className={`px-2 py-1 rounded text-xs disabled:opacity-30 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Prev</button>
+                          <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{adjPage + 1}/{adjTotalPages}</span>
+                          <button disabled={adjPage >= adjTotalPages - 1} onClick={() => setAdjPage((p) => p + 1)} className={`px-2 py-1 rounded text-xs disabled:opacity-30 ${isDark ? "text-slate-300" : "text-gray-700"}`}>Next</button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
 
