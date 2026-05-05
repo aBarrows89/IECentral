@@ -30,6 +30,7 @@ export default function SalesHistoryReportPage() {
   const [productType, setProductType] = useState("");
   const [dclass, setDclass] = useState("");
   const [location, setLocation] = useState("");
+  const [includeVendorReturns, setIncludeVendorReturns] = useState(false);
   const [startMonth, setStartMonth] = useState(() => `${new Date().getFullYear()}-01`);
   const [endMonth, setEndMonth] = useState(() => {
     const now = new Date();
@@ -60,6 +61,7 @@ export default function SalesHistoryReportPage() {
     if (productType) params.set("productType", productType);
     if (dclass) params.set("dclass", dclass);
     if (location) params.set("location", location);
+    if (includeVendorReturns) params.set("includeVendorReturns", "true");
     if (startMonth) params.set("startMonth", startMonth);
     if (endMonth) params.set("endMonth", endMonth);
     if (showAllRows) params.set("showAllRows", "true");
@@ -85,7 +87,7 @@ export default function SalesHistoryReportPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [startMonth, endMonth, location]);
+  }, [startMonth, endMonth, location, includeVendorReturns]);
 
   // Filter month columns to selected range
   const visibleMonths = useMemo((): string[] => {
@@ -211,6 +213,10 @@ export default function SalesHistoryReportPage() {
                   <option value="">All Locations</option>
                   {filters.locations.map((l) => <option key={l} value={l}>{LOCATION_LABELS[l] ? `${l} — ${LOCATION_LABELS[l]}` : l}</option>)}
                 </select>
+                <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs cursor-pointer ${isDark ? "bg-slate-900 border-slate-600 text-slate-300 hover:border-slate-500" : "bg-white border-gray-300 text-gray-700 hover:border-gray-400"}`} title="Include returns to vendors (e.g. acct W4490). Off by default — these can be 100+ units in one row.">
+                  <input type="checkbox" checked={includeVendorReturns} onChange={(e) => { setIncludeVendorReturns(e.target.checked); setPage(0); }} className="rounded w-3.5 h-3.5" />
+                  Include vendor returns
+                </label>
 
                 <div className={`h-6 w-px ${isDark ? "bg-slate-700" : "bg-gray-200"}`} />
 

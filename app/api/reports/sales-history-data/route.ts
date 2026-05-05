@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     const filterProductType = searchParams.get("productType");
     const filterDclass = searchParams.get("dclass");
     const filterLocation = (searchParams.get("location") || "").trim().toUpperCase();
+    const includeVendorReturns = searchParams.get("includeVendorReturns") === "true";
     const startMonth = searchParams.get("startMonth");
     const endMonth = searchParams.get("endMonth");
 
@@ -201,6 +202,11 @@ export async function GET(request: NextRequest) {
         // R30 hits 99-R30, R15/R20/R25/W07/W08 hit INV{LOC}.
         if (acct.startsWith("INV") && !/^INV[WR]\d{2}$/i.test(acct)) continue;
         if (acct.startsWith("99-") && !/^99-[WR]\d{2}$/i.test(acct)) continue;
+        // Vendor accounts look like W4490 / R1234 (W or R + 4+ digits) —
+        // distinct from store codes which are exactly 2 digits. Default to
+        // excluding so a single 230-unit supplier RA doesn't dwarf real
+        // customer activity. Toggle re-includes them.
+        if (!includeVendorReturns && /^[WR]\d{4,}$/i.test(acct)) continue;
 
         // Capture the row's location and apply the location filter (if any) at
         // parse time so per-item monthly totals only reflect the chosen store.
