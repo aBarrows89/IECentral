@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     const filterBrand = searchParams.get("brand");
     const filterProductType = searchParams.get("productType");
     const filterDclass = searchParams.get("dclass");
+    const filterLocation = (searchParams.get("location") || "").trim().toUpperCase();
     const startMonth = searchParams.get("startMonth");
     const endMonth = searchParams.get("endMonth");
 
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (allFiles.length === 0) {
-      return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [] }, fileDate: null });
+      return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [], locations: [] }, fileDate: null });
     }
 
     // Group by month — use latest file per month
@@ -99,6 +100,9 @@ export async function GET(request: NextRequest) {
       dclass: string; model: string; mfgItemId: string;
       monthlySales: Record<string, number>;
     }>();
+    // Track every location we encounter (before applying the location filter)
+    // so the picker shows all available stores, not just the currently-selected one.
+    const seenLocations = new Set<string>();
 
     // Load tires catalog for description/model enrichment
     const tireLookup = new Map<string, { mfgName: string; model: string; desc: string }>();
@@ -158,6 +162,12 @@ export async function GET(request: NextRequest) {
         if (/^[WR]\d{2}$/i.test(acct)) continue;
         if (acct.startsWith("INV") || acct.startsWith("99-")) continue;
 
+        // Capture the row's location and apply the location filter (if any) at
+        // parse time so per-item monthly totals only reflect the chosen store.
+        const rowLocation = (row[8] || "").replace(/"/g, "").trim().toUpperCase();
+        if (rowLocation) seenLocations.add(rowLocation);
+        if (filterLocation && rowLocation !== filterLocation) continue;
+
         const qty = parseFloat(row[10] || "0") || 0;
         // Parse activity date to get the month (MM/DD/YY)
         const dateRaw = (row[18] || "").replace(/"/g, "").trim();
@@ -210,6 +220,7 @@ export async function GET(request: NextRequest) {
     const brands = [...new Set(items.map((i) => i.brand).filter(Boolean))].sort();
     const productTypes = [...new Set(items.map((i) => i.productType).filter(Boolean))].sort();
     const dclasses = [...new Set(items.map((i) => i.dclass).filter(Boolean))].sort();
+    const locations = [...seenLocations].sort();
 
     // Apply filters
     if (filterBrand) items = items.filter((i) => i.brand === filterBrand);
@@ -223,7 +234,7 @@ export async function GET(request: NextRequest) {
       items: items.slice(0, 10000),
       monthColumns: allMonths,
       allAvailableMonths: allMonths,
-      filters: { brands, productTypes, dclasses },
+      filters: { brands, productTypes, dclasses, locations },
       fileDate: latestFileDate,
       totalRows: items.length,
       truncated: items.length > 10000,

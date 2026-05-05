@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { LOCATION_LABELS } from "@/lib/locationLabels";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
@@ -17,7 +18,7 @@ interface SalesItem {
   isColonRow?: boolean; [key: string]: unknown;
 }
 
-interface Filters { brands: string[]; productTypes: string[]; dclasses: string[] }
+interface Filters { brands: string[]; productTypes: string[]; dclasses: string[]; locations: string[] }
 
 export default function SalesHistoryReportPage() {
   const { theme } = useTheme();
@@ -27,6 +28,7 @@ export default function SalesHistoryReportPage() {
   const [brand, setBrand] = useState("");
   const [productType, setProductType] = useState("");
   const [dclass, setDclass] = useState("");
+  const [location, setLocation] = useState("");
   const [startMonth, setStartMonth] = useState(() => `${new Date().getFullYear()}-01`);
   const [endMonth, setEndMonth] = useState(() => {
     const now = new Date();
@@ -46,7 +48,7 @@ export default function SalesHistoryReportPage() {
   const [items, setItems] = useState<SalesItem[]>([]);
   const [monthColumns, setMonthColumns] = useState<string[]>([]);
   const [allMonths, setAllMonths] = useState<string[]>([]);
-  const [filters, setFilters] = useState<Filters>({ brands: [], productTypes: [], dclasses: [] });
+  const [filters, setFilters] = useState<Filters>({ brands: [], productTypes: [], dclasses: [], locations: [] });
   const [fileDate, setFileDate] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -56,6 +58,7 @@ export default function SalesHistoryReportPage() {
     if (brand) params.set("brand", brand);
     if (productType) params.set("productType", productType);
     if (dclass) params.set("dclass", dclass);
+    if (location) params.set("location", location);
     if (startMonth) params.set("startMonth", startMonth);
     if (endMonth) params.set("endMonth", endMonth);
     if (showAllRows) params.set("showAllRows", "true");
@@ -67,13 +70,21 @@ export default function SalesHistoryReportPage() {
         setItems(data.items || []);
         setMonthColumns(data.monthColumns || []);
         setAllMonths(data.allAvailableMonths || []);
-        setFilters(data.filters || { brands: [], productTypes: [], dclasses: [] });
+        setFilters((prev) => ({
+          brands: data.filters?.brands || [],
+          productTypes: data.filters?.productTypes || [],
+          dclasses: data.filters?.dclasses || [],
+          // Preserve the locations list across filter changes — the API only
+          // returns locations *seen after* the location filter was applied,
+          // so once you pick a location the others would disappear otherwise.
+          locations: (data.filters?.locations || []).length > 0 ? data.filters.locations : prev.locations,
+        }));
         setFileDate(data.fileDate);
         setError("");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [startMonth, endMonth]);
+  }, [startMonth, endMonth, location]);
 
   // Filter month columns to selected range
   const visibleMonths = useMemo((): string[] => {
@@ -194,6 +205,10 @@ export default function SalesHistoryReportPage() {
                   <option value="">All D-Classes</option>
                   {filters.dclasses.map((d) => <option key={d} value={d}>{d || "(blank)"}</option>)}
                 </select>
+                <select value={location} onChange={(e) => { setLocation(e.target.value); setPage(0); }} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300"}`}>
+                  <option value="">All Locations</option>
+                  {filters.locations.map((l) => <option key={l} value={l}>{LOCATION_LABELS[l] ? `${l} — ${LOCATION_LABELS[l]}` : l}</option>)}
+                </select>
 
                 <div className={`h-6 w-px ${isDark ? "bg-slate-700" : "bg-gray-200"}`} />
 
@@ -208,8 +223,8 @@ export default function SalesHistoryReportPage() {
                 </select>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {(brand || productType || dclass || search) && (
-                  <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setSearch(""); setPage(0); }}
+                {(brand || productType || dclass || location || search) && (
+                  <button onClick={() => { setBrand(""); setProductType(""); setDclass(""); setLocation(""); setSearch(""); setPage(0); }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>Clear All</button>
                 )}
                 {filtered.length !== items.length && (
