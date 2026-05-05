@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { tireSizeMatchesQuery } from "@/lib/tireSearch";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
@@ -66,25 +67,15 @@ export default function InventoryReportPage() {
 
   const filtered = useMemo(() => {
     let result = items;
-    // Search across item ID, description, brand, model. Also matches tire-size
-    // queries with no separators ("2656018" → "265/60R18") by extracting the
-    // size pattern from each description and comparing digits-only.
     if (search) {
       const q = search.toLowerCase();
-      const qNoSep = q.replace(/[^a-z0-9]/gi, "");
       result = result.filter((i) => {
         if (i.itemId.toLowerCase().includes(q)) return true;
         if (i.description.toLowerCase().includes(q)) return true;
         if (i.manufacturerName.toLowerCase().includes(q)) return true;
         if (i.model.toLowerCase().includes(q)) return true;
         if (i.mfgItemId.toLowerCase().includes(q)) return true;
-        if (qNoSep.length >= 5) {
-          const m = /(\d{2,3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2})/i.exec(i.description);
-          if (m) {
-            const sizeDigits = m[1] + m[2] + m[3];
-            if (sizeDigits.includes(qNoSep) || qNoSep.includes(sizeDigits)) return true;
-          }
-        }
+        if (tireSizeMatchesQuery(i.description, search)) return true;
         return false;
       });
     }

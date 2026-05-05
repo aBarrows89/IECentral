@@ -11,6 +11,7 @@ import Link from "next/link";
 import { LOCATION_LABELS, locationLabel } from "@/lib/locationLabels";
 import { tireSortKey } from "@/lib/tireSize";
 import { isReportableBrand } from "@/lib/brandFilter";
+import { tireSizeMatchesQuery } from "@/lib/tireSearch";
 
 interface InventoryItem {
   location: string;
@@ -170,7 +171,7 @@ export default function FilteredInventoryReportPage() {
       if (a.createdAt < adjRangeBounds.start || a.createdAt >= adjRangeBounds.end) return false;
       if (q) {
         const hay = `${a.itemId} ${a.manufacturerName ?? ""} ${a.description ?? ""} ${a.notes ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        if (!hay.includes(q) && !tireSizeMatchesQuery(a.description, adjSearch)) return false;
       }
       return true;
     });

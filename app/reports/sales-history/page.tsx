@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { LOCATION_LABELS } from "@/lib/locationLabels";
+import { tireSizeMatchesQuery } from "@/lib/tireSearch";
 import Protected from "@/app/protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "@/app/theme-context";
@@ -102,7 +103,8 @@ export default function SalesHistoryReportPage() {
       result = result.filter((i) =>
         i.itemId.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) ||
         (i.brand || i.manufacturerName || "").toLowerCase().includes(q) ||
-        i.mfgItemId.toLowerCase().includes(q)
+        i.mfgItemId.toLowerCase().includes(q) ||
+        tireSizeMatchesQuery(i.description, search)
       );
     }
     if (brand) result = result.filter((i) => (i.brand || i.manufacturerName) === brand);
