@@ -162,7 +162,10 @@ export async function GET(request: NextRequest) {
         if (["700", "7001", "7002"].includes(acct)) continue;
         if (/^[WR]\d{2}[WR]\d{2}$/i.test(acct)) continue;
         if (/^[WR]\d{2}$/i.test(acct)) continue;
-        if (acct.startsWith("INV") || acct.startsWith("99-")) continue;
+        if (acct.startsWith("INV")) continue;
+        // Keep "99-{LOCATION}" accounts (per-store till sales) while still
+        // dropping other 99-prefix internal accounts.
+        if (acct.startsWith("99-") && !/^99-[WR]\d{2}$/i.test(acct)) continue;
 
         // Capture the row's location and apply the location filter (if any) at
         // parse time so per-item monthly totals only reflect the chosen store.
