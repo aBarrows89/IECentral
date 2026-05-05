@@ -146,9 +146,14 @@ export async function GET(request: NextRequest) {
         const itemId = (row[0] || "").replace(/"/g, "").trim();
         if (!itemId) continue;
 
-        // Skip non-sale transactions (transfers, receives)
+        // Keep only real sales (Sld) and customer returns (ReS).
+        // Skip transfers (TrI/TrO), receives (Rcv), and any inventory
+        // adjustment (Adj/D damage, Adj/ZZ other, Adj/RS adjustment-return).
+        // Adjustments aren't sales or customer returns — they're stocking
+        // corrections that bury legit numbers (esp. for new stores).
         const transaction = (row[9] || "").replace(/"/g, "").trim();
         if (transaction === "TrI" || transaction === "TrO" || transaction === "Rcv") continue;
+        if (transaction.startsWith("Adj")) continue;
 
         // Standard filters: tire types only, no warehouse transfers, no internal accounts
         const productType = (row[3] || "").replace(/"/g, "").trim();
