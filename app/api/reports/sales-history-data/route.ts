@@ -162,9 +162,11 @@ export async function GET(request: NextRequest) {
         if (["700", "7001", "7002"].includes(acct)) continue;
         if (/^[WR]\d{2}[WR]\d{2}$/i.test(acct)) continue;
         if (/^[WR]\d{2}$/i.test(acct)) continue;
-        if (acct.startsWith("INV")) continue;
-        // Keep "99-{LOCATION}" accounts (per-store till sales) while still
-        // dropping other 99-prefix internal accounts.
+        // Keep "INV{LOCATION}" and "99-{LOCATION}" per-store till accounts
+        // (real sales) while still dropping other INV-/99-prefix internal
+        // bookkeeping accounts. Locations vary in which pattern they use:
+        // R30 hits 99-R30, R15/R20/R25/W07/W08 hit INV{LOC}.
+        if (acct.startsWith("INV") && !/^INV[WR]\d{2}$/i.test(acct)) continue;
         if (acct.startsWith("99-") && !/^99-[WR]\d{2}$/i.test(acct)) continue;
 
         // Capture the row's location and apply the location filter (if any) at
