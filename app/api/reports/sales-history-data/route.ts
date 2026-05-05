@@ -82,13 +82,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [], locations: [] }, fileDate: null });
     }
 
-    // Read every OEA07V file across every month folder so daily uploads are
-    // all included (and so files like Apr's monthly that landed in 202605/ are
-    // still picked up). Sort newest-first so the most recent file's
-    // description/brand wins on first sight; subsequent occurrences of the
-    // same row are dropped via dedup.
-    allFiles.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-    const months = [...new Set(allFiles.map((f) => f.month))].sort();
+    // Honor the start/end month picker — skip folders entirely outside the
+    // requested range. Folder month is YYYY-MM.
+    const inRange = (m: string) => (!startMonth || m >= startMonth) && (!endMonth || m <= endMonth);
+    let workingFiles = allFiles.filter((f) => inRange(f.month));
+
+    // Per month folder, if one of the files is a monthly-combined (cron-built)
+    // OR a Michael-style "<Month> YYYY.csv", use ONLY that file for the month
+    // and skip the 20+ daily uploads. Cuts request size dramatically.
+    const monthName = (yyyymm: string) => ["january","february","march","april","may","june","july","august","september","october","november","december"][parseInt(yyyymm.split("-")[1], 10) - 1];
+    const isMonthlyForMonth = (key: string, monthFolder: string) => {
+      const k = key.toLowerCase();
+      if (k.includes("monthly-combined")) return true;
+      const name = monthName(monthFolder);
+      const abbr = name.slice(0, 3);
+      return k.includes(name) || k.includes(abbr) || k.includes(monthFolder.replace("-", ""));
+    };
+    const filesByMonthFolder = new Map<string, typeof workingFiles>();
+    for (const f of workingFiles) (filesByMonthFolder.get(f.month) || filesByMonthFolder.set(f.month, []).get(f.month)!).push(f);
+    const trimmed: typeof workingFiles = [];
+    for (const [folder, group] of filesByMonthFolder) {
+      const monthly = group.filter((f) => isMonthlyForMonth(f.key, folder)).sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+      if (monthly[0]) trimmed.push(monthly[0]);
+      else trimmed.push(...group);
+    }
+    workingFiles = trimmed.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+
+    const months = [...new Set(workingFiles.map((f) => f.month))].sort();
     // Dedup key: activity date + invoice id + item id + qty + location.
     // Same row appearing in overlapping daily / monthly files is counted once.
     const seenDedupKeys = new Set<string>();
@@ -128,13 +148,26 @@ export async function GET(request: NextRequest) {
 
     let latestFileDate: string | null = null;
 
-    for (const file of allFiles) {
+    // Download all surviving files in parallel batches so total wall-clock is
+    // bounded by the slowest single download instead of summing all of them.
+    const CONCURRENCY = 8;
+    const fileBodies: { file: typeof workingFiles[number]; body: string }[] = [];
+    for (let i = 0; i < workingFiles.length; i += CONCURRENCY) {
+      const batch = workingFiles.slice(i, i + CONCURRENCY);
+      const fetched = await Promise.all(batch.map(async (f) => {
+        try {
+          const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: f.key }));
+          const b = await r.Body?.transformToString("utf-8");
+          return { file: f, body: b || "" };
+        } catch { return { file: f, body: "" }; }
+      }));
+      fileBodies.push(...fetched);
+    }
+
+    for (const { file, body } of fileBodies) {
       if (!latestFileDate || file.lastModified.toISOString() > latestFileDate) {
         latestFileDate = file.lastModified.toISOString();
       }
-
-      const getRes = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: file.key }));
-      const body = await getRes.Body?.transformToString("utf-8");
       if (!body) continue;
 
       const rows = parseCSV(body.replace(/^\uFEFF/, "").replace(/\0/g, ""));
