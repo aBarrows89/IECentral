@@ -3179,6 +3179,17 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // ============ CIR REPORT RUNS (coverage tracker) ============
+  cirReportRuns: defineTable({
+    locationCode: v.string(),
+    brands: v.array(v.string()),
+    generatedBy: v.optional(v.id("users")),
+    generatedByName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_location_created", ["locationCode", "createdAt"])
+    .index("by_created", ["createdAt"]),
+
   // ============ INVENTORY ADJUSTMENTS (CIR adjustments tab) ============
   inventoryAdjustments: defineTable({
     locationCode: v.string(),                  // OEAVAL 77 location code (R10, W08, etc.)

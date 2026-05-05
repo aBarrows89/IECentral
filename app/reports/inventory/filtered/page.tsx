@@ -55,7 +55,7 @@ export default function FilteredInventoryReportPage() {
   const isDark = theme === "dark";
   const { user } = useAuth();
 
-  const [tab, setTab] = useState<"report" | "adjustments">("report");
+  const [tab, setTab] = useState<"report" | "adjustments" | "coverage">("report");
   const [location, setLocation] = useState("");
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -83,6 +83,25 @@ export default function FilteredInventoryReportPage() {
     api.inventoryAdjustments.listByLocation,
     location ? { locationCode: location } : "skip"
   );
+
+  const logCirRun = useMutation(api.cirReportRuns.logRun);
+
+  // Coverage tab state
+  const [coverageMonth, setCoverageMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const coverageMonthStart = useMemo(() => {
+    const [y, m] = coverageMonth.split("-").map(Number);
+    return new Date(y, m - 1, 1).getTime();
+  }, [coverageMonth]);
+  const coverageMonthEnd = useMemo(() => {
+    const [y, m] = coverageMonth.split("-").map(Number);
+    return new Date(y, m, 1).getTime();
+  }, [coverageMonth]);
+  const cirRunsThisMonth = useQuery(api.cirReportRuns.listSince, { since: coverageMonthStart });
+  const [coverageBrands, setCoverageBrands] = useState<Record<string, string[]>>({});
+  const [coverageLoading, setCoverageLoading] = useState(false);
 
   const latestUpload = useQuery(api.jmkUploads.getLatestByType, { reportType: "oeival" });
   const reportDate = latestUpload?.reportDate ?? null;
@@ -528,12 +547,62 @@ export default function FilteredInventoryReportPage() {
       const fileSlug = storeName.replace(/[^A-Za-z0-9]+/g, "_");
       const fileDate = dateStr.replace(/\//g, "");
       doc.save(`${fileSlug}_filtered_${fileDate || "snapshot"}.pdf`);
+
+      // Log this CIR run for the Coverage tab.
+      try {
+        await logCirRun({
+          locationCode: location,
+          brands: sortedBrands,
+          generatedBy: user?._id,
+          generatedByName: user?.name || "Unknown",
+        });
+      } catch { /* coverage logging is best-effort, don't fail the PDF */ }
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF generation failed");
     } finally {
       setGenerating(false);
     }
-  }, [filteredRows, location, selectedBrands, reportDate]);
+  }, [filteredRows, location, selectedBrands, reportDate, logCirRun, user]);
+
+  // Fetch brand list per location when Coverage tab is shown.
+  useEffect(() => {
+    if (tab !== "coverage") return;
+    if (Object.keys(coverageBrands).length > 0) return;
+    setCoverageLoading(true);
+    Promise.all(
+      Object.keys(LOCATION_LABELS).map(async (code) => {
+        try {
+          const res = await fetch(`/api/reports/inventory-data?location=${code}`);
+          const data = await res.json();
+          const brands = [...new Set(((data.items as InventoryItem[]) || []).map((i) => i.manufacturerName).filter(isReportableBrand))].sort();
+          return [code, brands] as const;
+        } catch { return [code, [] as string[]] as const; }
+      })
+    ).then((entries) => {
+      setCoverageBrands(Object.fromEntries(entries));
+    }).finally(() => setCoverageLoading(false));
+  }, [tab, coverageBrands]);
+
+  // Aggregate CIR runs by location/brand for the selected month.
+  const coverageByLocation = useMemo(() => {
+    const result: Record<string, { brand: string; pulledOn: number[] }[]> = {};
+    const runs = (cirRunsThisMonth || []).filter((r) => r.createdAt < coverageMonthEnd);
+    for (const code of Object.keys(LOCATION_LABELS)) {
+      const allBrands = coverageBrands[code] || [];
+      const locRuns = runs.filter((r) => r.locationCode === code);
+      const pulledMap = new Map<string, number[]>();
+      for (const r of locRuns) {
+        for (const b of r.brands) {
+          const arr = pulledMap.get(b) || [];
+          arr.push(r.createdAt);
+          pulledMap.set(b, arr);
+        }
+      }
+      const known = allBrands.length > 0 ? allBrands : [...pulledMap.keys()].sort();
+      result[code] = known.map((b) => ({ brand: b, pulledOn: pulledMap.get(b) || [] }));
+    }
+    return result;
+  }, [cirRunsThisMonth, coverageBrands, coverageMonthEnd]);
 
   const locationOptions = useMemo(() => Object.keys(LOCATION_LABELS).sort(), []);
 
@@ -590,7 +659,7 @@ export default function FilteredInventoryReportPage() {
 
             {/* Tab strip */}
             <div className="flex gap-1">
-              {(["report", "adjustments"] as const).map((t) => (
+              {(["report", "adjustments", "coverage"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -601,7 +670,7 @@ export default function FilteredInventoryReportPage() {
                       : isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  {t === "report" ? "Generate Report" : "Adjustments"}
+                  {t === "report" ? "Generate Report" : t === "adjustments" ? "Adjustments" : "Coverage"}
                 </button>
               ))}
             </div>
@@ -911,6 +980,74 @@ export default function FilteredInventoryReportPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Coverage tab */}
+            {tab === "coverage" && (
+              <div className="space-y-4">
+                <div className={`rounded-xl border p-4 flex flex-wrap items-center gap-3 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                  <label className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-gray-600"}`} htmlFor="coverage-month">Month:</label>
+                  <input
+                    id="coverage-month"
+                    type="month"
+                    value={coverageMonth}
+                    onChange={(e) => { if (e.target.value) setCoverageMonth(e.target.value); }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${isDark ? "bg-slate-900 text-white border-slate-600 [color-scheme:dark]" : "bg-white text-gray-900 border-gray-300"}`}
+                  />
+                  <span className={`ml-auto text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                    {coverageLoading ? "Loading inventory…" : `Tracking ${(cirRunsThisMonth?.filter((r) => r.createdAt < coverageMonthEnd) ?? []).length} CIR run(s) this month`}
+                  </span>
+                </div>
+
+                {coverageLoading && Object.keys(coverageBrands).length === 0 ? (
+                  <div className={`rounded-xl border p-8 text-center text-sm ${isDark ? "bg-slate-800/50 border-slate-700 text-slate-500" : "bg-white border-gray-200 text-gray-400"}`}>
+                    Loading brand inventory across all locations…
+                  </div>
+                ) : (
+                  Object.keys(LOCATION_LABELS).sort().map((code) => {
+                    const rows = coverageByLocation[code] || [];
+                    const total = rows.length;
+                    const covered = rows.filter((r) => r.pulledOn.length > 0).length;
+                    return (
+                      <div key={code} className={`rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-gray-200"}`}>
+                        <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                          <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
+                            {code} · {LOCATION_LABELS[code]}
+                          </h3>
+                          <span className={`text-xs font-medium ${covered === total && total > 0 ? (isDark ? "text-emerald-400" : "text-emerald-700") : (isDark ? "text-slate-400" : "text-gray-500")}`}>
+                            {covered} / {total} covered
+                          </span>
+                        </div>
+                        {total === 0 ? (
+                          <p className={`p-4 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>No brands found in this location.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 p-3">
+                            {rows.map((r) => {
+                              const pulled = r.pulledOn.length > 0;
+                              const lastPulled = pulled ? new Date(Math.max(...r.pulledOn)) : null;
+                              return (
+                                <div key={r.brand} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${pulled ? (isDark ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-emerald-50 border border-emerald-200") : (isDark ? "bg-slate-900/40 border border-slate-700" : "bg-gray-50 border border-gray-200")}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={pulled ? (isDark ? "text-emerald-400" : "text-emerald-700") : (isDark ? "text-slate-600" : "text-gray-400")}>
+                                      {pulled ? "✓" : "○"}
+                                    </span>
+                                    <span className={`truncate ${pulled ? (isDark ? "text-emerald-300" : "text-emerald-800") : (isDark ? "text-slate-400" : "text-gray-600")}`}>{r.brand}</span>
+                                  </div>
+                                  {lastPulled && (
+                                    <span className={`text-[10px] ml-2 flex-shrink-0 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
+                                      {`${lastPulled.getMonth()+1}/${lastPulled.getDate()}`}{r.pulledOn.length > 1 ? ` ×${r.pulledOn.length}` : ""}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             )}
           </div>
         </main>
