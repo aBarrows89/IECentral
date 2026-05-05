@@ -76,7 +76,7 @@ export default function InventoryReportPage() {
       );
     }
     // Stock filters
-    if (stockFilter === "low") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable <= i.reorderPoint);
+    if (stockFilter === "low") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable < i.reorderPoint);
     else if (stockFilter === "zero") result = result.filter((i) => i.qtyOnHand <= 0);
     else if (stockFilter === "negative") result = result.filter((i) => i.qtyAvailable < 0);
     else if (stockFilter === "overstocked") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable > i.reorderPoint * 5);
@@ -218,7 +218,7 @@ export default function InventoryReportPage() {
               {items.length > 0 && (
                 <div className={`flex gap-4 text-[10px] ${isDark ? "text-slate-500" : "text-gray-400"}`}>
                   <span>{items.length.toLocaleString()} total items</span>
-                  <span>{items.filter((i) => i.reorderPoint > 0 && i.qtyAvailable <= i.reorderPoint).length} below min</span>
+                  <span>{items.filter((i) => i.reorderPoint > 0 && i.qtyAvailable < i.reorderPoint).length} below min</span>
                   <span>{items.filter((i) => i.qtyOnHand <= 0).length} zero stock</span>
                   <span>${items.reduce((sum, i) => sum + i.extendedValue, 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} total value</span>
                   {filtered.length !== items.length && <span className={isDark ? "text-cyan-400" : "text-blue-600"}>Showing {filtered.length.toLocaleString()} filtered</span>}
@@ -325,7 +325,7 @@ export default function InventoryReportPage() {
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-500" : "text-gray-400"}`}>{Number(item.reorderPoint) > 0 ? String(item.reorderPoint) : "—"}</td>
                           <td className={`px-3 py-1.5 text-right font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{item.qtyOnHand}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-400" : "text-gray-500"}`}>{item.qtyCommitted}</td>
-                          <td className={`px-3 py-1.5 text-right font-medium ${item.reorderPoint > 0 && item.qtyAvailable <= item.reorderPoint ? "text-red-400" : isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.qtyAvailable}</td>
+                          <td className={`px-3 py-1.5 text-right font-medium ${item.reorderPoint > 0 && item.qtyAvailable < item.reorderPoint ? "text-red-400" : isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.qtyAvailable}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{fmtCurrency(item.lastCost)}</td>
                           <td className={`px-3 py-1.5 text-right ${isDark ? "text-slate-300" : "text-gray-700"}`}>{fmtCurrency(item.avgCost)}</td>
                           <td className={`px-3 py-1.5 text-right font-medium ${isDark ? "text-cyan-400" : "text-blue-600"}`}>{fmtCurrency(item.extendedValue)}</td>
