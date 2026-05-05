@@ -546,17 +546,42 @@ export default function FilteredInventoryReportPage() {
 
       const fileSlug = storeName.replace(/[^A-Za-z0-9]+/g, "_");
       const fileDate = dateStr.replace(/\//g, "");
-      doc.save(`${fileSlug}_filtered_${fileDate || "snapshot"}.pdf`);
+      const fileName = `${fileSlug}_filtered_${fileDate || "snapshot"}.pdf`;
 
-      // Log this CIR run for the Coverage tab.
+      // Build the PDF as a blob first so we can both download AND upload it.
+      const pdfBlob = doc.output("blob");
+
+      // Trigger browser download.
+      const downloadUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = downloadUrl; a.download = fileName; a.click();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+      // Best-effort: archive to S3 + log to Convex with the s3Key for Coverage.
+      let archivedKey: string | undefined;
+      try {
+        const urlRes = await fetch("/api/reports/cir/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ locationCode: location, snapshotDate: reportDate || undefined }),
+        });
+        const { url, key } = await urlRes.json();
+        if (url) {
+          const putRes = await fetch(url, { method: "PUT", body: pdfBlob, headers: { "Content-Type": "application/pdf" } });
+          if (putRes.ok) archivedKey = key;
+        }
+      } catch { /* archiving is best-effort */ }
+
       try {
         await logCirRun({
           locationCode: location,
           brands: sortedBrands,
           generatedBy: user?._id,
           generatedByName: user?.name || "Unknown",
+          s3Key: archivedKey,
+          rowCount: filteredRows.length,
         });
-      } catch { /* coverage logging is best-effort, don't fail the PDF */ }
+      } catch { /* coverage logging is best-effort */ }
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF generation failed");
     } finally {
@@ -1004,7 +1029,7 @@ export default function FilteredInventoryReportPage() {
                     Loading brand inventory across all locations…
                   </div>
                 ) : (
-                  Object.keys(LOCATION_LABELS).sort().map((code) => {
+                  (location ? [location] : Object.keys(LOCATION_LABELS).sort()).map((code) => {
                     const rows = coverageByLocation[code] || [];
                     const total = rows.length;
                     const covered = rows.filter((r) => r.pulledOn.length > 0).length;

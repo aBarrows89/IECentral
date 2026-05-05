@@ -3186,6 +3186,8 @@ export default defineSchema({
     generatedBy: v.optional(v.id("users")),
     generatedByName: v.string(),
     createdAt: v.number(),
+    s3Key: v.optional(v.string()),     // archived PDF in ietires-sales-data
+    rowCount: v.optional(v.number()),  // how many tire rows in the PDF
   })
     .index("by_location_created", ["locationCode", "createdAt"])
     .index("by_created", ["createdAt"]),

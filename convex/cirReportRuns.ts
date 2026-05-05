@@ -7,6 +7,8 @@ export const logRun = mutation({
     brands: v.array(v.string()),
     generatedBy: v.optional(v.id("users")),
     generatedByName: v.string(),
+    s3Key: v.optional(v.string()),
+    rowCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const code = args.locationCode.trim().toUpperCase();
