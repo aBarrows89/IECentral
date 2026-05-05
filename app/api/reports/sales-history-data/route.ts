@@ -82,17 +82,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items: [], monthColumns: [], filters: { brands: [], productTypes: [], dclasses: [], locations: [] }, fileDate: null });
     }
 
-    // Group by month — use latest file per month
-    const filesByMonth = new Map<string, { key: string; lastModified: Date }>();
-    for (const f of allFiles) {
-      const existing = filesByMonth.get(f.month);
-      if (!existing || f.lastModified > existing.lastModified) {
-        filesByMonth.set(f.month, { key: f.key, lastModified: f.lastModified });
-      }
-    }
-
-    // Read ALL files — we filter by row-level activity date, not folder
-    const months = [...filesByMonth.keys()].sort();
+    // Read every OEA07V file across every month folder so daily uploads are
+    // all included (and so files like Apr's monthly that landed in 202605/ are
+    // still picked up). Sort newest-first so the most recent file's
+    // description/brand wins on first sight; subsequent occurrences of the
+    // same row are dropped via dedup.
+    allFiles.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    const months = [...new Set(allFiles.map((f) => f.month))].sort();
+    // Dedup key: activity date + invoice id + item id + qty + location.
+    // Same row appearing in overlapping daily / monthly files is counted once.
+    const seenDedupKeys = new Set<string>();
 
     // Aggregate: itemId -> { info, monthlySales: { month -> totalQty } }
     const itemMap = new Map<string, {
@@ -129,9 +128,7 @@ export async function GET(request: NextRequest) {
 
     let latestFileDate: string | null = null;
 
-    for (const month of months) {
-      const file = filesByMonth.get(month);
-      if (!file) continue;
+    for (const file of allFiles) {
       if (!latestFileDate || file.lastModified.toISOString() > latestFileDate) {
         latestFileDate = file.lastModified.toISOString();
       }
@@ -172,7 +169,7 @@ export async function GET(request: NextRequest) {
         // Parse activity date to get the month (MM/DD/YY)
         const dateRaw = (row[18] || "").replace(/"/g, "").trim();
         const dateMatch = dateRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-        let rowMonth = month;
+        let rowMonth = file.month;
         if (dateMatch) {
           let y = parseInt(dateMatch[3]);
           if (y < 100) y += 2000;
@@ -182,6 +179,12 @@ export async function GET(request: NextRequest) {
         // Filter by requested date range
         if (startMonth && rowMonth < startMonth) continue;
         if (endMonth && rowMonth > endMonth) continue;
+
+        // Dedup across overlapping daily/monthly uploads.
+        const invoiceId = (row[16] || "").replace(/"/g, "").trim();
+        const dedupKey = `${dateRaw}|${invoiceId}|${itemId}|${row[10]}|${rowLocation}|${acct}`;
+        if (seenDedupKeys.has(dedupKey)) continue;
+        seenDedupKeys.add(dedupKey);
 
         let entry = itemMap.get(itemId);
         if (!entry) {
