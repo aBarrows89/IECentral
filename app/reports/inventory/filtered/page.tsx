@@ -809,7 +809,14 @@ export default function FilteredInventoryReportPage() {
                   <h2 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>
                     Log adjustment — {location} · {locationLabel(location)}
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3" onKeyDown={(e) => {
+                    // Press Enter from any input in the entry form to add the
+                    // adjustment, mirroring the click on Add.
+                    if (e.key !== "Enter") return;
+                    if (adjSaving || !adjItemId.trim() || !adjQty) return;
+                    e.preventDefault();
+                    handleAddAdjustment();
+                  }}>
                     <div className="sm:col-span-3">
                       <label className={`block text-[10px] uppercase tracking-wide mb-1 ${isDark ? "text-slate-500" : "text-gray-500"}`}>Item ID</label>
                       <input
