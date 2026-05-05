@@ -157,6 +157,8 @@ function MessagesContent() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevMessageCountRef = useRef<number>(0);
   const lastMessageIdRef = useRef<string | null>(null);
+  const prevConvIdRef = useRef<string | null>(null);
+  const initialJumpDoneRef = useRef<boolean>(false);
 
   // Sound mute state (persisted to localStorage)
   const [isMuted, setIsMuted] = useState(() => {
@@ -505,10 +507,33 @@ function MessagesContent() {
     lastMessageIdRef.current = lastMessageId;
   }, [messages, user, isMuted]);
 
-  // Scroll to bottom when messages change
+  // Scroll behavior:
+  //  - When you OPEN a conversation (or first load): jump to the bottom
+  //    instantly with no animation, so the page just opens already at the
+  //    latest message instead of visibly scrolling through older ones.
+  //  - When new messages arrive inside the open conversation: smooth-scroll
+  //    only if you're already near the bottom; otherwise leave you in place
+  //    so reading older messages isn't interrupted.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const end = messagesEndRef.current;
+    if (!end) return;
+    const convChanged = selectedConversation?._id !== prevConvIdRef.current;
+    if (convChanged || !initialJumpDoneRef.current) {
+      end.scrollIntoView({ behavior: "auto" });
+      prevConvIdRef.current = selectedConversation?._id ?? null;
+      initialJumpDoneRef.current = !!selectedConversation;
+      return;
+    }
+    const scrollContainer = end.parentElement;
+    if (scrollContainer) {
+      const distanceFromBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+      if (distanceFromBottom < 150) {
+        end.scrollIntoView({ behavior: "smooth" });
+      }
+    } else {
+      end.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, selectedConversation]);
 
   // Mark messages as read when conversation is selected
   useEffect(() => {
