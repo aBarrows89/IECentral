@@ -629,6 +629,35 @@ export default function FilteredInventoryReportPage() {
     return result;
   }, [cirRunsThisMonth, coverageBrands, coverageMonthEnd]);
 
+  // Past CIR PDFs (with s3Key) for the selected month, grouped by location.
+  const archivedRunsByLocation = useMemo(() => {
+    const out: Record<string, typeof cirRunsThisMonth extends (infer T)[] | undefined ? T[] : any[]> = {};
+    for (const r of (cirRunsThisMonth || [])) {
+      if (!r.s3Key || r.createdAt >= coverageMonthEnd) continue;
+      (out[r.locationCode] = out[r.locationCode] || []).push(r);
+    }
+    return out;
+  }, [cirRunsThisMonth, coverageMonthEnd]);
+
+  const handleMarkCovered = useCallback(async (code: string, brand: string) => {
+    try {
+      await logCirRun({
+        locationCode: code,
+        brands: [brand],
+        generatedBy: user?._id,
+        generatedByName: `${user?.name || "Unknown"} (manual)`,
+      });
+    } catch { /* best-effort */ }
+  }, [logCirRun, user]);
+
+  const handleDownloadArchived = useCallback(async (s3Key: string) => {
+    try {
+      const res = await fetch(`/api/reports/cir/download-url?key=${encodeURIComponent(s3Key)}`);
+      const data = await res.json();
+      if (data.url) window.open(data.url, "_blank");
+    } catch { /* ignore */ }
+  }, []);
+
   const locationOptions = useMemo(() => Object.keys(LOCATION_LABELS).sort(), []);
 
   return (
@@ -1051,21 +1080,52 @@ export default function FilteredInventoryReportPage() {
                               const pulled = r.pulledOn.length > 0;
                               const lastPulled = pulled ? new Date(Math.max(...r.pulledOn)) : null;
                               return (
-                                <div key={r.brand} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${pulled ? (isDark ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-emerald-50 border border-emerald-200") : (isDark ? "bg-slate-900/40 border border-slate-700" : "bg-gray-50 border border-gray-200")}`}>
+                                <div key={r.brand} className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs ${pulled ? (isDark ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-emerald-50 border border-emerald-200") : (isDark ? "bg-slate-900/40 border border-slate-700" : "bg-gray-50 border border-gray-200")}`}>
                                   <div className="flex items-center gap-2 min-w-0">
                                     <span className={pulled ? (isDark ? "text-emerald-400" : "text-emerald-700") : (isDark ? "text-slate-600" : "text-gray-400")}>
                                       {pulled ? "✓" : "○"}
                                     </span>
                                     <span className={`truncate ${pulled ? (isDark ? "text-emerald-300" : "text-emerald-800") : (isDark ? "text-slate-400" : "text-gray-600")}`}>{r.brand}</span>
                                   </div>
-                                  {lastPulled && (
+                                  {pulled && lastPulled ? (
                                     <span className={`text-[10px] ml-2 flex-shrink-0 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                                       {`${lastPulled.getMonth()+1}/${lastPulled.getDate()}`}{r.pulledOn.length > 1 ? ` ×${r.pulledOn.length}` : ""}
                                     </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMarkCovered(code, r.brand)}
+                                      className={`text-[10px] ml-2 flex-shrink-0 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${isDark ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                                    >
+                                      Mark
+                                    </button>
                                   )}
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+                        {(archivedRunsByLocation[code] || []).length > 0 && (
+                          <div className={`px-4 py-3 border-t text-xs ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                            <p className={`text-[10px] uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-gray-500"}`}>Past CIR PDFs ({(archivedRunsByLocation[code] || []).length})</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(archivedRunsByLocation[code] || []).map((r: any) => {
+                                const d = new Date(r.createdAt);
+                                const label = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+                                const abbrs = [...r.brands].sort().map(brandAbbr).join("/");
+                                return (
+                                  <button
+                                    key={r._id}
+                                    type="button"
+                                    onClick={() => handleDownloadArchived(r.s3Key)}
+                                    className={`px-2 py-1 rounded text-[11px] border ${isDark ? "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                                    title={`${abbrs} — ${r.generatedByName}`}
+                                  >
+                                    {label} · {abbrs.length > 25 ? abbrs.slice(0, 22) + "…" : abbrs}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
