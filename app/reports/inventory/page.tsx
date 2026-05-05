@@ -66,14 +66,27 @@ export default function InventoryReportPage() {
 
   const filtered = useMemo(() => {
     let result = items;
-    // Search across item ID, description, brand, model
+    // Search across item ID, description, brand, model. Also matches tire-size
+    // queries with no separators ("2656018" → "265/60R18") by extracting the
+    // size pattern from each description and comparing digits-only.
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter((i) =>
-        i.itemId.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) ||
-        i.manufacturerName.toLowerCase().includes(q) || i.model.toLowerCase().includes(q) ||
-        i.mfgItemId.toLowerCase().includes(q)
-      );
+      const qNoSep = q.replace(/[^a-z0-9]/gi, "");
+      result = result.filter((i) => {
+        if (i.itemId.toLowerCase().includes(q)) return true;
+        if (i.description.toLowerCase().includes(q)) return true;
+        if (i.manufacturerName.toLowerCase().includes(q)) return true;
+        if (i.model.toLowerCase().includes(q)) return true;
+        if (i.mfgItemId.toLowerCase().includes(q)) return true;
+        if (qNoSep.length >= 5) {
+          const m = /(\d{2,3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2})/i.exec(i.description);
+          if (m) {
+            const sizeDigits = m[1] + m[2] + m[3];
+            if (sizeDigits.includes(qNoSep) || qNoSep.includes(sizeDigits)) return true;
+          }
+        }
+        return false;
+      });
     }
     // Stock filters
     if (stockFilter === "low") result = result.filter((i) => i.reorderPoint > 0 && i.qtyAvailable < i.reorderPoint);
