@@ -68,6 +68,7 @@ import type * as holidays from "../holidays.js";
 import type * as http from "../http.js";
 import type * as indeedActions from "../indeedActions.js";
 import type * as indeedIntegration from "../indeedIntegration.js";
+import type * as inventoryAdjustments from "../inventoryAdjustments.js";
 import type * as jmkUploads from "../jmkUploads.js";
 import type * as jobs from "../jobs.js";
 import type * as locations from "../locations.js";
@@ -181,6 +182,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   indeedActions: typeof indeedActions;
   indeedIntegration: typeof indeedIntegration;
+  inventoryAdjustments: typeof inventoryAdjustments;
   jmkUploads: typeof jmkUploads;
   jobs: typeof jobs;
   locations: typeof locations;

@@ -3179,6 +3179,22 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // ============ INVENTORY ADJUSTMENTS (CIR adjustments tab) ============
+  inventoryAdjustments: defineTable({
+    locationCode: v.string(),                  // OEAVAL 77 location code (R10, W08, etc.)
+    itemId: v.string(),                        // OEAVAL 77 item id
+    manufacturerName: v.optional(v.string()),  // cached at entry time
+    description: v.optional(v.string()),       // cached at entry time
+    qtyChange: v.number(),                     // can be positive or negative
+    notes: v.optional(v.string()),
+    enteredBy: v.optional(v.id("users")),
+    enteredByName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_location_created", ["locationCode", "createdAt"])
+    .index("by_location_item", ["locationCode", "itemId"])
+    .index("by_created", ["createdAt"]),
+
   // ============ SCRATCHPAD (code-shared clipboard between devices) ============
   scratchpadCodes: defineTable({
     code: v.string(),                 // 4-digit "0000"-"9999"
