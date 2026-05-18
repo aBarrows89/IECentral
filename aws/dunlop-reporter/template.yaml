@@ -54,6 +54,17 @@ Resources:
   # SECRETS MANAGER
   # ═══════════════════════════════════════════════════════════════════════════
 
+  ImapRelaySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: dunlop-reporter/imap-relay-secret
+      Description: Shared secret for the IMAP relay (Convex includes it as X-Relay-Secret)
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: relaySecret
+        PasswordLength: 48
+        ExcludePunctuation: true
+
   SftpCredentials:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -273,7 +284,9 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:UpdateSecret
-                Resource: !Ref SftpCredentials
+                Resource:
+                  - !Ref SftpCredentials
+                  - !Ref ImapRelaySecret
       Tags:
         - Key: Project
           Value: DunlopReporter
@@ -380,6 +393,44 @@ Resources:
           Properties:
             Path: /dunlop/settings
             Method: put
+            RestApiId: !Ref DunlopApi
+
+  ImapRelayFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dunlop-imap-relay
+      Handler: imap_relay.handler
+      CodeUri: lambdas/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet
+          - !Ref PrivateSubnet2
+      Environment:
+        Variables:
+          RELAY_SECRET_ARN: !Ref ImapRelaySecret
+      Events:
+        Fetch:
+          Type: Api
+          Properties:
+            Path: /imap/fetch
+            Method: post
+            RestApiId: !Ref DunlopApi
+        FetchOne:
+          Type: Api
+          Properties:
+            Path: /imap/fetch-one
+            Method: post
+            RestApiId: !Ref DunlopApi
+        Folders:
+          Type: Api
+          Properties:
+            Path: /imap/folders
+            Method: post
             RestApiId: !Ref DunlopApi
 
   FetchSalesFunction:
