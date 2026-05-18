@@ -314,6 +314,116 @@ h1, h2, h3, h4 {
 .light main .text-gray-500 { color: #6b6b70 !important; }
 .light main .text-gray-400 { color: #8e8e93 !important; }
 
+/* ═══════════════════════════════════════════════════════════════
+   iOS-FEEL SWEEP — CSS-only refinements that touch every page
+   without editing component JSX. Scoped to .light so dark mode
+   stays untouched.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Sidebar nav items: iOS sizing/weight, tighter tracking */
+.theme-sidebar nav a span,
+.theme-sidebar nav button > span {
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Sidebar hover in light mode — soft warm-gray translucency */
+.light .theme-sidebar nav a:hover,
+.light .theme-sidebar nav button:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* iOS-style primary buttons (light mode): vibrant system blue,
+   rounded, tap feedback. Targets Tailwind blue/cyan primary patterns. */
+.light button[class*="bg-blue-600"]:not([class*="bg-blue-600/"]),
+.light button[class*="bg-cyan-500"]:not([class*="bg-cyan-500/"]),
+.light button[class*="bg-cyan-600"]:not([class*="bg-cyan-600/"]) {
+  background-color: #007AFF !important;
+  color: #ffffff !important;
+  border-radius: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: transform 0.12s ease, background-color 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.light button[class*="bg-blue-700"]:hover,
+.light button[class*="bg-blue-600"]:hover,
+.light button[class*="bg-cyan-500"]:hover,
+.light button[class*="bg-cyan-600"]:hover {
+  background-color: #0066d6 !important;
+  filter: brightness(1.02);
+}
+.light button[class*="bg-blue-600"]:active,
+.light button[class*="bg-cyan-500"]:active,
+.light button[class*="bg-cyan-600"]:active {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
+/* Cards: any white rounded surface in light mode gets the iOS shadow stack */
+.light [class*="bg-white"][class*="rounded-xl"]:not([class*="absolute"]):not([class*="fixed"]),
+.light [class*="bg-white"][class*="rounded-2xl"]:not([class*="absolute"]):not([class*="fixed"]) {
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Modal dialogs (overlay + centered card): bigger radius, dramatic but
+   soft shadow — feels like an iOS sheet rather than a flat dropdown */
+.light .fixed.inset-0 > div[class*="rounded"][class*="bg-white"],
+.light [class*="fixed"][class*="inset-0"] [class*="rounded-xl"][class*="bg-white"]:not(button) {
+  border-radius: 18px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 30px 60px -15px rgba(0, 0, 0, 0.22),
+    0 12px 24px -8px rgba(0, 0, 0, 0.1);
+}
+
+/* Inputs and selects in light mode: warm fill, softer border */
+.light main input[type="text"],
+.light main input[type="email"],
+.light main input[type="search"],
+.light main input[type="number"],
+.light main input[type="tel"],
+.light main input[type="date"],
+.light main input[type="time"],
+.light main input[type="datetime-local"],
+.light main textarea,
+.light main select {
+  background-color: #ffffff;
+  border-radius: 10px;
+}
+
+/* All clickable buttons get a faint tap-scale in light mode for native feel */
+.light button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* Heading tracking — iOS display-font feel */
+.light h1, .light h2, .light h3, .light h4 {
+  letter-spacing: -0.022em;
+}
+
+/* Slightly more generous default scrollbar padding inside cards/lists */
+.light ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.light ::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.28);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+.light ::-webkit-scrollbar-track { background: transparent; }
+
 /* =====================================================
    MOBILE OPTIMIZATIONS
    ===================================================== */

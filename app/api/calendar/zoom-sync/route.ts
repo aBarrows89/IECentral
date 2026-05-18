@@ -129,7 +129,9 @@ export async function POST(request: Request) {
       for (const email of (emails as any[])) {
         scanned++;
         // Check if from Zoom or contains Zoom link
-        const fromZoom = (email.from || "").toLowerCase().includes("zoom.us");
+        // email.from is { name?, address } per convex/schema.ts — not a string
+        const fromAddress = (email.from?.address || email.from?.name || "").toString();
+        const fromZoom = fromAddress.toLowerCase().includes("zoom.us");
         const hasZoomLink = (email.bodyText || email.bodyHtml || "").includes("zoom.us/j/");
         if (!fromZoom && !hasZoomLink) continue;
 
