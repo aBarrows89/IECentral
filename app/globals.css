@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Tailwind v4 theme tokens — exposes iOS palette + radii + shadows as utilities
+   (text-ios-blue, bg-ios-gray6, rounded-2xl, shadow-ios, etc.) */
+@theme {
+  --color-ios-blue: #007AFF;
+  --color-ios-green: #34C759;
+  --color-ios-red: #FF3B30;
+  --color-ios-orange: #FF9500;
+  --color-ios-yellow: #FFCC00;
+  --color-ios-purple: #AF52DE;
+  --color-ios-gray1: #8E8E93;
+  --color-ios-gray2: #AEAEB2;
+  --color-ios-gray3: #C7C7CC;
+  --color-ios-gray4: #D1D1D6;
+  --color-ios-gray5: #E5E5EA;
+  --color-ios-gray6: #F2F2F7;
+
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --radius-3xl: 28px;
+
+  --shadow-ios: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-ios-lg: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 28px -6px rgba(0, 0, 0, 0.10);
+}
+
 /* Theme Variables */
 :root {
   /* Light theme (iOS-inspired) */
@@ -93,12 +118,28 @@
 /* Base styles */
 html {
   background-color: var(--bg-primary);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
+  /* Native Apple system font stack first, Geist as graceful fallback elsewhere */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: -0.011em;
+}
+
+/* iOS-style headings: tighter, slightly heavier, denser tracking */
+h1, h2, h3, h4 {
+  letter-spacing: -0.022em;
+  font-weight: 600;
 }
 
 /* Theme utility classes */
@@ -217,10 +258,61 @@ body {
   border-radius: 10px;
 }
 
-/* Subtle shadows for light mode cards */
+/* Subtle layered iOS shadows for light mode cards */
 .light .theme-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px -2px rgba(0, 0, 0, 0.06);
 }
+
+/* Frosted-glass chrome on light mode (iOS hallmark) */
+.light .theme-header,
+.light .theme-sidebar {
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.light .theme-sidebar {
+  background-color: rgba(255, 255, 255, 0.72);
+}
+
+/* iOS-style tap feedback — apply to any clickable surface marked .ios-tap */
+.ios-tap {
+  transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease;
+}
+.ios-tap:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* iOS primary action button — vibrant fill, pill-ish, tap feedback baked in */
+.btn-ios-primary {
+  background-color: var(--accent-primary);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 0.6rem 1.1rem;
+  letter-spacing: -0.01em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: transform 0.12s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+.btn-ios-primary:hover { filter: brightness(1.06); }
+.btn-ios-primary:active { transform: scale(0.97); opacity: 0.9; }
+
+/* Softer iOS-style focus ring on light mode inputs */
+.light .theme-input:focus,
+.light input:focus-visible,
+.light textarea:focus-visible,
+.light select:focus-visible {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
+}
+
+/* Lift muted light-mode text contrast — `text-gray-500` was too washed */
+.light main .text-gray-500 { color: #6b6b70 !important; }
+.light main .text-gray-400 { color: #8e8e93 !important; }
 
 /* =====================================================
    MOBILE OPTIMIZATIONS
