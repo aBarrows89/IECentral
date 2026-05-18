@@ -509,22 +509,48 @@ function MessagesContent() {
 
   // Scroll behavior:
   //  - When you OPEN a conversation (or first load): jump to the bottom
-  //    instantly with no animation, so the page just opens already at the
-  //    latest message instead of visibly scrolling through older ones.
+  //    instantly with no animation. Re-pin a few times to catch late-loading
+  //    images/attachments that grow the container after first paint.
   //  - When new messages arrive inside the open conversation: smooth-scroll
   //    only if you're already near the bottom; otherwise leave you in place
   //    so reading older messages isn't interrupted.
   useEffect(() => {
     const end = messagesEndRef.current;
     if (!end) return;
+    const scrollContainer = end.parentElement as HTMLElement | null;
     const convChanged = selectedConversation?._id !== prevConvIdRef.current;
+    const hasMessages = Array.isArray(messages) && messages.length > 0;
+
+    const jumpToBottom = () => {
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      } else {
+        end.scrollIntoView({ behavior: "auto" });
+      }
+    };
+
     if (convChanged || !initialJumpDoneRef.current) {
-      end.scrollIntoView({ behavior: "auto" });
+      // Always track conversation id so we don't bounce between branches
       prevConvIdRef.current = selectedConversation?._id ?? null;
-      initialJumpDoneRef.current = !!selectedConversation;
-      return;
+
+      // Don't claim the initial jump is "done" until messages actually
+      // exist — otherwise we miss the real first-paint when Convex's
+      // initial query resolves a tick later.
+      if (!hasMessages) {
+        return;
+      }
+
+      jumpToBottom();
+      requestAnimationFrame(jumpToBottom);
+      const t1 = setTimeout(jumpToBottom, 60);
+      const t2 = setTimeout(jumpToBottom, 250);
+      initialJumpDoneRef.current = true;
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
-    const scrollContainer = end.parentElement;
+
     if (scrollContainer) {
       const distanceFromBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
       if (distanceFromBottom < 150) {
