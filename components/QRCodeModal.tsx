@@ -60,6 +60,17 @@ export default function QRCodeModal({
               border-radius: 12px;
               background: #fff;
             }
+            .mandatory-banner {
+              background: #c0392b;
+              color: #fff;
+              font-weight: 900;
+              font-size: 18px;
+              letter-spacing: 1px;
+              padding: 8px 12px;
+              margin: -20px -20px 15px -20px;
+              border-radius: 10px 10px 0 0;
+              text-transform: uppercase;
+            }
             .qr-label h2 {
               margin: 0 0 5px 0;
               font-size: 24px;
@@ -88,6 +99,7 @@ export default function QRCodeModal({
         </head>
         <body>
           <div class="qr-label">
+            <div class="mandatory-banner">Mandatory Safety Check Every Use</div>
             <h2>${equipmentType === "picker" ? "Picker" : "Scanner"} #${equipmentNumber}</h2>
             <p>${locationName}</p>
             <div class="qr-code">
