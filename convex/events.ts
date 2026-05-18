@@ -10,13 +10,16 @@ export const listByDateRange = query({
     endDate: v.number(), // Unix timestamp
   },
   handler: async (ctx, args) => {
+    // Overlap semantics: an event is in the window if it starts before the
+    // window ends AND ends after the window begins. Filtering by startTime
+    // alone hides multi-day events on every day except their first.
     const events = await ctx.db
       .query("events")
       .withIndex("by_start")
       .filter((q) =>
         q.and(
-          q.gte(q.field("startTime"), args.startDate),
           q.lte(q.field("startTime"), args.endDate),
+          q.gte(q.field("endTime"), args.startDate),
           q.neq(q.field("isCancelled"), true)
         )
       )
@@ -87,13 +90,14 @@ export const listMyEvents = query({
       }
     }
 
-    // Filter by date range if provided
+    // Filter by date range if provided — overlap semantics so multi-day
+    // events appear on every day they span, not just their first.
     let filtered = allEvents;
-    if (args.startDate) {
-      filtered = filtered.filter((e) => e.startTime >= args.startDate!);
-    }
-    if (args.endDate) {
+    if (args.endDate !== undefined) {
       filtered = filtered.filter((e) => e.startTime <= args.endDate!);
+    }
+    if (args.startDate !== undefined) {
+      filtered = filtered.filter((e) => e.endTime >= args.startDate!);
     }
 
     // Enrich with user's invite status
@@ -615,13 +619,14 @@ export const getSharedCalendarEvents = query({
       }
     }
 
-    // Filter by date range if provided
+    // Filter by date range if provided — overlap semantics so multi-day
+    // events appear on every day they span, not just their first.
     let filtered = allEvents;
-    if (args.startDate) {
-      filtered = filtered.filter((e) => e.startTime >= args.startDate!);
-    }
-    if (args.endDate) {
+    if (args.endDate !== undefined) {
       filtered = filtered.filter((e) => e.startTime <= args.endDate!);
+    }
+    if (args.startDate !== undefined) {
+      filtered = filtered.filter((e) => e.endTime >= args.startDate!);
     }
 
     // Sort by start time

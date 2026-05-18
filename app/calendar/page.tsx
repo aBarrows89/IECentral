@@ -222,14 +222,15 @@ function CalendarContent() {
     return days;
   }, [selectedDate]);
 
-  // Get events for a specific day
+  // Get events for a specific day — overlap semantics so a multi-day event
+  // appears on every day it spans, not just its start day.
   const getEventsForDay = (date: Date) => {
     const events = viewingSharedCalendar ? sharedCalendarEvents : myEvents;
     if (!events) return [];
     const dayStart = new Date(date).setHours(0, 0, 0, 0);
     const dayEnd = new Date(date).setHours(23, 59, 59, 999);
     return events.filter(
-      (e: any) => e.startTime >= dayStart && e.startTime <= dayEnd
+      (e: any) => e.startTime <= dayEnd && e.endTime >= dayStart
     );
   };
 
