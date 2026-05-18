@@ -40,6 +40,9 @@ export const getAll = query({
         const vis = d.visibility || "private";
         // Community/internal docs visible to all authenticated users
         if (vis === "community" || vis === "internal") return true;
+        // Docs with a public link are visible to any authenticated user — if it's
+        // on the open web it shouldn't be hidden inside the app.
+        if (d.isPublic) return true;
         // Owner always sees their own docs
         if (d.uploadedBy === args.userId) return true;
         // Shared with user directly
@@ -76,6 +79,7 @@ export const getRootDocuments = query({
       documents = documents.filter((d) => {
         const vis = d.visibility || "private";
         if (vis === "community" || vis === "internal") return true;
+        if (d.isPublic) return true;
         if (d.uploadedBy === args.userId) return true;
         if (d.sharedWith && d.sharedWith.includes(args.userId!)) return true;
         if (d.sharedWithGroups && d.sharedWithGroups.some((gId) => userGroupIds.has(gId))) return true;
@@ -137,6 +141,7 @@ export const search = query({
       results = results.filter((d) => {
         const vis = d.visibility || "private";
         if (vis === "community" || vis === "internal") return true;
+        if (d.isPublic) return true;
         if (d.uploadedBy === args.userId) return true;
         if (d.sharedWith && d.sharedWith.includes(args.userId!)) return true;
         if (d.sharedWithGroups && d.sharedWithGroups.some((gId) => userGroupIds.has(gId))) return true;
