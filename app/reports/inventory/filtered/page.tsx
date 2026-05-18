@@ -80,9 +80,24 @@ export default function FilteredInventoryReportPage() {
 
   const addAdjustment = useMutation(api.inventoryAdjustments.add);
   const removeAdjustment = useMutation(api.inventoryAdjustments.remove);
+  // Log display: cap at 50 most-recent to stay under Convex bandwidth
+  // limits as a location's history grows.
   const adjustments = useQuery(
     api.inventoryAdjustments.listByLocation,
-    location ? { locationCode: location } : "skip"
+    location ? { locationCode: location, limit: 50 } : "skip"
+  );
+  // Stats aggregation: bounded by date (~6 months) instead of count so
+  // MoM / repeat-month / consecutive-month metrics stay accurate.
+  const statsSince = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+  const adjustmentsForStats = useQuery(
+    api.inventoryAdjustments.listByLocationSince,
+    location ? { locationCode: location, since: statsSince } : "skip"
   );
 
   const logCirRun = useMutation(api.cirReportRuns.logRun);
@@ -184,9 +199,10 @@ export default function FilteredInventoryReportPage() {
   const adjPaged = useMemo(() => filteredAdjustments.slice(adjPage * adjPageSize, (adjPage + 1) * adjPageSize), [filteredAdjustments, adjPage, adjPageSize]);
 
   // Aggregate stats over the location's adjustments — MoM count, per-item MoM,
-  // repeat flags. All client-side from the adjustments query result.
+  // repeat flags. Uses the date-bounded query so the underlying row count
+  // stays well below Convex limits regardless of log size.
   const adjStats = useMemo(() => {
-    const list = adjustments ?? [];
+    const list = adjustmentsForStats ?? [];
     const nowYm = ymKey(Date.now());
     const lastYm = priorYm(nowYm);
 
@@ -263,7 +279,7 @@ export default function FilteredInventoryReportPage() {
       perItemMoM,
       countByYm: [...countByYm.entries()].sort((a, b) => a[0].localeCompare(b[0])),
     };
-  }, [adjustments]);
+  }, [adjustmentsForStats]);
 
   const toggleBrand = useCallback((brand: string) => {
     setSelectedBrands((prev) => {
@@ -326,7 +342,7 @@ export default function FilteredInventoryReportPage() {
   }, [removeAdjustment]);
 
   const handleGenerateAdjustmentsPDF = useCallback(async () => {
-    if (!location || !adjustments || adjustments.length === 0) return;
+    if (!location || !adjustmentsForStats || adjustmentsForStats.length === 0) return;
     setAdjGenerating(true);
     try {
       const { jsPDF } = await import("jspdf");
@@ -339,7 +355,7 @@ export default function FilteredInventoryReportPage() {
 
       const storeName = locationLabel(location);
       const fullStore = `${location} - ${storeName}`;
-      const title = `${fullStore} - Inventory Adjustments`;
+      const title = `${fullStore} - Inventory Adjustments (Last 6 Months)`;
       const now = new Date();
       const ranDate = `${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")}/${String(now.getFullYear()).slice(2)}`;
       const ranTime = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
@@ -354,8 +370,8 @@ export default function FilteredInventoryReportPage() {
         doc.text(footerLeft, 36, pageHeight - 24);
       };
 
-      // Section 1 — full chronological log (newest first)
-      const sorted = [...adjustments].sort((a, b) => b.createdAt - a.createdAt);
+      // Section 1 — chronological log over the stats window (newest first)
+      const sorted = [...adjustmentsForStats].sort((a, b) => b.createdAt - a.createdAt);
       const logBody = sorted.map((a) => [
         new Date(a.createdAt).toLocaleString(undefined, { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
         a.itemId,
@@ -476,7 +492,7 @@ export default function FilteredInventoryReportPage() {
     } finally {
       setAdjGenerating(false);
     }
-  }, [location, adjustments, adjStats]);
+  }, [location, adjustmentsForStats, adjStats]);
 
   const handleGenerate = useCallback(async () => {
     if (filteredRows.length === 0) return;
@@ -913,6 +929,7 @@ export default function FilteredInventoryReportPage() {
                     </select>
                     <span className={`text-xs ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                       {filteredAdjustments.length} of {adjustments?.length ?? 0}
+                      {adjustments && adjustments.length >= 50 ? " (last 50)" : ""}
                     </span>
                     <button
                       onClick={handleGenerateAdjustmentsPDF}

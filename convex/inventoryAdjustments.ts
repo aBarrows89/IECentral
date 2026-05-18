@@ -37,13 +37,42 @@ export const remove = mutation({
   },
 });
 
+// Display query for the adjustments log — capped to avoid Convex's
+// per-query row/bandwidth limits as a location's history grows
+// unbounded. Default cap is 50 most-recent entries.
 export const listByLocation = query({
-  args: { locationCode: v.string() },
+  args: {
+    locationCode: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const code = args.locationCode.trim().toUpperCase();
+    const q = ctx.db
+      .query("inventoryAdjustments")
+      .withIndex("by_location_created", (q) => q.eq("locationCode", code))
+      .order("desc");
+    if (args.limit !== undefined) {
+      return await q.take(args.limit);
+    }
+    return await q.collect();
+  },
+});
+
+// Stats query — bounded by date instead of count so MoM/repeat/
+// consecutive-month aggregations stay accurate. Pass a recent
+// timestamp (e.g. ~6 months ago) for safe bandwidth.
+export const listByLocationSince = query({
+  args: {
+    locationCode: v.string(),
+    since: v.number(),
+  },
   handler: async (ctx, args) => {
     const code = args.locationCode.trim().toUpperCase();
     return await ctx.db
       .query("inventoryAdjustments")
-      .withIndex("by_location_created", (q) => q.eq("locationCode", code))
+      .withIndex("by_location_created", (q) =>
+        q.eq("locationCode", code).gte("createdAt", args.since)
+      )
       .order("desc")
       .collect();
   },
