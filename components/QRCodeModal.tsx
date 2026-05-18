@@ -27,7 +27,8 @@ export default function QRCodeModal({
   if (!isOpen) return null;
 
   // Build the URL for the safety check page
-  const safetyCheckUrl = `https://www.devbase64.com/safety-check/${equipmentId}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.iecentral.com";
+  const safetyCheckUrl = `${appUrl}/safety-check/${equipmentId}`;
 
   const handlePrint = () => {
     const printContent = printRef.current;
