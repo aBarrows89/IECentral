@@ -23,7 +23,7 @@ const statusColors: Record<string, string> = {
 };
 
 const TABS = [
-  { id: "overview", label: "Overview" },
+  { id: "overview", label: "Profile" },
   { id: "writeups", label: "Write-Ups" },
   { id: "attendance", label: "Attendance" },
   { id: "merits", label: "Merits" },
@@ -905,6 +905,70 @@ function PersonnelDetailContent() {
               {STATUS_OPTIONS.find((s) => s.value === personnel.status)?.label || personnel.status}
             </span>
           </div>
+
+          {/* Summary bar — always-visible essentials so users don't have to
+              dig through the Profile tab for tenure, portal status, or to
+              tap a phone/email. */}
+          {(() => {
+            const tenure = calculateTenure(
+              personnel.hireDate,
+              personnel.status === "terminated" ? personnel.terminationDate : undefined
+            );
+            const hireDateLabel = new Date(personnel.hireDate).toLocaleDateString(undefined, {
+              month: "short", day: "numeric", year: "numeric",
+            });
+            return (
+              <div className={`mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                <div className="flex items-center gap-2">
+                  <svg className={`w-4 h-4 ${isDark ? "text-slate-500" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span><span className={isDark ? "text-slate-500" : "text-gray-500"}>Hired</span> {hireDateLabel}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-700"}`}>
+                    {tenure.display}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block w-2 h-2 rounded-full ${portalLogin?.isActive ? "bg-green-500" : portalLogin ? "bg-amber-500" : "bg-gray-400"}`} />
+                  <span>
+                    {portalLogin?.isActive
+                      ? "Portal active"
+                      : portalLogin
+                        ? "Portal disabled"
+                        : "No portal login"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  {personnel.phone && (
+                    <a
+                      href={`tel:${personnel.phone}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700/60 hover:bg-slate-700 text-slate-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                      title={personnel.phone}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      Call
+                    </a>
+                  )}
+                  {personnel.email && (
+                    <a
+                      href={`mailto:${personnel.email}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-slate-700/60 hover:bg-slate-700 text-slate-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                      title={personnel.email}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      Email
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Tabs */}
           <div className="flex gap-2 mt-4">
