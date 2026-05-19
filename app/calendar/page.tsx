@@ -70,7 +70,10 @@ function CalendarContent() {
     meetingLink: "",
     meetingType: "iecentral",
     inviteeIds: [] as Id<"users">[],
+    repeat: "none" as "none" | "daily" | "weekly" | "monthly",
   });
+  // When set, the modal is editing this event instead of creating a new one
+  const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
 
   // Get date range for current view
   const dateRange = useMemo(() => {
@@ -120,6 +123,7 @@ function CalendarContent() {
 
   // Mutations
   const createEvent = useMutation(api.events.create);
+  const createRecurring = useMutation(api.events.createRecurring);
   const updateEvent = useMutation(api.events.update);
   const cancelEvent = useMutation(api.events.cancel);
   const respondToInvite = useMutation(api.events.respondToInvite);
@@ -234,7 +238,25 @@ function CalendarContent() {
     );
   };
 
-  const handleCreateEvent = async () => {
+  const handleStartEdit = (event: any) => {
+    setEditingEventId(event._id);
+    setFormData({
+      title: event.title || "",
+      description: event.description || "",
+      startTime: formatDateForInput(new Date(event.startTime)),
+      endTime: formatDateForInput(new Date(event.endTime)),
+      isAllDay: !!event.isAllDay,
+      location: event.location || "",
+      meetingLink: event.meetingLink || "",
+      meetingType: event.meetingType || "in_person",
+      inviteeIds: (event.invitees || []).map((inv: any) => inv.userId as Id<"users">),
+      repeat: "none", // editing one occurrence, not the series
+    });
+    setShowEventModal(false);
+    setShowCreateModal(true);
+  };
+
+  const handleSubmitEvent = async () => {
     if (!user || !formData.title) return;
 
     setIsCreatingEvent(true);
@@ -242,12 +264,36 @@ function CalendarContent() {
       const startTimestamp = new Date(formData.startTime).getTime();
       const endTimestamp = new Date(formData.endTime).getTime();
 
+      // EDIT MODE — patch the existing event and exit
+      if (editingEventId) {
+        await updateEvent({
+          eventId: editingEventId,
+          title: formData.title,
+          description: formData.description || undefined,
+          startTime: startTimestamp,
+          endTime: endTimestamp,
+          isAllDay: formData.isAllDay,
+          location: formData.location || undefined,
+          meetingLink: formData.meetingLink || undefined,
+          meetingType: formData.meetingType || undefined,
+        });
+        setShowCreateModal(false);
+        resetForm();
+        return;
+      }
+
       let meetingLink = formData.meetingLink || undefined;
       let meetingType = formData.meetingType || undefined;
+      const isRepeating = formData.repeat !== "none";
+      // Default series length: 30 for daily, 12 for weekly/monthly
+      const repeatCount =
+        formData.repeat === "daily" ? 30 :
+        formData.repeat === "weekly" ? 12 :
+        formData.repeat === "monthly" ? 12 : 1;
 
-      // If IECentral Meeting is selected, create a meeting room first
+      // If IECentral Meeting is selected, create a meeting room first.
+      // For recurring series, every occurrence shares one room.
       if (formData.meetingType === "iecentral") {
-        // Create the calendar event first to get the eventId
         const eventId = await createEvent({
           title: formData.title,
           description: formData.description || undefined,
@@ -255,13 +301,12 @@ function CalendarContent() {
           endTime: endTimestamp,
           isAllDay: formData.isAllDay,
           location: formData.location || undefined,
-          meetingLink: undefined, // will patch after meeting creation
+          meetingLink: undefined,
           meetingType: "iecentral",
           inviteeIds: formData.inviteeIds,
           userId: user._id as Id<"users">,
         });
 
-        // Create the IECentral meeting linked to this event
         const meetingId = await createMeeting({
           title: formData.title,
           userId: user._id as Id<"users">,
@@ -271,11 +316,34 @@ function CalendarContent() {
           eventId: eventId,
         });
 
-        // Update the event with the meeting link
-        await updateEvent({
-          eventId: eventId,
-          meetingLink: `/meetings/room/${meetingId}`,
-        });
+        const roomLink = `/meetings/room/${meetingId}`;
+        await updateEvent({ eventId, meetingLink: roomLink });
+
+        // Generate sibling occurrences — shift start/end one period forward
+        // so the series begins AFTER the event we just inserted.
+        if (isRepeating && repeatCount > 1) {
+          const shift = (ms: number) => {
+            const d = new Date(ms);
+            if (formData.repeat === "daily") d.setDate(d.getDate() + 1);
+            else if (formData.repeat === "weekly") d.setDate(d.getDate() + 7);
+            else if (formData.repeat === "monthly") d.setMonth(d.getMonth() + 1);
+            return d.getTime();
+          };
+          await createRecurring({
+            title: formData.title,
+            description: formData.description || undefined,
+            startTime: shift(startTimestamp),
+            endTime: shift(endTimestamp),
+            isAllDay: formData.isAllDay,
+            location: formData.location || undefined,
+            meetingLink: roomLink,
+            meetingType: "iecentral",
+            inviteeIds: formData.inviteeIds,
+            userId: user._id as Id<"users">,
+            recurrence: formData.repeat,
+            count: repeatCount - 1,
+          });
+        }
 
         setShowCreateModal(false);
         resetForm();
@@ -283,23 +351,40 @@ function CalendarContent() {
         return;
       }
 
-      await createEvent({
-        title: formData.title,
-        description: formData.description || undefined,
-        startTime: startTimestamp,
-        endTime: endTimestamp,
-        isAllDay: formData.isAllDay,
-        location: formData.location || undefined,
-        meetingLink,
-        meetingType,
-        inviteeIds: formData.inviteeIds,
-        userId: user._id as Id<"users">,
-      });
+      if (isRepeating) {
+        await createRecurring({
+          title: formData.title,
+          description: formData.description || undefined,
+          startTime: startTimestamp,
+          endTime: endTimestamp,
+          isAllDay: formData.isAllDay,
+          location: formData.location || undefined,
+          meetingLink,
+          meetingType,
+          inviteeIds: formData.inviteeIds,
+          userId: user._id as Id<"users">,
+          recurrence: formData.repeat,
+          count: repeatCount,
+        });
+      } else {
+        await createEvent({
+          title: formData.title,
+          description: formData.description || undefined,
+          startTime: startTimestamp,
+          endTime: endTimestamp,
+          isAllDay: formData.isAllDay,
+          location: formData.location || undefined,
+          meetingLink,
+          meetingType,
+          inviteeIds: formData.inviteeIds,
+          userId: user._id as Id<"users">,
+        });
+      }
 
       setShowCreateModal(false);
       resetForm();
     } catch (err) {
-      console.error("Failed to create event:", err);
+      console.error("Failed to save event:", err);
     } finally {
       setIsCreatingEvent(false);
     }
@@ -354,7 +439,9 @@ function CalendarContent() {
       meetingLink: "",
       meetingType: "iecentral",
       inviteeIds: [],
+      repeat: "none",
     });
+    setEditingEventId(null);
   };
 
   const openEventDetails = async (event: any) => {
@@ -673,7 +760,7 @@ function CalendarContent() {
             <div className={`w-full max-w-lg rounded-xl border max-h-[90vh] overflow-y-auto ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
               <div className={`p-4 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
                 <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
-                  Create Event
+                  {editingEventId ? "Edit Event" : "Create Event"}
                 </h2>
               </div>
 
@@ -735,6 +822,25 @@ function CalendarContent() {
                     ))}
                   </select>
                 </div>
+
+                {/* Repeat — only visible when creating, not when editing one occurrence */}
+                {!editingEventId && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-gray-700"}`}>
+                      Repeat
+                    </label>
+                    <select
+                      value={formData.repeat}
+                      onChange={(e) => setFormData({ ...formData, repeat: e.target.value as typeof formData.repeat })}
+                      className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-600 text-white" : "bg-white border-gray-300 text-gray-900"}`}
+                    >
+                      <option value="none">Doesn&apos;t repeat</option>
+                      <option value="daily">Daily (next 30 days)</option>
+                      <option value="weekly">Weekly (next 12 weeks)</option>
+                      <option value="monthly">Monthly (next 12 months)</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Meeting Link / IECentral Meeting Info / Zoom Auto-Create */}
                 {formData.meetingType === "iecentral" ? (
@@ -885,11 +991,13 @@ function CalendarContent() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleCreateEvent}
+                  onClick={handleSubmitEvent}
                   disabled={!formData.title || isCreatingEvent}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium disabled:opacity-50 ${isDark ? "bg-cyan-500 text-white hover:bg-cyan-600" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                 >
-                  {isCreatingEvent ? "Creating..." : "Create Event"}
+                  {isCreatingEvent
+                    ? (editingEventId ? "Saving..." : "Creating...")
+                    : (editingEventId ? "Save Changes" : "Create Event")}
                 </button>
               </div>
             </div>
@@ -1062,6 +1170,16 @@ function CalendarContent() {
                 {/* Organizer actions */}
                 {selectedEvent.myInviteStatus === "organizer" && (
                   <div className={`pt-4 border-t space-y-2 ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+                    <button
+                      onClick={() => handleStartEdit(selectedEvent)}
+                      className={`w-full px-3 py-2 text-sm font-medium rounded-lg ${
+                        isDark
+                          ? "bg-slate-700 text-white hover:bg-slate-600"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      Edit Event
+                    </button>
                     <button
                       onClick={() => {
                         setSelectedInviteeIds([]);

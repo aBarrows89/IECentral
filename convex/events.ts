@@ -283,6 +283,72 @@ export const create = mutation({
   },
 });
 
+// Create a recurring series: the first occurrence plus N-1 more
+// occurrences spaced by the recurrence kind. Returns all event IDs.
+export const createRecurring = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    startTime: v.number(),
+    endTime: v.number(),
+    isAllDay: v.boolean(),
+    location: v.optional(v.string()),
+    meetingLink: v.optional(v.string()),
+    meetingType: v.optional(v.string()),
+    inviteeIds: v.array(v.id("users")),
+    userId: v.id("users"),
+    recurrence: v.string(), // "daily" | "weekly" | "monthly"
+    count: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+    const now = Date.now();
+    const safeCount = Math.max(1, Math.min(Math.floor(args.count), 60));
+    const rule = `FREQ=${args.recurrence.toUpperCase()}`;
+
+    const shift = (ms: number, n: number) => {
+      const d = new Date(ms);
+      if (args.recurrence === "daily") d.setDate(d.getDate() + n);
+      else if (args.recurrence === "weekly") d.setDate(d.getDate() + n * 7);
+      else if (args.recurrence === "monthly") d.setMonth(d.getMonth() + n);
+      return d.getTime();
+    };
+
+    const ids: string[] = [];
+    for (let n = 0; n < safeCount; n++) {
+      const eventId = await ctx.db.insert("events", {
+        title: args.title,
+        description: args.description,
+        startTime: shift(args.startTime, n),
+        endTime: shift(args.endTime, n),
+        isAllDay: args.isAllDay,
+        location: args.location,
+        meetingLink: args.meetingLink,
+        meetingType: args.meetingType,
+        createdBy: args.userId,
+        createdByName: user.name,
+        isRecurring: true,
+        recurrenceRule: rule,
+        createdAt: now,
+        updatedAt: now,
+      });
+      for (const inviteeId of args.inviteeIds) {
+        await ctx.db.insert("eventInvites", {
+          eventId,
+          userId: inviteeId,
+          status: "pending",
+          isRead: false,
+          notifiedAt: now,
+          createdAt: now,
+        });
+      }
+      ids.push(eventId);
+    }
+    return ids;
+  },
+});
+
 // Update an event
 export const update = mutation({
   args: {
