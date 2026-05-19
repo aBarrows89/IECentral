@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
+import { useTheme } from "@/app/theme-context";
 
 interface SearchResult {
   type: "project" | "personnel" | "application" | "equipment" | "user";
@@ -59,16 +60,24 @@ export const openGlobalSearch = () => {
 
 // Standalone search button component
 export function SearchButton({ className = "" }: { className?: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <button
       onClick={openGlobalSearch}
-      className={`flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 bg-slate-800/50 border border-slate-700 rounded-lg hover:border-slate-600 hover:text-slate-300 transition-colors ${className}`}
+      className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+        isDark
+          ? "text-slate-400 bg-slate-800/50 border-slate-700 hover:border-slate-600 hover:text-slate-300"
+          : "text-gray-600 bg-white border-gray-300 hover:border-gray-400 hover:text-gray-900"
+      } ${className}`}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
       <span className="hidden sm:inline">Search...</span>
-      <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-slate-700 rounded">
+      <kbd className={`hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded ${
+        isDark ? "bg-slate-700 text-slate-300" : "bg-gray-100 text-gray-600"
+      }`}>
         <span className="text-xs">⌘</span>K
       </kbd>
     </button>
@@ -81,6 +90,8 @@ export default function GlobalSearch() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const searchResults = useQuery(
     api.search.globalSearch,
@@ -160,10 +171,12 @@ export default function GlobalSearch() {
 
       {/* Modal */}
       <div className="fixed inset-x-4 top-[15%] sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-xl z-50">
-        <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+        <div className={`rounded-xl shadow-2xl overflow-hidden border ${
+          isDark ? "bg-slate-900 border-slate-700" : "bg-white border-gray-200"
+        }`}>
           {/* Search Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className={`flex items-center gap-3 px-4 py-3 border-b ${isDark ? "border-slate-700" : "border-gray-200"}`}>
+            <svg className={`w-5 h-5 ${isDark ? "text-slate-400" : "text-gray-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -173,19 +186,23 @@ export default function GlobalSearch() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyboardNavigation}
               placeholder="Search projects, personnel, applications..."
-              className="flex-1 bg-transparent text-white placeholder-slate-500 outline-none"
+              className={`flex-1 bg-transparent outline-none ${
+                isDark ? "text-white placeholder-slate-500" : "text-gray-900 placeholder-gray-400"
+              }`}
             />
-            <kbd className="px-1.5 py-0.5 text-xs text-slate-500 bg-slate-800 rounded">ESC</kbd>
+            <kbd className={`px-1.5 py-0.5 text-xs rounded ${
+              isDark ? "text-slate-500 bg-slate-800" : "text-gray-500 bg-gray-100"
+            }`}>ESC</kbd>
           </div>
 
           {/* Results */}
           <div className="max-h-[60vh] overflow-y-auto">
             {query.length < 2 ? (
-              <div className="px-4 py-8 text-center text-slate-500 text-sm">
+              <div className={`px-4 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                 Type at least 2 characters to search
               </div>
             ) : results.length === 0 ? (
-              <div className="px-4 py-8 text-center text-slate-500 text-sm">
+              <div className={`px-4 py-8 text-center text-sm ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                 No results found for &quot;{query}&quot;
               </div>
             ) : (
@@ -193,25 +210,26 @@ export default function GlobalSearch() {
                 {results.map((result, index) => {
                   const colors = typeColors[result.type] || typeColors.project;
                   const icon = typeIcons[result.icon] || typeIcons.folder;
+                  const isSelected = index === selectedIndex;
 
                   return (
                     <button
                       key={`${result.type}-${result.id}`}
                       onClick={() => handleSelect(result)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                        index === selectedIndex
-                          ? "bg-cyan-500/10"
-                          : "hover:bg-slate-800/50"
+                        isSelected
+                          ? isDark ? "bg-cyan-500/10" : "bg-blue-50"
+                          : isDark ? "hover:bg-slate-800/50" : "hover:bg-gray-50"
                       }`}
                     >
                       <div className={`flex-shrink-0 p-2 rounded-lg ${colors.bg} ${colors.text}`}>
                         {icon}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
+                        <div className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`}>
                           {result.title}
                         </div>
-                        <div className="text-xs text-slate-500 truncate">
+                        <div className={`text-xs truncate ${isDark ? "text-slate-500" : "text-gray-500"}`}>
                           {result.subtitle}
                         </div>
                       </div>
@@ -222,7 +240,9 @@ export default function GlobalSearch() {
                   );
                 })}
                 {searchResults && searchResults.totalCount > 20 && (
-                  <div className="px-4 py-2 text-xs text-slate-500 text-center border-t border-slate-800">
+                  <div className={`px-4 py-2 text-xs text-center border-t ${
+                    isDark ? "text-slate-500 border-slate-800" : "text-gray-500 border-gray-100"
+                  }`}>
                     Showing 20 of {searchResults.totalCount} results
                   </div>
                 )}
@@ -231,15 +251,17 @@ export default function GlobalSearch() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-slate-700 text-xs text-slate-500">
+          <div className={`flex items-center justify-between px-4 py-2 border-t text-xs ${
+            isDark ? "border-slate-700 text-slate-500" : "border-gray-200 text-gray-500"
+          }`}>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 bg-slate-800 rounded">↑</kbd>
-                <kbd className="px-1 py-0.5 bg-slate-800 rounded">↓</kbd>
+                <kbd className={`px-1 py-0.5 rounded ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>↑</kbd>
+                <kbd className={`px-1 py-0.5 rounded ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>↓</kbd>
                 to navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 bg-slate-800 rounded">↵</kbd>
+                <kbd className={`px-1 py-0.5 rounded ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>↵</kbd>
                 to select
               </span>
             </div>
