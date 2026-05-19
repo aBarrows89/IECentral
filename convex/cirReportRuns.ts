@@ -32,6 +32,13 @@ export const listSince = query({
   },
 });
 
+export const removeRun = mutation({
+  args: { id: v.id("cirReportRuns") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const listByLocation = query({
   args: { locationCode: v.string(), since: v.optional(v.number()) },
   handler: async (ctx, args) => {
