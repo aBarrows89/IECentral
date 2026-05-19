@@ -887,8 +887,11 @@ export default function ReportUploadPage() {
                                 )}
                               </div>
                             </td>
-                            <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>
-                              {new Date(u.createdAt).toLocaleDateString()}
+                            <td className={`px-4 py-2.5 text-xs whitespace-nowrap ${isDark ? "text-slate-500" : "text-gray-400"}`}>
+                              <div>{new Date(u.createdAt).toLocaleDateString()}</div>
+                              <div className={`text-[10px] ${isDark ? "text-slate-600" : "text-gray-400"}`}>
+                                {new Date(u.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                              </div>
                             </td>
                             <td className={`px-4 py-2.5 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{u.uploadedByName}</td>
                           </tr>

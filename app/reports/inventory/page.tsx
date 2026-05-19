@@ -67,16 +67,30 @@ export default function InventoryReportPage() {
 
   const filtered = useMemo(() => {
     let result = items;
-    if (search) {
-      const q = search.toLowerCase();
+    if (search.trim()) {
+      // Split on whitespace so "Cosmo 265 R25" finds items that match
+      // all three tokens across any searchable field — order/position
+      // doesn't matter and a missing field doesn't break the search.
+      const tokens = search.toLowerCase().split(/\s+/).filter(Boolean);
+      const searchableKeys: (keyof InventoryItem)[] = [
+        "itemId",
+        "mfgItemId",
+        "description",
+        "manufacturerName",
+        "manufacturerCode",
+        "model",
+        "location",
+        "productType",
+        "dclass",
+      ];
       result = result.filter((i) => {
-        if (i.itemId.toLowerCase().includes(q)) return true;
-        if (i.description.toLowerCase().includes(q)) return true;
-        if (i.manufacturerName.toLowerCase().includes(q)) return true;
-        if (i.model.toLowerCase().includes(q)) return true;
-        if (i.mfgItemId.toLowerCase().includes(q)) return true;
-        if (tireSizeMatchesQuery(i.description, search)) return true;
-        return false;
+        // Pre-build the haystack once per row, defensively
+        const haystack = searchableKeys
+          .map((k) => String(i[k] ?? "").toLowerCase())
+          .join(" ");
+        return tokens.every(
+          (t) => haystack.includes(t) || tireSizeMatchesQuery(i.description, t)
+        );
       });
     }
     // Stock filters
@@ -176,7 +190,7 @@ export default function InventoryReportPage() {
               {/* Search + dropdowns */}
               <div className="flex flex-wrap gap-3">
                 <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-                  placeholder="Search item ID, description, brand..."
+                  placeholder="Search item ID, MFG ID, brand, model, description, size, location..."
                   className={`px-3 py-1.5 rounded-lg border text-sm w-full sm:w-64 ${isDark ? "bg-slate-900 border-slate-600 text-white placeholder:text-slate-500" : "bg-white border-gray-300 placeholder:text-gray-400"}`} />
                 {[
                   { val: location, set: setLocation, opts: filters.locations, label: "All Warehouses" },
