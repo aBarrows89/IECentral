@@ -7,7 +7,14 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 
-const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+// Hardcoded to match app/providers.tsx — NEXT_PUBLIC_CONVEX_URL is not
+// set in Vercel, and the public Convex deployment URL isn't sensitive.
+// The previous `process.env.NEXT_PUBLIC_CONVEX_URL!` resolved to
+// undefined at runtime and crashed the page with "No address provided
+// to ConvexReactClient" the moment it tried to mount.
+const convex = new ConvexReactClient(
+  process.env.NEXT_PUBLIC_CONVEX_URL || "https://outstanding-dalmatian-787.convex.cloud"
+);
 
 // Error boundary so a runtime crash inside the safety-check flow shows
 // a readable message on the operator's phone instead of the opaque
