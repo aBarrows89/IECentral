@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Component, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -8,6 +8,53 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+// Error boundary so a runtime crash inside the safety-check flow shows
+// a readable message on the operator's phone instead of the opaque
+// Next.js "Application error: a client-side exception has occurred"
+// page. Includes the stack so we can copy/paste it back into a fix.
+class SafetyCheckErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    // eslint-disable-next-line no-console
+    console.error("[safety-check] runtime crash:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-800 border border-red-500/40 rounded-xl p-6 text-center">
+            <div className="text-red-400 text-5xl mb-3">!</div>
+            <h1 className="text-white text-xl font-bold mb-2">Something went wrong</h1>
+            <p className="text-slate-400 text-sm mb-4">
+              The safety check page hit a runtime error. Please show this to your manager:
+            </p>
+            <pre className="text-left text-xs text-red-300 bg-slate-900 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap break-words">
+              {this.state.error.message}
+              {this.state.error.stack ? "\n\n" + this.state.error.stack.slice(0, 800) : ""}
+            </pre>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type ChecklistItem = {
   id: string;
@@ -262,6 +309,14 @@ function SafetyCheckContent() {
                       </option>
                     ))}
                   </select>
+                  <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/40">
+                    <p className="text-red-300 text-xs leading-relaxed">
+                      <span className="font-bold uppercase tracking-wide">Notice:</span>{" "}
+                      Selecting a name other than your own is a{" "}
+                      <span className="font-semibold">terminable offense</span>. If your
+                      name is not listed, see your manager before proceeding.
+                    </p>
+                  </div>
                 </div>
 
                 {eligiblePersonnel?.length === 0 && (
@@ -587,7 +642,9 @@ function SafetyCheckContent() {
 export default function SafetyCheckPage() {
   return (
     <ConvexProvider client={convex}>
-      <SafetyCheckContent />
+      <SafetyCheckErrorBoundary>
+        <SafetyCheckContent />
+      </SafetyCheckErrorBoundary>
     </ConvexProvider>
   );
 }
