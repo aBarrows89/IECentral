@@ -306,6 +306,9 @@ export const createRecurring = mutation({
     const now = Date.now();
     const safeCount = Math.max(1, Math.min(Math.floor(args.count), 60));
     const rule = `FREQ=${args.recurrence.toUpperCase()}`;
+    // Shared anchor for every event in this series — used by
+    // cancelSeries / updateSeries / "edit all in series" UI.
+    const seriesId = `srs_${now.toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
     const shift = (ms: number, n: number) => {
       const d = new Date(ms);
@@ -330,6 +333,7 @@ export const createRecurring = mutation({
         createdByName: user.name,
         isRecurring: true,
         recurrenceRule: rule,
+        seriesId,
         createdAt: now,
         updatedAt: now,
       });
@@ -345,7 +349,62 @@ export const createRecurring = mutation({
       }
       ids.push(eventId);
     }
-    return ids;
+    return { ids, seriesId };
+  },
+});
+
+// Cancel every occurrence in a series (soft-cancel via isCancelled flag).
+export const cancelSeries = mutation({
+  args: { seriesId: v.string(), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const siblings = await ctx.db
+      .query("events")
+      .withIndex("by_series", (q) => q.eq("seriesId", args.seriesId))
+      .collect();
+    const now = Date.now();
+    for (const e of siblings) {
+      if (!e.isCancelled) {
+        await ctx.db.patch(e._id, {
+          isCancelled: true,
+          cancelledAt: now,
+          cancelledBy: args.userId,
+          updatedAt: now,
+        });
+      }
+    }
+    return siblings.length;
+  },
+});
+
+// Apply field changes to every occurrence in a series. Date/time
+// changes are intentionally NOT propagated — each occurrence keeps
+// its own schedule, so the user can only bulk-edit metadata-style
+// fields (title, description, location, link, meeting type, all-day).
+export const updateSeries = mutation({
+  args: {
+    seriesId: v.string(),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isAllDay: v.optional(v.boolean()),
+    location: v.optional(v.string()),
+    meetingLink: v.optional(v.string()),
+    meetingType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { seriesId, ...rest } = args;
+    const updates = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== undefined)
+    );
+    if (Object.keys(updates).length === 0) return 0;
+    const siblings = await ctx.db
+      .query("events")
+      .withIndex("by_series", (q) => q.eq("seriesId", seriesId))
+      .collect();
+    const now = Date.now();
+    for (const e of siblings) {
+      await ctx.db.patch(e._id, { ...updates, updatedAt: now });
+    }
+    return siblings.length;
   },
 });
 

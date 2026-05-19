@@ -5,7 +5,7 @@ import Protected from "../protected";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import { useTheme } from "../theme-context";
 import { useAuth } from "../auth-context";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
@@ -71,9 +71,12 @@ function CalendarContent() {
     meetingType: "iecentral",
     inviteeIds: [] as Id<"users">[],
     repeat: "none" as "none" | "daily" | "weekly" | "monthly",
+    applyToSeries: false, // when editing a recurring event, also patch siblings
   });
   // When set, the modal is editing this event instead of creating a new one
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
+  // Seriesid of the event being edited, if it belongs to a recurring series
+  const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
 
   // Get date range for current view
   const dateRange = useMemo(() => {
@@ -124,6 +127,9 @@ function CalendarContent() {
   // Mutations
   const createEvent = useMutation(api.events.create);
   const createRecurring = useMutation(api.events.createRecurring);
+  const cancelSeries = useMutation(api.events.cancelSeries);
+  const updateSeries = useMutation(api.events.updateSeries);
+  const attachZoomToEvent = useAction(api.zoomMeetings.attachZoomToEvent);
   const updateEvent = useMutation(api.events.update);
   const cancelEvent = useMutation(api.events.cancel);
   const respondToInvite = useMutation(api.events.respondToInvite);
@@ -240,6 +246,7 @@ function CalendarContent() {
 
   const handleStartEdit = (event: any) => {
     setEditingEventId(event._id);
+    setEditingSeriesId(event.seriesId || null);
     setFormData({
       title: event.title || "",
       description: event.description || "",
@@ -251,6 +258,7 @@ function CalendarContent() {
       meetingType: event.meetingType || "in_person",
       inviteeIds: (event.invitees || []).map((inv: any) => inv.userId as Id<"users">),
       repeat: "none", // editing one occurrence, not the series
+      applyToSeries: false,
     });
     setShowEventModal(false);
     setShowCreateModal(true);
@@ -277,6 +285,20 @@ function CalendarContent() {
           meetingLink: formData.meetingLink || undefined,
           meetingType: formData.meetingType || undefined,
         });
+        // Also propagate metadata fields to every other occurrence in the
+        // series — start/end stay per-occurrence so each instance keeps
+        // its own schedule.
+        if (editingSeriesId && formData.applyToSeries) {
+          await updateSeries({
+            seriesId: editingSeriesId,
+            title: formData.title,
+            description: formData.description || undefined,
+            isAllDay: formData.isAllDay,
+            location: formData.location || undefined,
+            meetingLink: formData.meetingLink || undefined,
+            meetingType: formData.meetingType || undefined,
+          });
+        }
         setShowCreateModal(false);
         resetForm();
         return;
@@ -351,34 +373,52 @@ function CalendarContent() {
         return;
       }
 
+      const wantsZoomAuto = formData.meetingType === "zoom" && !!zoomAccount;
+      let createdEventIds: Id<"events">[] = [];
+
       if (isRepeating) {
-        await createRecurring({
+        const res = (await createRecurring({
           title: formData.title,
           description: formData.description || undefined,
           startTime: startTimestamp,
           endTime: endTimestamp,
           isAllDay: formData.isAllDay,
           location: formData.location || undefined,
-          meetingLink,
+          // When Zoom auto-create runs, every occurrence gets its own link
+          // patched in below, so don't seed them with the manual one.
+          meetingLink: wantsZoomAuto ? undefined : meetingLink,
           meetingType,
           inviteeIds: formData.inviteeIds,
           userId: user._id as Id<"users">,
           recurrence: formData.repeat,
           count: repeatCount,
-        });
+        })) as { ids: Id<"events">[]; seriesId: string } | Id<"events">[];
+        createdEventIds = Array.isArray(res) ? res : res.ids;
       } else {
-        await createEvent({
+        const id = await createEvent({
           title: formData.title,
           description: formData.description || undefined,
           startTime: startTimestamp,
           endTime: endTimestamp,
           isAllDay: formData.isAllDay,
           location: formData.location || undefined,
-          meetingLink,
+          meetingLink: wantsZoomAuto ? undefined : meetingLink,
           meetingType,
           inviteeIds: formData.inviteeIds,
           userId: user._id as Id<"users">,
         });
+        createdEventIds = [id as Id<"events">];
+      }
+
+      // Fire-and-forget: create a unique Zoom meeting per occurrence and
+      // patch its meetingLink. Links populate reactively as each API call
+      // resolves; user isn't blocked from closing the modal.
+      if (wantsZoomAuto && createdEventIds.length > 0) {
+        for (const eventId of createdEventIds) {
+          attachZoomToEvent({ eventId, userId: user._id as Id<"users"> }).catch((err) => {
+            console.error("Zoom attach failed for event", eventId, err);
+          });
+        }
       }
 
       setShowCreateModal(false);
@@ -414,6 +454,18 @@ function CalendarContent() {
     }
   };
 
+  const handleCancelSeries = async (seriesId: string) => {
+    if (!user) return;
+    if (!confirm("Cancel EVERY occurrence in this recurring series? This cannot be undone from the UI.")) return;
+    try {
+      await cancelSeries({ seriesId, userId: user._id as Id<"users"> });
+      setShowEventModal(false);
+      setSelectedEvent(null);
+    } catch (err) {
+      console.error("Failed to cancel series:", err);
+    }
+  };
+
   const handleAddInvitees = async () => {
     if (!selectedEvent || selectedInviteeIds.length === 0) return;
     try {
@@ -440,8 +492,10 @@ function CalendarContent() {
       meetingType: "iecentral",
       inviteeIds: [],
       repeat: "none",
+      applyToSeries: false,
     });
     setEditingEventId(null);
+    setEditingSeriesId(null);
   };
 
   const openEventDetails = async (event: any) => {
@@ -823,6 +877,24 @@ function CalendarContent() {
                   </select>
                 </div>
 
+                {/* Apply-to-series toggle — only when editing a recurring event */}
+                {editingEventId && editingSeriesId && (
+                  <label className={`flex items-start gap-2 p-3 rounded-lg border cursor-pointer ${isDark ? "bg-slate-900/60 border-slate-700" : "bg-gray-50 border-gray-200"}`}>
+                    <input
+                      type="checkbox"
+                      checked={formData.applyToSeries}
+                      onChange={(e) => setFormData({ ...formData, applyToSeries: e.target.checked })}
+                      className="mt-0.5 rounded"
+                    />
+                    <span className={`text-sm ${isDark ? "text-slate-200" : "text-gray-700"}`}>
+                      Apply these changes to every event in this recurring series
+                      <span className={`block text-xs mt-0.5 ${isDark ? "text-slate-500" : "text-gray-500"}`}>
+                        Title, location, link, description &amp; meeting type only. Date and time stay per-occurrence.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
                 {/* Repeat — only visible when creating, not when editing one occurrence */}
                 {!editingEventId && (
                   <div>
@@ -1197,8 +1269,16 @@ function CalendarContent() {
                       onClick={() => handleCancelEvent(selectedEvent._id)}
                       className="w-full px-3 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
                     >
-                      Cancel Event
+                      Cancel This Event
                     </button>
+                    {selectedEvent.seriesId && (
+                      <button
+                        onClick={() => handleCancelSeries(selectedEvent.seriesId)}
+                        className="w-full px-3 py-2 text-sm font-medium rounded-lg bg-red-500/30 text-red-400 hover:bg-red-500/40"
+                      >
+                        Cancel Entire Series
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

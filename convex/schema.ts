@@ -1785,9 +1785,10 @@ export default defineSchema({
     createdByName: v.string(),
     // Link to application (for interview events)
     applicationId: v.optional(v.id("applications")),
-    // Recurrence (optional - for future)
+    // Recurrence
     isRecurring: v.optional(v.boolean()),
     recurrenceRule: v.optional(v.string()), // RRULE format
+    seriesId: v.optional(v.string()),       // groups all occurrences of one series
     // Status
     isCancelled: v.optional(v.boolean()),
     cancelledAt: v.optional(v.number()),
@@ -1798,7 +1799,8 @@ export default defineSchema({
     .index("by_start", ["startTime"])
     .index("by_created_by", ["createdBy"])
     .index("by_created", ["createdAt"])
-    .index("by_application", ["applicationId"]),
+    .index("by_application", ["applicationId"])
+    .index("by_series", ["seriesId"]),
 
   // Event invitations (who's invited and their response)
   eventInvites: defineTable({

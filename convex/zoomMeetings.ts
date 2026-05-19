@@ -131,3 +131,30 @@ export const createZoomMeeting = action({
     };
   },
 });
+
+// Convenience action: create a Zoom meeting tailored to an existing event
+// and patch the event with the resulting join URL + zoom IDs. Used both
+// for single Zoom events and per-occurrence inside a recurring series.
+export const attachZoomToEvent = action({
+  args: {
+    eventId: v.id("events"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args): Promise<{ joinUrl: string; zoomMeetingId: number }> => {
+    const event: any = await ctx.runQuery(api.events.getById, { eventId: args.eventId });
+    if (!event) throw new Error("Event not found");
+    const durationMin = Math.max(15, Math.round((event.endTime - event.startTime) / 60000));
+    const result: any = await ctx.runAction(api.zoomMeetings.createZoomMeeting, {
+      userId: args.userId,
+      topic: event.title || "Meeting",
+      startTime: event.startTime,
+      duration: durationMin,
+    });
+    await ctx.runMutation(api.events.update, {
+      eventId: args.eventId,
+      meetingLink: result.joinUrl,
+      meetingType: "zoom",
+    });
+    return { joinUrl: result.joinUrl, zoomMeetingId: result.zoomMeetingId };
+  },
+});
