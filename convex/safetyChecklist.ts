@@ -74,17 +74,16 @@ export const getEquipmentChecklist = query({
     equipmentId: v.string(), // Will be cast to appropriate ID type
   },
   handler: async (ctx, args) => {
-    // Get the equipment details
-    let equipment;
-    let equipmentIdTyped: Id<"pickers"> | Id<"scanners">;
-
-    if (args.equipmentType === "picker") {
-      equipmentIdTyped = args.equipmentId as Id<"pickers">;
-      equipment = await ctx.db.get(equipmentIdTyped);
-    } else {
-      equipmentIdTyped = args.equipmentId as Id<"scanners">;
-      equipment = await ctx.db.get(equipmentIdTyped);
+    // Get the equipment details — validate the ID with normalizeId so a
+    // malformed URL parameter (e.g. an old QR code that pointed at a
+    // different deployment, or a typo) returns null instead of throwing
+    // and surfacing as a client-side exception.
+    const tableName = args.equipmentType === "picker" ? "pickers" : "scanners";
+    const equipmentIdTyped = ctx.db.normalizeId(tableName, args.equipmentId);
+    if (!equipmentIdTyped) {
+      return null;
     }
+    const equipment = await ctx.db.get(equipmentIdTyped);
 
     if (!equipment) {
       return null;

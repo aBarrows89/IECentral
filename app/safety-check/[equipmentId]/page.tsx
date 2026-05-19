@@ -187,8 +187,9 @@ function SafetyCheckContent() {
     return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
   };
 
-  // Loading state
-  if (!checklistData) {
+  // Loading state — undefined means the Convex query hasn't resolved yet.
+  // null is a successful response that just couldn't find the equipment.
+  if (checklistData === undefined) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="text-white text-center">
@@ -201,8 +202,8 @@ function SafetyCheckContent() {
     );
   }
 
-  // Equipment not found
-  if (!checklistData.equipment) {
+  // Equipment not found (invalid ID or deleted)
+  if (!checklistData || !checklistData.equipment) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
