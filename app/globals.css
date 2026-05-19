@@ -115,6 +115,38 @@
 .light main .text-slate-500 { color: #636366 !important; }
 .light main .text-cyan-400 { color: #007aff !important; }
 
+/* Opacity-modified slate variants — Tailwind compiles bg-slate-800/50
+   to a separate class name, so the exact-match rules above don't catch
+   it. These map every common slate/(0-100) combo to the light palette
+   so pages built dark-only (e.g. applications/[id]) render correctly. */
+.light main [class*="bg-slate-900/"] { background-color: #f2f2f7 !important; }
+.light main [class*="bg-slate-800/"] { background-color: #ffffff !important; }
+.light main [class*="bg-slate-700/"] { background-color: #f2f2f7 !important; }
+.light main [class*="bg-slate-600/"] { background-color: #e5e5ea !important; }
+.light main [class*="bg-slate-500/"] { background-color: rgba(0, 0, 0, 0.05) !important; }
+.light main [class*="border-slate-700/"] { border-color: #d1d1d6 !important; }
+.light main [class*="border-slate-600/"] { border-color: #d1d1d6 !important; }
+.light main [class*="border-slate-500/"] { border-color: rgba(0, 0, 0, 0.10) !important; }
+.light main .bg-slate-600 { background-color: #d1d1d6 !important; }
+.light main .bg-slate-500 { background-color: #aeaeb2 !important; }
+.light main .border-slate-600 { border-color: #d1d1d6 !important; }
+.light main .border-slate-500 { border-color: #aeaeb2 !important; }
+.light main .text-slate-300 { color: #1c1c1e !important; }
+.light main .text-slate-200 { color: #1c1c1e !important; }
+.light main .text-slate-600 { color: #3a3a3c !important; }
+
+/* Sticky page-header bars built with bg-slate-900/80 backdrop-blur:
+   render them as the iOS frosted white bar. */
+.light main header[class*="bg-slate-900/80"],
+.light main header[class*="bg-slate-800/80"] {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  border-color: #d1d1d6 !important;
+}
+.light main header[class*="bg-slate-900/80"] h1,
+.light main header[class*="bg-slate-800/80"] h1 {
+  color: #1c1c1e !important;
+}
+
 /* Base styles */
 html {
   background-color: var(--bg-primary);
